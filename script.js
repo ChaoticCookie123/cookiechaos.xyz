@@ -5,4 +5,5 @@ var yyyy = today.getFullYear();
 
 today = mm + '/' + dd + '/' + yyyy;
 
-document.getElementById("myspan").textContent=today;
+span = document.getElementById("myspan");
+span.appendChild(today);
