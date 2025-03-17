@@ -5,4 +5,4 @@ var yyyy = today.getFullYear();
 
 today = mm + '/' + dd + '/' + yyyy;
 
-window.alert(today);
+document.getElementById("myspan").textContent=today;
