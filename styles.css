@@ -6,3 +6,7 @@ h1 {
   text-align: center;
   margin: 0 auto;
 }
+p {
+  font-size: 2em;
+  font-weight: 500;
+}
