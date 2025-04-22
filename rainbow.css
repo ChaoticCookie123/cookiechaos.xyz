@@ -155,6 +155,6 @@
     color: #e87d7d;
   }
 }
-.rainbow-text {
+.rainbow-text:hover {
   animation: rainbow-text 1s infinite;
 }
