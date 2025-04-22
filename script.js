@@ -1,9 +1,18 @@
-var today = new Date();
-var dd = String(today.getDate()).padStart(2, '0');
-var mm = String(today.getMonth() + 1).padStart(2, '0'); //January is 0!
-var yyyy = today.getFullYear();
 
-today = mm + '/' + dd + '/' + yyyy;
+window.addEventListener("load", function() {
+  var elements = document.getElementsByClassName("rainbowText");
+  for (let i = 0; i < elements.length; i++) {
+    generateRainbowText(elements[i]);
+  }
+});
 
-span = document.getElementById("myspan");
-span.textContent(today);
+function generateRainbowText(element) {
+  var text = element.innerText;
+  element.innerHTML = "";
+  for (let i = 0; i < text.length; i++) {
+    let charElem = document.createElement("span");
+    charElem.style.color = "hsl(" + (360 * i / text.length) + ",80%,50%)";
+    charElem.innerHTML = text[i];
+    element.appendChild(charElem);
+  }
+}
