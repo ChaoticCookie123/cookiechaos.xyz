@@ -153,6 +153,11 @@
   }
   100% {
     color: #e87d7d;
+  }
+}
+.rainbow-text {
+  animation: rainbow-text 1s infinite;
+}
 .overlay{
     opacity:1;
     background-color:#ccc;
@@ -162,10 +167,4 @@
     top:0px;
     left:0px;
     z-index:1000;
-}
-
-  }
-}
-.rainbow-text {
-  animation: rainbow-text 1s infinite;
 }
