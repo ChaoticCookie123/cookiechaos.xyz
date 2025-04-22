@@ -1,6 +1,6 @@
 
 
-@keyframes rainbow-text {
+@keyframes rainbow-text:hover {
   0% {
     color: #e87d7d;
   }
