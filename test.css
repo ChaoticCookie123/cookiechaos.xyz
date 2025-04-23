@@ -1,7 +1,22 @@
-* {
-  background-color: black
-  color: black
+.default,
+.hover {
+  font-size: 18px;
+  font-weight: bold;
+  color: #787878;
 }
-*:hover {
-  color:white
+.hover {
+  overflow: hidden;
+  width: 0;
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #050;
+  transition: width .5s ease-in-out;
+  white-space: nowrap;
+}
+.wrapper {
+  position: relative;
+}
+.wrapper:hover .hover {
+  width: 100%;
 }
