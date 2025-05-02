@@ -6,3 +6,164 @@ h1 {
   text-align: center;
   margin: 0 auto;
 }
+
+
+@keyframes rainbow-text {
+  0% {
+    color: #e87d7d;
+  }
+  2% {
+    color: #e87d8a;
+  }
+  4% {
+    color: #e87d97;
+  }
+  6% {
+    color: #e87da4;
+  }
+  8% {
+    color: #e87db0;
+  }
+  10% {
+    color: #e87dbd;
+  }
+  12% {
+    color: #e87dca;
+  }
+  14% {
+    color: #e87dd7;
+  }
+  16% {
+    color: #e87de4;
+  }
+  18% {
+    color: #df7de8;
+  }
+  20% {
+    color: #d37de8;
+  }
+  22% {
+    color: #c67de8;
+  }
+  24% {
+    color: #b97de8;
+  }
+  26% {
+    color: #ac7de8;
+  }
+  28% {
+    color: #9f7de8;
+  }
+  30% {
+    color: #927de8;
+  }
+  32% {
+    color: #867de8;
+  }
+  34% {
+    color: #7d81e8;
+  }
+  36% {
+    color: #7d8ee8;
+  }
+  38% {
+    color: #7d9be8;
+  }
+  40% {
+    color: #7da8e8;
+  }
+  42% {
+    color: #7db5e8;
+  }
+  44% {
+    color: #7dc1e8;
+  }
+  46% {
+    color: #7dcee8;
+  }
+  48% {
+    color: #7ddbe8;
+  }
+  50% {
+    color: #7de8e8;
+  }
+  52% {
+    color: #7de8db;
+  }
+  54% {
+    color: #7de8ce;
+  }
+  56% {
+    color: #7de8c1;
+  }
+  58% {
+    color: #7de8b5;
+  }
+  60% {
+    color: #7de8a8;
+  }
+  62% {
+    color: #7de89b;
+  }
+  64% {
+    color: #7de88e;
+  }
+  66% {
+    color: #7de881;
+  }
+  68% {
+    color: #86e87d;
+  }
+  70% {
+    color: #92e87d;
+  }
+  72% {
+    color: #9fe87d;
+  }
+  74% {
+    color: #ace87d;
+  }
+  76% {
+    color: #b9e87d;
+  }
+  78% {
+    color: #c6e87d;
+  }
+  80% {
+    color: #d3e87d;
+  }
+  82% {
+    color: #dfe87d;
+  }
+  84% {
+    color: #e8e47d;
+  }
+  86% {
+    color: #e8d77d;
+  }
+  88% {
+    color: #e8ca7d;
+  }
+  90% {
+    color: #e8bd7d;
+  }
+  92% {
+    color: #e8b07d;
+  }
+  94% {
+    color: #e8a47d;
+  }
+  96% {
+    color: #e8977d;
+  }
+  98% {
+    color: #e88a7d;
+  }
+  100% {
+    color: #e87d7d;
+  }
+}
+
+.rainbow-text {
+  animation: rainbow-text 1s infinite;
+}
