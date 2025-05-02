@@ -1,12 +1,3 @@
-* {
-  background-color: black;
-  color: white;
-}
-h1 {
-  text-align: center;
-  margin: 0 auto;
-}
-
 
 @keyframes rainbow-text {
   0% {
@@ -166,4 +157,13 @@ h1 {
 
 .rainbow-text {
   animation: rainbow-text 1s infinite;
+}
+
+* {
+  background-color: black;
+  color: white;
+}
+h1 {
+  text-align: center;
+  margin: 0 auto;
 }
