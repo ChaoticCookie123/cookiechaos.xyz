@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple JS Clash Clone (Target Lock Fixed)</title>
+    <title>Simple JS Clash Clone (Full Combat & Cards)</title>
     
     <style>
-        /* --- CSS Styling (Unchanged) --- */
+        /* --- CSS Styling --- */
         body {
             display: flex;
             justify-content: center;
@@ -188,7 +188,7 @@
                 this.timeSinceLastAttack = 0;
                 this.targetLaneX = targetLaneX;
                 
-                // NEW: Target lock variable
+                // Target lock variable
                 this.targetUnit = null; 
             }
 
@@ -338,7 +338,7 @@
 
             for (const target of potentialTargets) {
                  const distance = calculateDistance(unit, target);
-                 // Only consider targets near the lane
+                 // Only consider targets near the unit's lane
                  if (distance < minDistance && Math.abs(target.x - unit.targetLaneX) < 150) { 
                      minDistance = distance;
                      closestTarget = target;
@@ -394,6 +394,10 @@
             
             let targetLaneX = x < GAME_WIDTH / 2 ? LEFT_LANE_X : RIGHT_LANE_X;
             
+            // Fix applied here: Calculate unit dimensions correctly
+            const unitWidth = card.isTank ? 40 : 30;
+            const unitHeight = card.isTank ? 40 : 30;
+
             if (card.name === "Goblins") {
                 for(let i = 0; i < 3; i++) {
                      const newUnit = new Unit(
@@ -407,8 +411,8 @@
                 }
             } else {
                  const newUnit = new Unit(
-                    x - card.width / 2, 
-                    y - card.height / 2,
+                    x - unitWidth / 2, 
+                    y - unitHeight / 2,
                     card, 
                     true, 
                     targetLaneX 
