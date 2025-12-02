@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Lane Deployment Fixed</title>
+    <title>Clash Clone - King Tower Activation</title>
     
     <style>
         /* --- General Styling --- */
@@ -225,7 +225,6 @@
         const GAME_HEIGHT = canvas.height; 
         const MID_Y = GAME_HEIGHT / 2; // 400
         
-        // **CRITICAL FIX:** Define the center of the battlefield
         const CENTER_LANE_X = GAME_WIDTH / 2; // 400
 
         // Initial Deployment Line is just behind the river.
@@ -264,6 +263,10 @@
         const ELIXIR_REGEN_RATE = 1; 
         const ENEMY_SPAWN_RATE = 5; 
         let selectedCardIndex = null; 
+        
+        // Global status flags for King Tower Activation
+        let playerKingActive = false;
+        let enemyKingActive = false;
 
         // CARD & HAND SYSTEM VARIABLES
         let fullDeck = []; 
@@ -574,6 +577,12 @@
             
             findTargetUnit() {
                 const isEnemy = !this.isPlayerTower; 
+                const isActive = this.isPlayerTower ? playerKingActive : enemyKingActive;
+
+                // King Tower Check: Only attack if active
+                if (this.name.includes("King") && !isActive) {
+                    return null;
+                }
                 
                 let potentialTargets = gameObjects.filter(obj => 
                     obj instanceof Unit && obj.isPlayerUnit === isEnemy
@@ -610,18 +619,27 @@
             }
             
             draw() {
-                ctx.fillStyle = this.color;
+                ctx.save();
+                
+                // Enhanced Fireball animation: Flashing red/yellow circle
+                const flashSpeed = 10;
+                const phase = Math.floor(this.timeRemaining * flashSpeed) % 2;
+                const displayColor = phase === 0 ? this.color : 'yellow';
+                
+                ctx.fillStyle = displayColor;
                 ctx.globalAlpha = this.timeRemaining * 2; // Fade out effect
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.globalAlpha = 1.0;
                 
-                ctx.strokeStyle = 'yellow';
+                ctx.strokeStyle = 'red';
                 ctx.lineWidth = 5;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.stroke();
+                
+                ctx.globalAlpha = 1.0;
+                ctx.restore();
             }
             
             update(deltaTime) {
@@ -717,7 +735,7 @@
         
         function applyFireball(x, y, card) {
             const unitsAndTowers = gameObjects.filter(obj => 
-                (obj instanceof Unit && !obj.isPlayerUnit) || (obj instanceof Tower && !obj.isPlayerTower)
+                (obj instanceof Unit && !obj.isPlayerUnit) || (obj instanceof Tower)
             );
             
             for (const target of unitsAndTowers) {
@@ -728,6 +746,12 @@
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
                 if (distance <= card.spellRadius) {
+                    
+                    // Activate King Tower if hit!
+                    if (target.name.includes("King") && target.isPlayerTower === false && target.health === target.maxHealth) {
+                        enemyKingActive = true;
+                    }
+                    
                     target.health -= card.damage;
                 }
             }
@@ -737,6 +761,30 @@
         }
 
         function attackTower(attacker, tower) {
+            
+            // Activate King Tower if a Princess Tower falls
+            const isPrincessTower = tower.name.includes("Left") || tower.name.includes("Right");
+            
+            if (isPrincessTower && tower.isPlayerTower === false) {
+                 // Player unit destroyed enemy Princess tower, activate enemy King
+                 if (tower.health - attacker.damage <= 0) {
+                     enemyKingActive = true;
+                 }
+            } else if (isPrincessTower && tower.isPlayerTower === true) {
+                 // Enemy unit destroyed player Princess tower, activate player King
+                 if (tower.health - attacker.damage <= 0) {
+                     playerKingActive = true;
+                 }
+            }
+
+
+            // Activate King Tower if directly attacked and undamaged (though typically King Towers aren't targeted first by units)
+            if (tower.name.includes("King") && tower.isPlayerTower === false && tower.health === tower.maxHealth) {
+                enemyKingActive = true;
+            } else if (tower.name.includes("King") && tower.isPlayerTower === true && tower.health === tower.maxHealth) {
+                playerKingActive = true;
+            }
+            
             tower.health -= attacker.damage;
             
             // Update Player King Tower UI
@@ -772,7 +820,7 @@
         // --- Lane-Specific Deployment Line Check ---
         function checkTowerStatusAndUpdateDeployment() {
             const enemyLeftTower = gameObjects.find(obj => obj.name === "Enemy Left");
-            const enemyRightTower = gameObjects.find(obj => obj.name === "Enemy Right");
+            const enemyRightTower = gameObjects.filter(obj => obj.name === "Enemy Right").find(t => t instanceof Tower);
 
             // Check Left Lane
             if (enemyLeftTower && enemyLeftTower.health <= 0) {
@@ -1059,15 +1107,16 @@
             setupDeck();
             
             // Opponent Towers (Top)
-            // Use CENTER_LANE_X
             gameObjects.push(new Tower(LEFT_LANE_X_CENTER - 25, 150, 1000, 'red', "Enemy Left", false, 'left'));
             gameObjects.push(new Tower(RIGHT_LANE_X_CENTER - 25, 150, 1000, 'red', "Enemy Right", false, 'right'));
-            gameObjects.push(new Tower(CENTER_LANE_X - 25, 50, 2000, 'red', "Enemy King", false, 'center'));
+            // Enemy King starts passive (health=2000)
+            gameObjects.push(new Tower(CENTER_LANE_X - 25, 50, 2000, 'red', "Enemy King", false, 'center')); 
             
             // Player Towers (Bottom)
             gameObjects.push(new Tower(LEFT_LANE_X_CENTER - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Left", true, 'left'));
             gameObjects.push(new Tower(RIGHT_LANE_X_CENTER - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Right", true, 'right'));
-            gameObjects.push(new Tower(CENTER_LANE_X - 25, GAME_HEIGHT - 120, 2000, 'blue', "Your King", true, 'center'));
+            // Player King starts passive (health=2000)
+            gameObjects.push(new Tower(CENTER_LANE_X - 25, GAME_HEIGHT - 120, 2000, 'blue', "Your King", true, 'center')); 
             
             createCardButtons();
             canvas.addEventListener('click', handleCanvasClick);
