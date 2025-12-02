@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Full Deployment & Tower Defense</title>
+    <title>Clash Clone - High Fidelity Visuals</title>
     
     <style>
         /* --- General Styling --- */
@@ -186,14 +186,14 @@
         const GAME_HEIGHT = canvas.height; 
         const MID_Y = GAME_HEIGHT / 2; 
         
-        // FIXED: Set deployment line to the middle (full player half)
+        // Deployment line is now the middle (full player half)
         const DEPLOY_LINE_Y = MID_Y; // 400
         
         const LEFT_LANE_X = GAME_WIDTH * 0.25; 
         const RIGHT_LANE_X = GAME_WIDTH * 0.75; 
         const CENTER_LANE_X = GAME_WIDTH * 0.5;
         
-        // NEW TOWER CONSTANTS
+        // TOWER CONSTANTS
         const TOWER_RANGE = 300; 
         const TOWER_DAMAGE = 50;
         const TOWER_ATTACK_COOLDOWN = 1.5;
@@ -237,7 +237,6 @@
         // --- Game Object Classes ---
 
         class Unit {
-            // Unit class remains the same
             constructor(x, y, cardData, isPlayerUnit, targetLaneX) {
                 Object.assign(this, cardData); 
                 this.x = x;
@@ -254,9 +253,66 @@
             }
 
             draw() {
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
                 
+                // Set fill color based on player/enemy
+                const teamColor = this.isPlayerUnit ? '#007bff' : '#ff4500';
+                const teamStroke = this.isPlayerUnit ? '#004a80' : '#b32e00';
+
+                // --- Unit Specific Art ---
+                if (this.name === "Knight") {
+                    // Draw a stylized shield/helmet
+                    ctx.fillStyle = teamColor;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = teamStroke;
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                    // Draw a simple white visor/cross
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(-this.width/4, -this.height/8, this.width/2, this.height/4);
+                } else if (this.name === "Archer") {
+                    // Draw a smaller body with a hat
+                    const bodySize = this.width * 0.7;
+                    ctx.fillStyle = teamColor;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, bodySize / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Hat
+                    ctx.fillStyle = '#4CAF50'; 
+                    ctx.beginPath();
+                    ctx.moveTo(-bodySize/2, -bodySize/2);
+                    ctx.lineTo(bodySize/2, -bodySize/2);
+                    ctx.lineTo(0, -bodySize);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (this.name === "Giant") {
+                    // Large, rounded, tan shape for Giant
+                    ctx.fillStyle = '#a88675';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.width * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = teamStroke;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                } else if (this.name === "Mini P.E.K.K.A.") {
+                    // Dark, angular body
+                    ctx.fillStyle = '#800080';
+                    ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+                    // Blue eye/face plate
+                    ctx.fillStyle = '#00CED1';
+                    ctx.fillRect(-this.width / 4, -this.height / 4, this.width / 2, this.height / 2);
+                } else {
+                    // Default fallback (Goblins) - simple rectangle with team color
+                    ctx.fillStyle = teamColor;
+                    ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+                }
+
+                ctx.restore();
+
+                // --- Health Bar (Always drawn outside the save/restore block for absolute positioning) ---
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = healthRatio > 0.5 ? 'lime' : (healthRatio > 0.2 ? 'yellow' : 'red');
                 ctx.fillRect(this.x, this.y - 10, this.width * healthRatio, 5);
@@ -336,16 +392,34 @@
                 this.width = 50;
                 this.height = 80;
                 
-                // NEW Tower Combat Properties
                 this.targetUnit = null;
                 this.attackCooldown = TOWER_ATTACK_COOLDOWN;
                 this.timeSinceLastAttack = 0;
             }
 
+            // Tower Art (Simulation)
             draw() {
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.save();
                 
+                // Base (Grey Stone)
+                ctx.fillStyle = '#6e7b8b'; 
+                ctx.fillRect(this.x, this.y + this.height * 0.5, this.width, this.height * 0.5);
+                
+                // Main Tower Body (Color based on team)
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x + 5, this.y, this.width - 10, this.height * 0.7);
+                
+                // Crown/Roof
+                ctx.fillStyle = '#ffd700'; // Gold
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + this.width / 2, this.y - 10);
+                ctx.lineTo(this.x + this.width, this.y);
+                ctx.fill();
+
+                ctx.restore();
+                
+                // Health Bar 
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = 'white';
                 ctx.fillRect(this.x, this.y - 15, this.width, 10);
@@ -359,7 +433,6 @@
                 ctx.fillText(this.name, this.x + 5, this.y + this.height + 15);
             }
             
-            // NEW: Tower Update Loop
             update(deltaTime) {
                 if (this.health <= 0) return;
                 
@@ -382,15 +455,13 @@
                             this.timeSinceLastAttack = 0;
                         }
                     } else {
-                        // Target out of range, clear target lock
                         this.targetUnit = null; 
                     }
                 }
             }
             
-            // NEW: Tower Targeting Logic
             findTargetUnit() {
-                const isEnemy = !this.isPlayerTower; // Enemy towers attack player units
+                const isEnemy = !this.isPlayerTower; 
                 
                 let potentialTargets = gameObjects.filter(obj => 
                     obj instanceof Unit && obj.isPlayerUnit === isEnemy
@@ -410,37 +481,36 @@
                 return closestTarget;
             }
             
-            // NEW: Tower Attack Logic
             attackUnit(unit) {
                 unit.health -= TOWER_DAMAGE;
-                drawProjectile(this, unit, this.color); // Visual feedback
+                drawProjectile(this, unit, this.color); 
             }
         }
         
-        // NEW: Projectile Visuals
+        // Projectile Art (Simulating a bolt)
         function drawProjectile(source, target, color) {
             const startX = source.x + source.width / 2;
             const startY = source.y + source.height / 2;
             const endX = target.x + target.width / 2;
             const endY = target.y + target.height / 2;
 
-            // Draw a simple line for the projectile
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
+            // Draw a thin, fast-moving projectile line
+            ctx.strokeStyle = 'yellow';
+            ctx.lineWidth = 4;
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             ctx.lineTo(endX, endY);
             ctx.stroke();
             
-            // Draw an impact flash (simple circle)
-            ctx.fillStyle = 'yellow';
+            // Draw an impact flash 
+            ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.arc(endX, endY, 5, 0, Math.PI * 2);
+            ctx.arc(endX, endY, 4, 0, Math.PI * 2);
             ctx.fill();
         }
 
 
-        // --- Utility Functions ---
+        // --- Utility Functions (Omitted for brevity, assumed unchanged) ---
         
         function calculateDistance(obj1, obj2) {
             const dx = (obj1.x + obj1.width/2) - (obj2.x + obj2.width/2);
@@ -464,8 +534,6 @@
             }
         }
         
-        // --- Core Game Logic ---
-
         function findTarget(unit) {
             let potentialTargets = gameObjects.filter(obj => 
                 obj instanceof Unit && obj.isPlayerUnit !== unit.isPlayerUnit
@@ -490,13 +558,11 @@
                             unit.targetLaneX === RIGHT_LANE_X ? 'right' : 'center')
              );
              
-             // 1. Target Princess Tower first
              let princessTower = laneTowers.find(t => t.lane !== 'center' && t.health > 0);
              if (princessTower) {
                  return princessTower;
              }
              
-             // 2. Fallback to King Tower
              let kingTower = towers.find(t => t.lane === 'center');
              if (kingTower && kingTower.health > 0) {
                  return kingTower;
@@ -544,7 +610,6 @@
             if (selectedCardIndex === null || isGameOver) return;
             
             const card = CARD_DECK[selectedCardIndex];
-            // Check deployment line: Deployment is allowed only if y >= DEPLOY_LINE_Y (the bottom half)
             if (elixir < card.cost || y < DEPLOY_LINE_Y) return; 
 
             elixir -= card.cost;
@@ -597,8 +662,8 @@
             gameObjects.push(newEnemy);
         }
 
-        // --- UI and Update Functions ---
-
+        // --- UI and Update Functions (Omitted for brevity, assumed unchanged) ---
+        
         function updateElixir(deltaTime) {
             elixirTimer += deltaTime;
             if (elixirTimer >= 1) { 
@@ -668,38 +733,52 @@
                 }
             });
         }
-        
+
+        // --- NEW: Detailed Map Art Function ---
         function drawMap() {
-            // Background Field (Grass texture effect)
-            ctx.fillStyle = '#4f7d3a'; 
+            // --- 1. Background Grass (Dark, Gritty Green) ---
+            ctx.fillStyle = '#3a6639'; // Primary battlefield color
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            
+            // --- 2. Stone Paths (Lane simulation) ---
+            const pathColor = '#5c5c5c';
+            const pathWidth = 140;
+            
+            // Left Path
+            ctx.fillStyle = pathColor; 
+            ctx.fillRect(LEFT_LANE_X - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
+            // Right Path
+            ctx.fillRect(RIGHT_LANE_X - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
 
-            // Water (Deep blue)
-            ctx.fillStyle = '#1c4558'; 
-            ctx.fillRect(0, MID_Y - 20, GAME_WIDTH, 40);
+            // --- 3. River (Middle section) ---
+            ctx.fillStyle = '#2d5b7a'; // Deep water blue
+            ctx.fillRect(0, MID_Y - 30, GAME_WIDTH, 60);
 
-            // Stone Path (Center line)
-            ctx.fillStyle = '#6a6a6a'; 
-            ctx.fillRect(LEFT_LANE_X - 60, 0, 120, GAME_HEIGHT);
-            ctx.fillRect(RIGHT_LANE_X - 60, 0, 120, GAME_HEIGHT);
-
-            // Bridges (Wood color, on top of water/path)
-            ctx.fillStyle = '#a97e4b'; 
-            const bridgeHeight = 40;
-            const bridgeWidth = 100;
+            // --- 4. Bridges (Over river) ---
+            ctx.fillStyle = '#8f6844'; // Wood color
+            const bridgeHeight = 50;
+            const bridgeWidth = 120;
             ctx.fillRect(LEFT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
             ctx.fillRect(RIGHT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
 
-            // Deployment Zone (Player's side) - Now the whole bottom half
-            ctx.fillStyle = 'rgba(0, 0, 150, 0.15)'; 
+            // --- 5. Deployment Zone (Player's side - lower half) ---
+            ctx.fillStyle = 'rgba(0, 0, 150, 0.1)'; // Very subtle blue overlay
             ctx.fillRect(0, DEPLOY_LINE_Y, GAME_WIDTH, GAME_HEIGHT - DEPLOY_LINE_Y);
             
-            // Deployment Line (White stone)
+            // --- 6. Deployment Line (Visual Separator - top of river) ---
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.moveTo(0, DEPLOY_LINE_Y);
             ctx.lineTo(GAME_WIDTH, DEPLOY_LINE_Y);
+            ctx.stroke();
+
+            // --- 7. Detail: Center Line (Simulate texture break) ---
+            ctx.strokeStyle = '#3a3a3a'; 
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(GAME_WIDTH/2, 0);
+            ctx.lineTo(GAME_WIDTH/2, GAME_HEIGHT);
             ctx.stroke();
         }
 
@@ -734,7 +813,7 @@
             updateElixir(deltaTime);
             updateEnemySpawn(deltaTime); 
             
-            // Tower Update Loop (must happen before Unit update)
+            // Tower Update Loop 
             for (const obj of gameObjects) {
                 if (obj instanceof Tower) {
                     obj.update(deltaTime);
