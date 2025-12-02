@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Deploy on Destruction (FIXED)</title>
+    <title>Clash Clone - Spells Visuals & Deployment Fix</title>
     
     <style>
         /* --- General Styling --- */
@@ -225,8 +225,8 @@
         const GAME_HEIGHT = canvas.height; 
         const MID_Y = GAME_HEIGHT / 2; // 400
         
-        // **FIXED:** Initial Deployment Line (Top of Player's side - well behind the bridge)
-        const INITIAL_DEPLOY_Y = 650; 
+        // **ADJUSTED:** Initial Deployment Line (Behind player's Princess Towers)
+        const INITIAL_DEPLOY_Y = 600; 
         
         // Dynamic Deployment Line (This will be updated)
         let currentDeployY = INITIAL_DEPLOY_Y;
@@ -492,6 +492,17 @@
             draw() {
                 ctx.save();
                 
+                if (this.health <= 0) {
+                     // Draw rubble or simply nothing if destroyed
+                     ctx.fillStyle = '#444444'; 
+                     ctx.fillRect(this.x + 10, this.y + this.height - 10, this.width - 20, 10); 
+                     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                     ctx.fillRect(this.x, this.y, this.width, this.height);
+                     ctx.restore();
+                     return;
+                }
+
+
                 ctx.fillStyle = '#6e7b8b'; 
                 ctx.fillRect(this.x, this.y + this.height * 0.5, this.width, this.height * 0.5);
                 
@@ -574,6 +585,40 @@
             }
         }
         
+        // --- NEW: Spell Visual Object ---
+        class SpellEffect {
+            constructor(x, y, radius, color, duration = 0.5) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.timeRemaining = duration;
+                this.isDead = false;
+            }
+            
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = this.timeRemaining * 2; // Fade out effect
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+                
+                ctx.strokeStyle = 'yellow';
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            update(deltaTime) {
+                this.timeRemaining -= deltaTime;
+                if (this.timeRemaining <= 0) {
+                    this.isDead = true;
+                }
+            }
+        }
+
         // --- Utility Functions ---
         
         function calculateDistance(obj1, obj2) {
@@ -670,7 +715,8 @@
                 }
             }
             
-            drawSpellEffect(x, y, card.spellRadius, card.color);
+            // Add the visual spell effect object to the game loop
+            gameObjects.push(new SpellEffect(x, y, card.spellRadius, card.color));
         }
 
         function attackTower(attacker, tower) {
@@ -706,7 +752,7 @@
             modal.style.display = 'flex';
         }
         
-        // --- FIXED: Dynamic Deployment Line Check ---
+        // --- Deployment Line Check ---
         function checkTowerStatusAndUpdateDeployment() {
             const enemyPrincessTowers = gameObjects.filter(obj => 
                 obj instanceof Tower && !obj.isPlayerTower && (obj.lane === 'left' || obj.lane === 'right')
@@ -733,9 +779,10 @@
             if (elixir < card.cost) return; 
             
             if (!card.isSpell) {
-                // **CORRECTED CHECK:** Must be deployed at or below the current deployment line
+                // UNIT CHECK: Must be deployed at or below the current deployment line
                 if (y < currentDeployY) return; 
             } 
+            // SPELL CHECK: Spells can be cast anywhere, so they bypass the Y-check.
 
             elixir -= card.cost;
             
@@ -897,7 +944,6 @@
             ctx.fillRect(RIGHT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
 
             // 5. Deployment Zone (Player's side - lower half)
-            // Draw deployment zone dynamically based on currentDeployY
             ctx.fillStyle = 'rgba(0, 0, 150, 0.1)'; 
             // The box starts at the deployment line and goes down to the bottom
             ctx.fillRect(0, currentDeployY, GAME_WIDTH, GAME_HEIGHT - currentDeployY);
@@ -936,21 +982,6 @@
             ctx.beginPath();
             ctx.arc(endX, endY, 4, 0, Math.PI * 2);
             ctx.fill();
-        }
-        
-        function drawSpellEffect(x, y, radius, color) {
-            ctx.fillStyle = color;
-            ctx.globalAlpha = 0.5;
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
-            
-            ctx.strokeStyle = 'yellow';
-            ctx.lineWidth = 5;
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.stroke();
         }
         
         function shuffleArray(array) {
@@ -999,7 +1030,7 @@
             const deltaTime = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
-            // NEW: Check and update the valid deployment zone
+            // Check and update the valid deployment zone
             checkTowerStatusAndUpdateDeployment();
 
             drawMap(); 
@@ -1007,22 +1038,29 @@
             updateElixir(deltaTime);
             updateEnemySpawn(deltaTime); 
             
-            for (const obj of gameObjects) {
-                if (obj instanceof Tower) {
-                    obj.update(deltaTime);
-                }
+            // Filter gameObjects: process Units/Towers first, then SpellEffects
+            const unitsAndTowers = gameObjects.filter(obj => obj instanceof Unit || obj instanceof Tower);
+            const spellEffects = gameObjects.filter(obj => obj instanceof SpellEffect);
+            
+            // Update Towers and Units
+            for (const obj of unitsAndTowers) {
+                obj.update(deltaTime);
+            }
+            
+            // Update Spell Effects
+            for (const obj of spellEffects) {
+                obj.update(deltaTime);
             }
 
+            // Cleanup dead units and expired spell effects
             for (let i = gameObjects.length - 1; i >= 0; i--) {
                 const obj = gameObjects[i];
-                if (obj instanceof Unit) {
-                    obj.update(deltaTime);
-                    if (obj.isDead) {
-                        gameObjects.splice(i, 1);
-                    }
+                if ((obj instanceof Unit && obj.isDead) || (obj instanceof SpellEffect && obj.isDead)) {
+                    gameObjects.splice(i, 1);
                 }
             }
 
+            // Draw all remaining objects
             for (const obj of gameObjects) {
                 obj.draw();
             }
