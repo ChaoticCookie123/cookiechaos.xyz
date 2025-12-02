@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple JS Clash Clone (Full Combat & Cards)</title>
+    <title>Simple JS Clash Clone (Target Lock Fixed)</title>
     
     <style>
-        /* --- CSS Styling --- */
+        /* --- CSS Styling (Unchanged) --- */
         body {
             display: flex;
             justify-content: center;
@@ -62,11 +62,11 @@
 
         #card-deck {
             display: flex;
-            gap: 5px; /* Reduced gap to fit more cards */
+            gap: 5px; 
         }
         
         .deploy-card {
-            padding: 8px 5px; /* Reduced padding */
+            padding: 8px 5px; 
             color: white;
             font-weight: bold;
             border: 3px solid #ffd700;
@@ -75,10 +75,10 @@
             transition: background-color 0.2s, box-shadow 0.1s;
             box-shadow: 0 4px #c43500;
             margin: 5px;
-            min-width: 65px; /* Reduced width */
+            min-width: 65px; 
             text-align: center;
             line-height: 1.1;
-            font-size: 0.85em; /* Reduced font size */
+            font-size: 0.85em; 
         }
         
         .deploy-card:disabled {
@@ -95,11 +95,11 @@
         }
         
         /* Specific Card Styles */
-        #card0 { background-color: #007bff; } /* Knight */
-        #card1 { background-color: #ff4500; } /* Archer */
-        #card2 { background-color: #4CAF50; } /* Goblins */
-        #card3 { background-color: #800080; } /* Mini P.E.K.K.A. */
-        #card4 { background-color: #00CED1; } /* Giant */
+        #card0 { background-color: #007bff; } 
+        #card1 { background-color: #ff4500; } 
+        #card2 { background-color: #4CAF50; } 
+        #card3 { background-color: #800080; } 
+        #card4 { background-color: #00CED1; } 
         
         .selected-card {
             box-shadow: 0 0 15px 5px yellow !important;
@@ -144,14 +144,13 @@
         let elixirTimer = 0;
         let enemySpawnTimer = 0; 
         const ELIXIR_REGEN_RATE = 1; 
-        const ENEMY_SPAWN_RATE = 5; // Spawn a little slower with more complex units
+        const ENEMY_SPAWN_RATE = 5; 
         let selectedCardIndex = null; 
 
         const gameObjects = []; 
 
-        // --- CARD DEFINITION (MODIFIED) ---
+        // --- CARD DEFINITION ---
         class Card {
-            // Added attackRange and isMelee/isTank flags
             constructor(name, cost, color, speed, damage, health, attackRange = 0, isMelee = true, isTank = false) {
                 this.name = name;
                 this.cost = cost;
@@ -159,44 +158,44 @@
                 this.speed = speed;
                 this.damage = damage;
                 this.health = health;
-                this.attackRange = attackRange; // Range in pixels (0 for melee)
+                this.attackRange = attackRange; 
                 this.isMelee = isMelee;
-                this.isTank = isTank; // Used for target priority (e.g., towers target non-tanks first)
+                this.isTank = isTank; 
             }
         }
 
         const CARD_DECK = [
-            new Card("Knight", 3, '#007bff', 70, 80, 400),                                      // Melee, Moderate Stats
-            new Card("Archer", 3, '#ff4500', 80, 40, 150, 150, false),                          // Ranged (150px), Low Health
-            new Card("Goblins", 2, '#4CAF50', 120, 30, 80),                                     // Melee, Fast & Cheap
-            new Card("Mini P.E.K.K.A.", 4, '#800080', 100, 200, 350),                           // Melee, High Damage
-            new Card("Giant", 5, '#00CED1', 50, 60, 800, 0, true, true),                        // Melee, Slow, High Health (Tank)
+            new Card("Knight", 3, '#007bff', 70, 80, 400),                                     
+            new Card("Archer", 3, '#ff4500', 80, 40, 150, 150, false),                          
+            new Card("Goblins", 2, '#4CAF50', 120, 30, 80),                                    
+            new Card("Mini P.E.K.K.A.", 4, '#800080', 100, 200, 350),                           
+            new Card("Giant", 5, '#00CED1', 50, 60, 800, 0, true, true),                       
         ];
 
         // --- Game Object Classes ---
 
         class Unit {
             constructor(x, y, cardData, isPlayerUnit, targetLaneX) {
-                // Initialize unit properties from cardData
-                Object.assign(this, cardData); // This transfers speed, damage, range, etc.
+                Object.assign(this, cardData); 
                 this.x = x;
                 this.y = y;
                 this.maxHealth = this.health;
-                this.width = cardData.isTank ? 40 : 30; // Tanks are bigger
+                this.width = cardData.isTank ? 40 : 30; 
                 this.height = cardData.isTank ? 40 : 30;
                 this.isPlayerUnit = isPlayerUnit;
                 this.isDead = false;
                 this.attackCooldown = 1.0; 
                 this.timeSinceLastAttack = 0;
                 this.targetLaneX = targetLaneX;
+                
+                // NEW: Target lock variable
+                this.targetUnit = null; 
             }
 
             draw() {
-                // Main Body
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
                 
-                // Health Bar
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = healthRatio > 0.5 ? 'lime' : (healthRatio > 0.2 ? 'yellow' : 'red');
                 ctx.fillRect(this.x, this.y - 10, this.width * healthRatio, 5);
@@ -212,24 +211,42 @@
                 
                 this.timeSinceLastAttack += deltaTime;
 
-                let target = findTarget(this);
+                let currentTarget = this.targetUnit;
                 let targetTower = null;
 
-                if (target) {
-                    const distance = calculateDistance(this, target);
+                // 1. Check if the locked target is still alive
+                if (currentTarget && currentTarget.isDead) {
+                    this.targetUnit = null;
+                    currentTarget = null;
+                }
+
+                // 2. If no target is locked, search for a new enemy unit
+                if (currentTarget === null) {
+                    const newTarget = findTarget(this);
+                    if (newTarget) {
+                        this.targetUnit = newTarget; // Lock onto the new target
+                        currentTarget = newTarget;
+                    }
+                }
+
+                // --- Combat/Movement Logic ---
+
+                if (currentTarget) {
+                    const distance = calculateDistance(this, currentTarget);
                     
-                    if (distance <= this.attackRange + (this.isMelee ? 10 : 0)) { // Ranged/Melee check
+                    if (distance <= this.attackRange + (this.isMelee ? 10 : 0)) { 
+                        // ATTACKING UNIT
                         if (this.timeSinceLastAttack >= this.attackCooldown) {
-                            attackTarget(this, target);
+                            attackTarget(this, currentTarget);
                             this.timeSinceLastAttack = 0;
                         }
                     } else {
-                        // Move toward the target
-                        moveTowards(this, target.x + target.width / 2, target.y + target.height / 2, deltaTime);
+                        // MOVING TO UNIT
+                        moveTowards(this, currentTarget.x + currentTarget.width / 2, currentTarget.y + currentTarget.height / 2, deltaTime);
                     }
 
                 } else {
-                    // Find lane-specific tower target
+                    // NO UNIT TARGET: Target Tower
                     const towers = gameObjects.filter(obj => 
                         obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit
                     );
@@ -240,13 +257,13 @@
                          const distance = calculateDistance(this, targetTower);
                          
                          if (distance <= this.attackRange + targetTower.height) { 
-                             // Attack the tower
+                             // ATTACKING TOWER
                              if (this.timeSinceLastAttack >= this.attackCooldown) {
                                 attackTower(this, targetTower);
                                 this.timeSinceLastAttack = 0;
                             }
                          } else {
-                             // Move toward the tower's center
+                             // MOVING TO TOWER
                              moveTowards(this, targetTower.x + targetTower.width / 2, targetTower.y + targetTower.height / 2, deltaTime);
                          }
                     }
@@ -261,7 +278,6 @@
         }
 
         function moveTowards(unit, targetXCenter, targetYCenter, deltaTime) {
-            // Target the center of the unit on the target point
             const targetX = targetXCenter - unit.width / 2;
             const targetY = targetYCenter - unit.height / 2;
 
@@ -296,7 +312,6 @@
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
                 
-                // Tower Health Bar
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = 'white';
                 ctx.fillRect(this.x, this.y - 15, this.width, 10);
@@ -305,7 +320,6 @@
                 ctx.strokeStyle = 'black';
                 ctx.strokeRect(this.x, this.y - 15, this.width, 10);
 
-                // Draw Tower Name 
                 ctx.fillStyle = 'white';
                 ctx.font = '10px Arial';
                 ctx.fillText(this.name, this.x + 5, this.y + this.height + 15);
@@ -319,7 +333,6 @@
                 obj instanceof Unit && obj.isPlayerUnit !== unit.isPlayerUnit
             );
             
-            // Prioritize units closest to the current unit
             let closestTarget = null;
             let minDistance = Infinity;
 
@@ -340,14 +353,13 @@
                             unit.targetLaneX === RIGHT_LANE_X ? 'right' : 'center')
              );
              
-             // 1. Try to find an alive Princess Tower first
+             // 1. Target Princess Tower first
              let princessTower = laneTowers.find(t => t.lane !== 'center' && t.health > 0);
-             
              if (princessTower) {
                  return princessTower;
              }
              
-             // 2. If no Princess Tower, target the King Tower (which is in the center lane)
+             // 2. Fallback to King Tower
              let kingTower = towers.find(t => t.lane === 'center');
              if (kingTower && kingTower.health > 0) {
                  return kingTower;
@@ -380,20 +392,13 @@
 
             elixir -= card.cost;
             
-            let targetLaneX;
-            if (x < GAME_WIDTH / 2) {
-                targetLaneX = LEFT_LANE_X;
-            } else {
-                targetLaneX = RIGHT_LANE_X;
-            }
+            let targetLaneX = x < GAME_WIDTH / 2 ? LEFT_LANE_X : RIGHT_LANE_X;
             
-            // Check if multiple goblins need to be spawned
             if (card.name === "Goblins") {
-                // Spawn 3 Goblins
                 for(let i = 0; i < 3; i++) {
                      const newUnit = new Unit(
-                        x - 15 + (i * 10), // slight offset
-                        y - 15 + (i * 10), // slight offset
+                        x - 15 + (i * 10), 
+                        y - 15 + (i * 10), 
                         card, 
                         true, 
                         targetLaneX 
@@ -402,7 +407,7 @@
                 }
             } else {
                  const newUnit = new Unit(
-                    x - card.width / 2, // Center unit based on its size
+                    x - card.width / 2, 
                     y - card.height / 2,
                     card, 
                     true, 
@@ -415,7 +420,6 @@
         }
         
         function spawnEnemyUnit() {
-             // Enemy units are now basic melee troops (Goblins stats)
              const basicEnemyCard = CARD_DECK.find(c => c.name === "Goblins");
              
              const isLeft = Math.random() < 0.5;
@@ -424,7 +428,7 @@
 
             const newEnemy = new Unit(
                 spawnX, 
-                130, // Spawn below princess towers
+                130, 
                 basicEnemyCard, 
                 false, 
                 targetLaneX 
@@ -509,18 +513,15 @@
             ctx.fillStyle = 'rgba(0, 0, 150, 0.1)';
             ctx.fillRect(0, DEPLOY_LINE_Y, GAME_WIDTH, GAME_HEIGHT - DEPLOY_LINE_Y);
             
-            // River
             ctx.fillStyle = '#4c5d88'; 
             ctx.fillRect(0, MID_Y - 20, GAME_WIDTH, 40);
 
-            // Bridges
             ctx.fillStyle = '#a97e4b'; 
             const bridgeHeight = 40;
             const bridgeWidth = 100;
             ctx.fillRect(LEFT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
             ctx.fillRect(RIGHT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
 
-            // Deployment line
             ctx.strokeStyle = 'white';
             ctx.lineWidth = 2;
             ctx.beginPath();
