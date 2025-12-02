@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - King Tower Win (Taller)</title>
+    <title>Clash Clone - Full Deployment & Tower Defense</title>
     
     <style>
         /* --- General Styling --- */
@@ -11,7 +11,6 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            /* Changed min-height to accommodate taller canvas */
             min-height: 110vh; 
             margin: 0;
             background-color: #2c2c2c; 
@@ -184,13 +183,20 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const GAME_WIDTH = canvas.width;
-        const GAME_HEIGHT = canvas.height; // 800
-        const MID_Y = GAME_HEIGHT / 2; // 400
-        // FIXED: Lowered deployment line to 85% height (680px)
-        const DEPLOY_LINE_Y = GAME_HEIGHT * 0.85; // 680
+        const GAME_HEIGHT = canvas.height; 
+        const MID_Y = GAME_HEIGHT / 2; 
+        
+        // FIXED: Set deployment line to the middle (full player half)
+        const DEPLOY_LINE_Y = MID_Y; // 400
+        
         const LEFT_LANE_X = GAME_WIDTH * 0.25; 
         const RIGHT_LANE_X = GAME_WIDTH * 0.75; 
         const CENTER_LANE_X = GAME_WIDTH * 0.5;
+        
+        // NEW TOWER CONSTANTS
+        const TOWER_RANGE = 300; 
+        const TOWER_DAMAGE = 50;
+        const TOWER_ATTACK_COOLDOWN = 1.5;
 
         // --- Game State Variables ---
         let playerHealth = 2000;
@@ -231,6 +237,7 @@
         // --- Game Object Classes ---
 
         class Unit {
+            // Unit class remains the same
             constructor(x, y, cardData, isPlayerUnit, targetLaneX) {
                 Object.assign(this, cardData); 
                 this.x = x;
@@ -328,6 +335,11 @@
                 this.lane = lane; 
                 this.width = 50;
                 this.height = 80;
+                
+                // NEW Tower Combat Properties
+                this.targetUnit = null;
+                this.attackCooldown = TOWER_ATTACK_COOLDOWN;
+                this.timeSinceLastAttack = 0;
             }
 
             draw() {
@@ -346,7 +358,87 @@
                 ctx.font = '10px Arial';
                 ctx.fillText(this.name, this.x + 5, this.y + this.height + 15);
             }
+            
+            // NEW: Tower Update Loop
+            update(deltaTime) {
+                if (this.health <= 0) return;
+                
+                this.timeSinceLastAttack += deltaTime;
+
+                if (this.targetUnit && this.targetUnit.isDead) {
+                    this.targetUnit = null;
+                }
+                
+                if (this.targetUnit === null) {
+                    this.targetUnit = this.findTargetUnit();
+                }
+
+                if (this.targetUnit) {
+                    const distance = calculateDistance(this, this.targetUnit);
+                    
+                    if (distance <= TOWER_RANGE) {
+                        if (this.timeSinceLastAttack >= this.attackCooldown) {
+                            this.attackUnit(this.targetUnit);
+                            this.timeSinceLastAttack = 0;
+                        }
+                    } else {
+                        // Target out of range, clear target lock
+                        this.targetUnit = null; 
+                    }
+                }
+            }
+            
+            // NEW: Tower Targeting Logic
+            findTargetUnit() {
+                const isEnemy = !this.isPlayerTower; // Enemy towers attack player units
+                
+                let potentialTargets = gameObjects.filter(obj => 
+                    obj instanceof Unit && obj.isPlayerUnit === isEnemy
+                );
+                
+                let closestTarget = null;
+                let minDistance = TOWER_RANGE + 1;
+
+                for (const target of potentialTargets) {
+                    const distance = calculateDistance(this, target);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestTarget = target;
+                    }
+                }
+                
+                return closestTarget;
+            }
+            
+            // NEW: Tower Attack Logic
+            attackUnit(unit) {
+                unit.health -= TOWER_DAMAGE;
+                drawProjectile(this, unit, this.color); // Visual feedback
+            }
         }
+        
+        // NEW: Projectile Visuals
+        function drawProjectile(source, target, color) {
+            const startX = source.x + source.width / 2;
+            const startY = source.y + source.height / 2;
+            const endX = target.x + target.width / 2;
+            const endY = target.y + target.height / 2;
+
+            // Draw a simple line for the projectile
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+            
+            // Draw an impact flash (simple circle)
+            ctx.fillStyle = 'yellow';
+            ctx.beginPath();
+            ctx.arc(endX, endY, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
 
         // --- Utility Functions ---
         
@@ -452,8 +544,8 @@
             if (selectedCardIndex === null || isGameOver) return;
             
             const card = CARD_DECK[selectedCardIndex];
-            // Check deployment line: If y is less than the DEPLOY_LINE_Y (higher on screen), deny placement
-            if (elixir < card.cost || y < DEPLOY_LINE_Y) return;
+            // Check deployment line: Deployment is allowed only if y >= DEPLOY_LINE_Y (the bottom half)
+            if (elixir < card.cost || y < DEPLOY_LINE_Y) return; 
 
             elixir -= card.cost;
             
@@ -598,8 +690,8 @@
             ctx.fillRect(LEFT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
             ctx.fillRect(RIGHT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
 
-            // Deployment Zone (Player's side)
-            ctx.fillStyle = 'rgba(0, 0, 150, 0.15)'; // Slightly darker blue overlay
+            // Deployment Zone (Player's side) - Now the whole bottom half
+            ctx.fillStyle = 'rgba(0, 0, 150, 0.15)'; 
             ctx.fillRect(0, DEPLOY_LINE_Y, GAME_WIDTH, GAME_HEIGHT - DEPLOY_LINE_Y);
             
             // Deployment Line (White stone)
@@ -642,6 +734,14 @@
             updateElixir(deltaTime);
             updateEnemySpawn(deltaTime); 
             
+            // Tower Update Loop (must happen before Unit update)
+            for (const obj of gameObjects) {
+                if (obj instanceof Tower) {
+                    obj.update(deltaTime);
+                }
+            }
+
+            // Unit Update Loop
             for (let i = gameObjects.length - 1; i >= 0; i--) {
                 const obj = gameObjects[i];
                 if (obj instanceof Unit) {
@@ -652,6 +752,7 @@
                 }
             }
 
+            // Draw Everything
             for (const obj of gameObjects) {
                 obj.draw();
             }
