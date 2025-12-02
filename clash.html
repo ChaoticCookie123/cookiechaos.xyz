@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Spells Visuals & Deployment Fix</title>
+    <title>Clash Clone - Lane Deployment Fixed</title>
     
     <style>
         /* --- General Styling --- */
@@ -225,15 +225,26 @@
         const GAME_HEIGHT = canvas.height; 
         const MID_Y = GAME_HEIGHT / 2; // 400
         
-        // **ADJUSTED:** Initial Deployment Line (Behind player's Princess Towers)
-        const INITIAL_DEPLOY_Y = 600; 
+        // **ADJUSTED:** Initial Deployment Line is right up to the river (Y=400), so we use 450 to be safe
+        const INITIAL_DEPLOY_Y = MID_Y + 50; // 450 
         
-        // Dynamic Deployment Line (This will be updated)
-        let currentDeployY = INITIAL_DEPLOY_Y;
+        // **NEW:** Separate deployment lines for each lane
+        const DEPLOY_Y_EXPANDED = 50; // Near enemy King Tower
         
-        const LEFT_LANE_X = GAME_WIDTH * 0.25; 
-        const RIGHT_LANE_X = GAME_WIDTH * 0.75; 
-        const CENTER_LANE_X = GAME_WIDTH * 0.5;
+        let deploymentLines = {
+            left: INITIAL_DEPLOY_Y,
+            right: INITIAL_DEPLOY_Y
+        };
+        
+        const LANE_WIDTH = 140;
+        const LEFT_LANE_X_CENTER = GAME_WIDTH * 0.25; // 200
+        const RIGHT_LANE_X_CENTER = GAME_WIDTH * 0.75; // 600
+        
+        // Boundary definitions for click checking
+        const LEFT_LANE_MIN_X = LEFT_LANE_X_CENTER - LANE_WIDTH / 2;
+        const LEFT_LANE_MAX_X = LEFT_LANE_X_CENTER + LANE_WIDTH / 2;
+        const RIGHT_LANE_MIN_X = RIGHT_LANE_X_CENTER - LANE_WIDTH / 2;
+        const RIGHT_LANE_MAX_X = RIGHT_LANE_X_CENTER + LANE_WIDTH / 2;
         
         // TOWER CONSTANTS
         const TOWER_RANGE = 300; 
@@ -493,7 +504,7 @@
                 ctx.save();
                 
                 if (this.health <= 0) {
-                     // Draw rubble or simply nothing if destroyed
+                     // Draw rubble
                      ctx.fillStyle = '#444444'; 
                      ctx.fillRect(this.x + 10, this.y + this.height - 10, this.width - 20, 10); 
                      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -513,7 +524,7 @@
                 ctx.beginPath();
                 ctx.moveTo(this.x, this.y);
                 ctx.lineTo(this.x + this.width / 2, this.y - 10);
-                ctx.lineTo(this.x + this.width, this.y);
+                ctx.lineTo(this.x + this.width, the.y);
                 ctx.fill();
 
                 ctx.restore();
@@ -585,7 +596,6 @@
             }
         }
         
-        // --- NEW: Spell Visual Object ---
         class SpellEffect {
             constructor(x, y, radius, color, duration = 0.5) {
                 this.x = x;
@@ -663,8 +673,8 @@
 
         function findTargetTowerInLane(unit, towers) {
              const laneTowers = towers.filter(t => 
-                 t.lane === (unit.targetLaneX === LEFT_LANE_X ? 'left' : 
-                            unit.targetLaneX === RIGHT_LANE_X ? 'right' : 'center')
+                 t.lane === (unit.targetLaneX === LEFT_LANE_X_CENTER ? 'left' : 
+                            unit.targetLaneX === RIGHT_LANE_X_CENTER ? 'right' : 'center')
              );
              
              let princessTower = laneTowers.find(t => t.lane !== 'center' && t.health > 0);
@@ -752,19 +762,23 @@
             modal.style.display = 'flex';
         }
         
-        // --- Deployment Line Check ---
+        // --- NEW: Lane-Specific Deployment Line Check ---
         function checkTowerStatusAndUpdateDeployment() {
-            const enemyPrincessTowers = gameObjects.filter(obj => 
-                obj instanceof Tower && !obj.isPlayerTower && (obj.lane === 'left' || obj.lane === 'right')
-            );
+            const enemyLeftTower = gameObjects.find(obj => obj.name === "Enemy Left");
+            const enemyRightTower = gameObjects.find(obj => obj.name === "Enemy Right");
 
-            // If ANY enemy Princess Tower is destroyed, advance the deployment line.
-            if (enemyPrincessTowers.some(tower => tower.health <= 0)) {
-                // Deployment extends slightly past the river (MID_Y = 400)
-                currentDeployY = MID_Y - 5; 
+            // Check Left Lane
+            if (enemyLeftTower && enemyLeftTower.health <= 0) {
+                deploymentLines.left = DEPLOY_Y_EXPANDED; // Move deployment up to enemy King
             } else {
-                // Deployment remains behind player's princess towers
-                currentDeployY = INITIAL_DEPLOY_Y; 
+                deploymentLines.left = INITIAL_DEPLOY_Y;
+            }
+            
+            // Check Right Lane
+            if (enemyRightTower && enemyRightTower.health <= 0) {
+                deploymentLines.right = DEPLOY_Y_EXPANDED; // Move deployment up to enemy King
+            } else {
+                deploymentLines.right = INITIAL_DEPLOY_Y;
             }
         }
 
@@ -778,18 +792,35 @@
             
             if (elixir < card.cost) return; 
             
+            // Determine which lane the click is in
+            let targetLane = null;
+            let targetLaneX = 0;
+            let currentDeployY = GAME_HEIGHT;
+
+            if (x >= LEFT_LANE_MIN_X && x <= LEFT_LANE_MAX_X) {
+                targetLane = 'left';
+                targetLaneX = LEFT_LANE_X_CENTER;
+                currentDeployY = deploymentLines.left;
+            } else if (x >= RIGHT_LANE_MIN_X && x <= RIGHT_LANE_MAX_X) {
+                targetLane = 'right';
+                targetLaneX = RIGHT_LANE_X_CENTER;
+                currentDeployY = deploymentLines.right;
+            } else if (!card.isSpell) {
+                 // Prevent unit deployment in the center/sides
+                 return; 
+            }
+
             if (!card.isSpell) {
-                // UNIT CHECK: Must be deployed at or below the current deployment line
+                // UNIT CHECK: Must be deployed at or below the current lane deployment line
                 if (y < currentDeployY) return; 
             } 
-            // SPELL CHECK: Spells can be cast anywhere, so they bypass the Y-check.
+            // SPELL CHECK: Spells can be cast anywhere, so they bypass the Y-check and lane X check.
 
             elixir -= card.cost;
             
             if (card.isSpell) {
                 applyFireball(x, y, card);
             } else {
-                let targetLaneX = x < GAME_WIDTH / 2 ? LEFT_LANE_X : RIGHT_LANE_X;
                 const unitWidth = card.isTank ? 40 : 30;
                 const unitHeight = card.isTank ? 40 : 30;
 
@@ -821,8 +852,8 @@
              const basicEnemyCard = CARD_MAP["Goblins"]; 
              
              const isLeft = Math.random() < 0.5;
-             const spawnX = isLeft ? LEFT_LANE_X : RIGHT_LANE_X;
-             const targetLaneX = isLeft ? LEFT_LANE_X : RIGHT_LANE_X;
+             const spawnX = isLeft ? LEFT_LANE_X_CENTER : RIGHT_LANE_X_CENTER;
+             const targetLaneX = isLeft ? LEFT_LANE_X_CENTER : RIGHT_LANE_X_CENTER;
 
             for(let i = 0; i < basicEnemyCard.unitCount; i++) {
                  const newEnemy = new Unit(
@@ -929,8 +960,8 @@
             const pathWidth = 140;
             
             ctx.fillStyle = pathColor; 
-            ctx.fillRect(LEFT_LANE_X - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
-            ctx.fillRect(RIGHT_LANE_X - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
+            ctx.fillRect(LEFT_LANE_X_CENTER - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
+            ctx.fillRect(RIGHT_LANE_X_CENTER - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
 
             // 3. River 
             ctx.fillStyle = '#2d5b7a'; 
@@ -940,20 +971,31 @@
             ctx.fillStyle = '#8f6844'; 
             const bridgeHeight = 50;
             const bridgeWidth = 120;
-            ctx.fillRect(LEFT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
-            ctx.fillRect(RIGHT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
+            ctx.fillRect(LEFT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
+            ctx.fillRect(RIGHT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
 
-            // 5. Deployment Zone (Player's side - lower half)
+            // 5. Deployment Zone (Player's side)
             ctx.fillStyle = 'rgba(0, 0, 150, 0.1)'; 
-            // The box starts at the deployment line and goes down to the bottom
-            ctx.fillRect(0, currentDeployY, GAME_WIDTH, GAME_HEIGHT - currentDeployY);
             
-            // 6. Deployment Line (Visual Separator)
+            // Left Lane Zone
+            ctx.fillRect(LEFT_LANE_MIN_X, deploymentLines.left, LANE_WIDTH, GAME_HEIGHT - deploymentLines.left);
+            // Right Lane Zone
+            ctx.fillRect(RIGHT_LANE_MIN_X, deploymentLines.right, LANE_WIDTH, GAME_HEIGHT - deploymentLines.right);
+            
+            // 6. Deployment Lines (Visual Separator)
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 3;
+            
+            // Left Line
             ctx.beginPath();
-            ctx.moveTo(0, currentDeployY);
-            ctx.lineTo(GAME_WIDTH, currentDeployY);
+            ctx.moveTo(LEFT_LANE_MIN_X, deploymentLines.left);
+            ctx.lineTo(LEFT_LANE_MAX_X, deploymentLines.left);
+            ctx.stroke();
+            
+            // Right Line
+            ctx.beginPath();
+            ctx.moveTo(RIGHT_LANE_MIN_X, deploymentLines.right);
+            ctx.lineTo(RIGHT_LANE_MAX_X, deploymentLines.right);
             ctx.stroke();
 
             // 7. Detail: Center Line
@@ -1008,13 +1050,13 @@
             
             // Opponent Towers (Top)
             gameObjects.push(new Tower(CENTER_LANE_X - 25, 50, 2000, 'red', "Enemy King", false, 'center'));
-            gameObjects.push(new Tower(LEFT_LANE_X - 25, 150, 1000, 'red', "Enemy Left", false, 'left'));
-            gameObjects.push(new Tower(RIGHT_LANE_X - 25, 150, 1000, 'red', "Enemy Right", false, 'right'));
+            gameObjects.push(new Tower(LEFT_LANE_X_CENTER - 25, 150, 1000, 'red', "Enemy Left", false, 'left'));
+            gameObjects.push(new Tower(RIGHT_LANE_X_CENTER - 25, 150, 1000, 'red', "Enemy Right", false, 'right'));
             
             // Player Towers (Bottom)
             gameObjects.push(new Tower(CENTER_LANE_X - 25, GAME_HEIGHT - 120, 2000, 'blue', "Your King", true, 'center'));
-            gameObjects.push(new Tower(LEFT_LANE_X - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Left", true, 'left'));
-            gameObjects.push(new Tower(RIGHT_LANE_X - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Right", true, 'right'));
+            gameObjects.push(new Tower(LEFT_LANE_X_CENTER - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Left", true, 'left'));
+            gameObjects.push(new Tower(RIGHT_LANE_X_CENTER - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Right", true, 'right'));
             
             createCardButtons();
             canvas.addEventListener('click', handleCanvasClick);
