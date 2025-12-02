@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mini Clash Royale</title>
+<style>
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0b6623;
+    color: white;
+    overflow: hidden;
+    user-select: none;
+  }
+  #game {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    background: linear-gradient(to bottom, #228B22 50%, #006400 50%);
+  }
+  .tower {
+    position: absolute;
+    width: 80px;
+    height: 120px;
+    background: #444;
+    border-radius: 10px;
+    border: 5px solid #888;
+  }
+  .king-tower {
+    width: 100px;
+    height: 160px;
+    background: #333;
+    border: 8px solid gold;
+  }
+  #player-king { bottom: 80px; left: 50%; transform: translateX(-50%); }
+  #enemy-king  { top: 80px;  left: 50%; transform: translateX(-50%); }
+
+  #player-left  { bottom: 140px; left: 120px; }
+  #player-right { bottom: 140px; right: 120px; }
+  #enemy-left   { top: 140px; left: 120px; }
+  #enemy-right  { top: 140px; right: 120px; }
+
+  .hp {
+    position: absolute;
+    top: -30px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-weight: bold;
+  }
+
+  .river {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: #1E90FF;
+    transform: translateY(-50%);
+    opacity: 0.6;
+  }
+
+  .bridge {
+    position: absolute;
+    width: 100%;
+    height: 20px;
+    background: #8B4513;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .bridge.left { left: 0; width: 200px; }
+  .bridge.right { right: 0; width: 200px; }
+
+  #elixir-bar {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    height: 40px;
+    background: #222;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 3px solid #9400D3;
+  }
+  #elixir {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(to right, #9400D3, #FF1493);
+    transition: width 0.3s;
+  }
+
+  #cards {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px;
+  }
+  .card {
+    width: 80px;
+    height: 110px;
+    background: #333;
+    border-radius: 12px;
+    text-align: center;
+    padding-top: 10px;
+    font-size: 12px;
+   : 3s;
+    cursor: pointer;
+    border: 3px solid #555;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+  .card:hover { border-color: yellow; }
+  .card.disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .cost {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    background: #9400D3;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 14px;
+    line-height: 24px;
+  }
+
+  .troop {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    background: #FF6347;
+    border-radius: 50%;
+    border: 3px solid #000;
+    transition: all 0.4s;
+  }
+  .troop.enemy { background: #4169E1; }
+  .troop img { width: 100%; height: 100%; object-fit: contain; }
+
+  #timer {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 32px;
+    font-weight: bold;
+  }
+
+  #next-card {
+    position: absolute;
+    bottom: 80px;
+    right: 50px;
+    width: 60px;
+    height: 80px;
+    background: #222;
+    border: 2px dashed #666;
+    border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div class="river"></div>
+  <div class="bridge left"></div>
+  <div class="bridge right"></div>
+
+  <!-- Towers -->
+  <div id="player-king" class="tower king-tower"><div class="hp">4000</div></div>
+  <div id="player-left" class="tower"><div class="hp">2000</div></div>
+  <div id="player-right" class="tower"><div class="hp">2000</div></div>
+  <div id="enemy-king" class="tower king-tower"><div class="hp">4000</div></div>
+  <div id="enemy-left" class="tower"><div class="hp">2000</div></div>
+  <div id="enemy-right" class="tower"><div class="hp">2000</div></div>
+
+  <div id="timer">3:00</div>
+
+  <div id="elixir-bar"><div id="elixir"></div></div>
+
+  <div id="cards"></div>
+  <div id="next-card">Next</div>
+</div>
+
+<script>
+const TROOPS = [
+  { name: "Knight", cost: 3, hp: 1400, damage: 160, speed: 60, img: "⚔️" },
+  { name: "Archers", cost: 3, hp: 250, damage: 90, speed: 70, img: "🏹" },
+  { name: "Giant", cost: 5, hp: 3300, damage: 210, speed: 40, img: "🗿" },
+  { name: "Fireball", cost: 4, hp: 0, damage: 570, speed: 0, img: "🔥", spell: true },
+  { name: "Mini PEKKA", cost: 4, hp: 1100, damage: 570, speed: 80, img: "🪓" },
+];
+
+let elixir = 10;
+let maxElixir = 10;
+let elixirRegen = setInterval(() => {
+  if (elixir < maxElixir) {
+    elixir = Math.min(elixir + 1, maxElixir);
+    updateElixir();
+  }
+}, 2800);
+
+let hand = [];
+let nextCard = null;
+let troops = [];
+let gameTime = 180; // 3 minutes
+let timer = setInterval(() => {
+  gameTime--;
+  const min = String(Math.floor(gameTime / 60)).padStart(2, '0');
+  const sec = String(gameTime % 60).padStart(2, '0');
+  document.getElementById('timer').textContent = `${min}:${sec}`;
+  if (gameTime <= 0) endGame();
+}, 1000);
+
+function startGame() {
+  refillHand();
+  updateElixir();
+}
+
+function refillHand() {
+  while (hand.length < 4) {
+    const card = TROOPS[Math.floor(Math.random() * TROOPS.length)];
+    hand.push({ ...card });
+  }
+  if (!nextCard) nextCard = TROOPS[Math.floor(Math.random() * TROOPS.length)];
+  renderCards();
+}
+
+function renderCards() {
+  const cardsDiv = document.getElementById('cards');
+  cardsDiv.innerHTML = '';
+  hand.forEach((card, i) => {
+    const el = document.createElement('div');
+    el.className = 'card' + (card.cost > elixir ? ' disabled' : '');
+    el.innerHTML = `
+      <div class="cost">${card.cost}</div>
+      <div style="font-size:40px">${card.img}</div>
+      <div>${card.name}</div>
+    `;
+    el.onclick = card.cost <= elixir && !card.spell ? () => deployTroop(i) : null;
+    if (card.spell) el.onclick = () => alert("Fireball spell not implemented in this mini version!");
+    cardsDiv.appendChild(el);
+  });
+
+  document.getElementById('next-card').textContent = nextCard ? nextCard.img : '?';
+}
+
+function deployTroop(cardIndex) {
+  const card = hand[cardIndex];
+  if (card.cost > elixir) return;
+
+  const troop = {
+    ...card,
+    side: 'player',
+    x: Math.random() * (innerWidth - 100) + 50,
+    y: innerHeight - 200,
+    element: document.createElement('div')
+  };
+
+  troop.element.className = 'troop';
+  troop.element.innerHTML = `<img src="" alt="${card.img}"> ${card.img}`;
+  troop.element.style.left = troop.x + 'px';
+  troop.element.style.top = troop.y + 'px';
+  document.getElementById('game').appendChild(troop.element);
+
+  elixir -= card.cost;
+  updateElixir();
+
+  hand.splice(cardIndex, 1);
+  if (nextCard) {
+    hand.push(nextCard);
+    nextCard = TROOPS[Math.floor(Math.random() * TROOPS.length)];
+  }
+  refillHand();
+
+  troops.push(troop);
+  moveTroop(troop);
+}
+
+function moveTroop(troop) {
+  const interval = setInterval(() => {
+    if (troop.side === 'player') troop.y -= 2;
+    else troop.y += 2;
+
+    troop.element.style.top = troop.y + 'px';
+
+    // Simple targeting: attack nearest enemy tower or troop
+    let target = findTarget(troop);
+    if (target) {
+      if (Math.abs(troop.x - target.x) > 10) {
+        troop.x += troop.x < target.x ? 3 : -3;
+        troop.element.style.left = troop.x + 'px';
+      }
+      // Attack
+      if (Date.now() - (troop.lastAttack || 0) > 1000) {
+        troop.lastAttack = Date.now();
+        if (target.isTower) {
+          target.hp -= troop.damage;
+          updateTowerHP(target.element, target.hp);
+          if (target.hp <= 0) destroyTower(target.element);
+        }
+      }
+    }
+
+    if (troop.y < 0 || troop.y > innerHeight) {
+      clearInterval(interval);
+      troop.element.remove();
+      troops = troops.filter(t => t !== troop);
+    }
+  }, 50);
+}
+
+// Very simple AI
+setInterval(() => {
+  if (Math.random() < 0.3 && elixir >= 3) {
+    const card = TROOPS[Math.floor(Math.random() * 3)];
+    const troop = {
+      ...card,
+      side: 'enemy',
+      x: Math.random() * (innerWidth - 100) + 50,
+      y: 100,
+      element: document.createElement('div')
+    };
+    troop.element.className = 'troop enemy';
+    troop.element.innerHTML = card.img;
+    troop.element.style.left = troop.x + 'px';
+    troop.element.style.top = troop.y + 'px';
+    document.getElementById('game').appendChild(troop.element);
+    troops.push(troop);
+    moveTroop(troop);
+  }
+}, 4000);
+
+function findTarget(troop) {
+  // Prioritize towers
+  const towers = [
+    { element: document.getElementById('enemy-king'), hp: 4000, x: innerWidth/2, y: 100, isTower: true },
+    { element: document.getElementById('enemy-left'), hp: 2000, x: 160, y: 140, isTower: true },
+    { element: document.getElementById('enemy-right'), hp: 2000, x: innerWidth-160, y: 140, isTower: true },
+  ];
+  return towers[0]; // Simplified: always target king tower first
+}
+
+function updateTowerHP(el, hp) {
+  el.querySelector('.hp').textContent = hp;
+}
+
+function destroyTower(el) {
+  el.style.opacity = '0.3';
+  el.querySelector('.hp').textContent = 'DESTROYED';
+}
+
+function updateElixir() {
+  document.getElementById('elixir').style.width = (elixir / maxElixir * 100) + '%';
+}
+
+function endGame() {
+  clearInterval(timer);
+  clearInterval(elixirRegen);
+  alert("Game Over! (This is a demo)");
+}
+
+startGame();
+</script>
+</body>
+</html>
