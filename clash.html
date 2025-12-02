@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Pathing & Damage Feedback</title>
+    <title>Clash Clone - Fixed Pathing</title>
     
     <style>
         /* --- General Styling (Unchanged) --- */
@@ -261,6 +261,7 @@
         
         const CENTER_LANE_X = GAME_WIDTH / 2; 
         const RIVER_HEIGHT = 60;
+        const BRIDGE_HEIGHT = 50; 
         const BRIDGE_CENTER_Y = MID_Y; 
 
         const INITIAL_DEPLOY_Y = MID_Y + 50; 
@@ -284,7 +285,7 @@
         const TOWER_RANGE = 300; 
         const TOWER_DAMAGE = 50;
         const TOWER_ATTACK_COOLDOWN = 1.5;
-        const DAMAGE_FLASH_DURATION = 0.15; // Time the unit flashes white
+        const DAMAGE_FLASH_DURATION = 0.15; 
 
         // --- Game State Variables ---
         let playerHealth = 2000;
@@ -327,7 +328,7 @@
             "Projectile": "🔸" 
         };
         
-        // --- CARD DEFINITION ---
+        // --- CARD DEFINITION (Unchanged) ---
         class Card {
             constructor(name, cost, color, speed, damage, health, attackRange = 0, isMelee = true, isTank = false, targetBuilding = false, isSplash = false, unitCount = 1, isSpell = false, spellRadius = 0, projectileSpeed = 500) {
                 this.name = name;
@@ -385,13 +386,12 @@
                 this.timeSinceLastAttack = 0;
                 this.targetLaneX = targetLaneX;
                 this.targetUnit = null; 
-                this.damageFlashTimer = 0; // NEW: For damage visual feedback
+                this.damageFlashTimer = 0;
             }
 
             draw() {
                 ctx.save();
                 
-                // NEW: Apply damage flash effect
                 if (this.damageFlashTimer > 0) {
                     ctx.filter = 'brightness(200%)';
                 }
@@ -427,7 +427,6 @@
                 
                 this.timeSinceLastAttack += deltaTime;
                 
-                // NEW: Update damage flash timer
                 if (this.damageFlashTimer > 0) {
                     this.damageFlashTimer -= deltaTime;
                 }
@@ -442,7 +441,7 @@
                     currentTarget = null;
                 }
                 
-                // 1. Determine primary target
+                // 1. Determine primary target (Enemy Unit or Building)
                 if (this.targetBuilding) {
                     targetBuilding = findTargetTowerInLane(this, gameObjects.filter(obj => obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit));
                     if (targetBuilding) {
@@ -469,25 +468,47 @@
                         targetXCenter = targetBuilding.x + targetBuilding.width / 2;
                         targetYCenter = targetBuilding.y + targetBuilding.height / 2;
                     } else {
-                        // All towers down, just move to enemy king tower center
                         const kingTower = gameObjects.find(t => t.name === "Enemy King" && !t.isPlayerTower);
                         if (kingTower) {
                             targetXCenter = kingTower.x + kingTower.width / 2;
                             targetYCenter = kingTower.y + kingTower.height / 2;
                         } else {
-                            // Should only happen in an impossible scenario
                             return;
                         }
                     }
                 }
                 
                 let attackTargetObj = currentTarget || targetBuilding;
+                
+                let moveTargetX = targetXCenter;
+                let moveTargetY = targetYCenter;
 
-                // 3. Attack or Move
+                // 3. NEW: BRIDGE PATHING OVERRIDE LOGIC
+                const isNearRiver = this.y > MID_Y - RIVER_HEIGHT / 2 - 50 && this.y < MID_Y + RIVER_HEIGHT / 2 + 50;
+                
+                // If the unit is near the river and not on the bridge path, force it to the bridge center
+                const onBridgeX = this.x >= this.targetLaneX - 60 && this.x <= this.targetLaneX + 30; // Check if unit is roughly centered in the lane
+                const onBridgeY = this.y >= BRIDGE_CENTER_Y - BRIDGE_HEIGHT / 2 - 5 && this.y <= BRIDGE_CENTER_Y + BRIDGE_HEIGHT / 2 + 5; // Check if unit is on the bridge Y-axis
+                
+                if (isNearRiver && !onBridgeX) {
+                     // Set a temporary waypoint to the center of the bridge path
+                     moveTargetX = this.targetLaneX;
+                     // Set a temporary waypoint to the center of the river/bridge Y-axis
+                     if (this.isPlayerUnit) {
+                         // Player units move up to cross
+                         moveTargetY = BRIDGE_CENTER_Y - 20;
+                     } else {
+                         // Enemy units move down to cross
+                         moveTargetY = BRIDGE_CENTER_Y + 20;
+                     }
+                }
+                
+                // 4. Attack or Move
                 if (attackTargetObj) {
                     const distance = calculateDistance(this, attackTargetObj);
                     
                     if (distance <= this.attackRange + (this.isMelee ? 10 : attackTargetObj.height)) { 
+                        // Unit is close enough to attack
                         if (this.timeSinceLastAttack >= this.attackCooldown) {
                             if (attackTargetObj instanceof Unit) {
                                 if (this.isMelee || this.isSplash) {
@@ -509,28 +530,7 @@
                             this.timeSinceLastAttack = 0;
                         }
                     } else {
-                        // NEW: Pathing logic to cross the bridge correctly
-                        let moveTargetX = targetXCenter;
-                        let moveTargetY = targetYCenter;
-
-                        // Check if the unit is near the river (Y-coordinate check)
-                        if (this.y > MID_Y - RIVER_HEIGHT / 2 - 50 && this.y < MID_Y + RIVER_HEIGHT / 2 + 50) {
-                            // If unit is near the river, force pathing towards the center of its designated lane
-                            const targetLaneX = (this.targetLaneX === LEFT_LANE_X_CENTER) ? LEFT_LANE_X_CENTER : RIGHT_LANE_X_CENTER;
-                            
-                            // Adjust X target towards the bridge center
-                            moveTargetX = targetLaneX;
-                            
-                            // Adjust Y target towards the bridge center
-                            if (this.isPlayerUnit) {
-                                // Player units path up
-                                moveTargetY = Math.min(moveTargetY, BRIDGE_CENTER_Y - 5);
-                            } else {
-                                // Enemy units path down
-                                moveTargetY = Math.max(moveTargetY, BRIDGE_CENTER_Y + 5);
-                            }
-                        }
-
+                        // Unit needs to move
                         moveTowards(this, moveTargetX, moveTargetY, deltaTime);
                     }
                 }
@@ -538,6 +538,7 @@
         }
         
         class Tower {
+            // Tower class code remains unchanged, as the update/draw logic was stable
             constructor(x, y, health, color, name, isPlayerTower, lane) {
                 this.x = x;
                 this.y = y;
@@ -553,13 +554,12 @@
                 this.targetUnit = null;
                 this.attackCooldown = TOWER_ATTACK_COOLDOWN;
                 this.timeSinceLastAttack = 0;
-                this.damageFlashTimer = 0; // NEW: For damage visual feedback
+                this.damageFlashTimer = 0;
             }
 
             draw() {
                 ctx.save();
                 
-                // NEW: Apply damage flash effect
                 if (this.health > 0 && this.damageFlashTimer > 0) {
                     ctx.filter = 'brightness(200%) drop-shadow(0 0 10px white)';
                 }
@@ -568,8 +568,7 @@
                 ctx.fillRect(this.x, this.y, this.width, this.height);
 
                 if (this.health <= 0) {
-                     // Draw rubble
-                     ctx.filter = 'none'; // Clear filter for rubble
+                     ctx.filter = 'none'; 
                      ctx.fillStyle = '#444444'; 
                      ctx.fillRect(this.x, this.y + this.height * 0.8, this.width, this.height * 0.2); 
                      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -578,7 +577,6 @@
                      return;
                 }
 
-                // Draw Emoji
                 const emoji = EMOTICON_MAP["Tower"];
                 
                 ctx.font = `${this.width * 0.8}px Arial`;
@@ -588,7 +586,6 @@
                 
                 ctx.restore();
                 
-                // Draw Health Bar
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = 'white';
                 ctx.fillRect(this.x, this.y - 15, this.width, 10);
@@ -607,7 +604,6 @@
                 
                 this.timeSinceLastAttack += deltaTime;
                 
-                // NEW: Update damage flash timer
                 if (this.damageFlashTimer > 0) {
                     this.damageFlashTimer -= deltaTime;
                 }
@@ -624,8 +620,7 @@
                     const distance = calculateDistance(this, this.targetUnit);
                     
                     if (distance <= TOWER_RANGE) {
-                        if (this.timeSinceLastAttack >= this.attackCooldown) {
-                            // Towers always use projectiles
+                        if (this.timeSinceLastAttack >= TOWER_ATTACK_COOLDOWN) {
                             createProjectile(this, this.targetUnit, TOWER_DAMAGE, 600); 
                             this.timeSinceLastAttack = 0;
                         }
@@ -639,7 +634,6 @@
                 const isEnemy = !this.isPlayerTower; 
                 const isActive = this.isPlayerTower ? playerKingActive : enemyKingActive;
 
-                // King Tower Check: Only attack if active
                 if (this.name.includes("King") && !isActive) {
                     return null;
                 }
@@ -664,6 +658,7 @@
         }
         
         class SpellEffect {
+            // SpellEffect class code remains unchanged
             constructor(x, y, radius, color, duration = 0.5) {
                 this.x = x;
                 this.y = y;
@@ -705,6 +700,7 @@
         }
         
         class Projectile {
+            // Projectile class code remains unchanged
             constructor(source, target, damage, speed) {
                 this.x = source.x + source.width / 2;
                 this.y = source.y + source.height / 2;
@@ -746,7 +742,7 @@
                 
                 if (distance < this.radius + 10) { 
                     this.target.health -= this.damage;
-                    this.target.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash target on hit
+                    this.target.damageFlashTimer = DAMAGE_FLASH_DURATION; 
                     this.isDead = true;
                 }
             }
@@ -766,12 +762,13 @@
             return Math.sqrt(dx * dx + dy * dy);
         }
 
+        // UPDATED: Move Towards now takes center points directly
         function moveTowards(unit, targetXCenter, targetYCenter, deltaTime) {
-            const targetX = targetXCenter - unit.width / 2;
-            const targetY = targetYCenter - unit.height / 2;
+            const unitXCenter = unit.x + unit.width / 2;
+            const unitYCenter = unit.y + unit.height / 2;
 
-            const dx = targetX - unit.x;
-            const dy = targetY - unit.y;
+            const dx = targetXCenter - unitXCenter;
+            const dy = targetYCenter - unitYCenter;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance > 5) {
@@ -821,7 +818,7 @@
 
         function attackTarget(attacker, defender) {
             defender.health -= attacker.damage;
-            defender.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash target
+            defender.damageFlashTimer = DAMAGE_FLASH_DURATION; 
         }
         
         function createProjectile(source, target, damage, speed) {
@@ -832,7 +829,7 @@
         function splashAttack(attacker, target) {
             const splashRadius = 50; 
             target.health -= attacker.damage;
-            target.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash primary target
+            target.damageFlashTimer = DAMAGE_FLASH_DURATION; 
             
             const secondaryTargets = gameObjects.filter(obj => 
                 obj instanceof Unit && obj.isPlayerUnit !== attacker.isPlayerUnit && obj !== target && calculateDistance(target, obj) <= splashRadius
@@ -840,7 +837,7 @@
             
             for (const secondaryTarget of secondaryTargets) {
                 secondaryTarget.health -= attacker.damage; 
-                secondaryTarget.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash secondary targets
+                secondaryTarget.damageFlashTimer = DAMAGE_FLASH_DURATION; 
             }
         }
         
@@ -863,7 +860,7 @@
                     }
                     
                     target.health -= card.damage;
-                    target.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash targets
+                    target.damageFlashTimer = DAMAGE_FLASH_DURATION; 
                 }
             }
             
@@ -875,9 +872,8 @@
             
             const towerBeforeHealth = tower.health;
             tower.health -= damage;
-            tower.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash tower
+            tower.damageFlashTimer = DAMAGE_FLASH_DURATION; 
 
-            // Sudden Death Check
             if (isSuddenDeath && towerBeforeHealth > 0 && tower.health <= 0) {
                 if (tower.isPlayerTower) {
                      endGame("DEFEAT", "SUDDEN DEATH");
@@ -886,7 +882,6 @@
                 }
             }
 
-            // King Tower Activation Logic
             if (isPrincessTower && towerBeforeHealth > 0 && tower.health <= 0) {
                  if (tower.isPlayerTower === false) {
                      enemyKingActive = true;
@@ -902,7 +897,6 @@
                 }
             }
             
-            // Check for King Tower victory conditions (Game End)
             if (tower.name.includes("Your King") && tower.health <= 0) {
                  endGame("DEFEAT", "KING DESTROYED");
             }
@@ -911,7 +905,6 @@
                 endGame("VICTORY", "KING DESTROYED");
             }
 
-            // UI Update
             const myKingTower = gameObjects.find(t => t.name === "Your King");
             if (myKingTower) {
                  document.getElementById('playerHealth').textContent = Math.max(0, myKingTower.health); 
@@ -1206,10 +1199,9 @@
 
             // 4. Bridges 
             ctx.fillStyle = '#8f6844'; 
-            const bridgeHeight = 50;
             const bridgeWidth = 120;
-            ctx.fillRect(LEFT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
-            ctx.fillRect(RIGHT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
+            ctx.fillRect(LEFT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - BRIDGE_HEIGHT / 2, bridgeWidth, BRIDGE_HEIGHT);
+            ctx.fillRect(RIGHT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - BRIDGE_HEIGHT / 2, bridgeWidth, BRIDGE_HEIGHT);
 
             // 5. Deployment Zone (Player's side)
             ctx.fillStyle = 'rgba(0, 0, 150, 0.1)'; 
