@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Projectiles & Better AI</title>
+    <title>Clash Clone - Pathing & Damage Feedback</title>
     
     <style>
-        /* --- General Styling --- */
+        /* --- General Styling (Unchanged) --- */
         body {
             display: flex;
             justify-content: center;
@@ -18,7 +18,7 @@
             flex-direction: column;
         }
 
-        /* --- Game Container --- */
+        /* --- Game Container (Unchanged) --- */
         #game-container {
             border: 12px solid #5a3e2a; 
             position: relative;
@@ -32,7 +32,7 @@
             cursor: pointer;
         }
 
-        /* --- Timer Display --- */
+        /* --- Timer Display (Unchanged) --- */
         #timer-display {
             position: absolute;
             top: 10px;
@@ -63,7 +63,7 @@
         }
 
 
-        /* --- UI Overlay --- */
+        /* --- UI Overlay (Unchanged) --- */
         #ui-overlay {
             width: 100%;
             display: flex;
@@ -93,14 +93,14 @@
             text-shadow: none;
         }
 
-        /* --- Card Deck --- */
+        /* --- Card Deck (Unchanged) --- */
         #card-deck {
             display: flex;
             gap: 5px; 
             min-width: 400px; 
         }
         
-        /* Next Card Preview */
+        /* Next Card Preview (Unchanged) */
         #next-card-preview {
             position: absolute;
             left: 50%;
@@ -162,7 +162,7 @@
             transform: scale(1.05);
         }
         
-        /* Elixir cost badge */
+        /* Elixir cost badge (Unchanged) */
         .elixir-cost {
             position: absolute;
             top: -10px;
@@ -177,7 +177,7 @@
             border: 2px solid gold;
         }
 
-        /* --- Game Over Modal --- */
+        /* --- Game Over Modal (Unchanged) --- */
         #gameOverModal {
             display: none; 
             position: absolute;
@@ -225,6 +225,7 @@
 <body>
     
     <h1>⚔️ Strategic Clash Clone</h1>
+    
 
     <div id="game-container">
         <div id="timer-display">3:00</div>
@@ -259,6 +260,8 @@
         const MID_Y = GAME_HEIGHT / 2; 
         
         const CENTER_LANE_X = GAME_WIDTH / 2; 
+        const RIVER_HEIGHT = 60;
+        const BRIDGE_CENTER_Y = MID_Y; 
 
         const INITIAL_DEPLOY_Y = MID_Y + 50; 
         const DEPLOY_Y_EXPANDED = 50; 
@@ -281,6 +284,7 @@
         const TOWER_RANGE = 300; 
         const TOWER_DAMAGE = 50;
         const TOWER_ATTACK_COOLDOWN = 1.5;
+        const DAMAGE_FLASH_DURATION = 0.15; // Time the unit flashes white
 
         // --- Game State Variables ---
         let playerHealth = 2000;
@@ -290,7 +294,7 @@
         let enemySpawnTimer = 0; 
         let isGameOver = false; 
         const ELIXIR_REGEN_RATE = 1; 
-        const ENEMY_SPAWN_RATE = 5; // Base spawn rate
+        const ENEMY_SPAWN_RATE = 5; 
         let selectedCardIndex = null; 
         
         let playerKingActive = false;
@@ -304,10 +308,10 @@
         const gameObjects = []; 
 
         // --- TIME/SUDDEN DEATH VARIABLES ---
-        let gameTime = 180; // 3 minutes total
+        let gameTime = 180; 
         let isOvertime = false;
         let isSuddenDeath = false;
-        const OVERTIME_DURATION = 60; // 1 minute Sudden Death
+        const OVERTIME_DURATION = 60; 
         
         // --- EMOTICON MAPPING ---
         const EMOTICON_MAP = {
@@ -349,15 +353,14 @@
             new Card("Archer", 3, '#ff4500', 80, 40, 150, 150, false, false, false, false, 1, false, 0, 400),                          
             new Card("Goblins", 2, '#4CAF50', 120, 30, 80, 0, true, false, false, false, 3), 
             new Card("Mini P.E.K.K.A.", 4, '#800080', 100, 200, 350),                           
-            new Card("Giant", 5, '#00CED1', 50, 60, 800, 0, true, true, true), // Giant targets buildings                      
+            new Card("Giant", 5, '#00CED1', 50, 60, 800, 0, true, true, true), 
             
             new Card("Skeletons", 1, '#cccccc', 150, 20, 30, 0, true, false, false, false, 4), 
             new Card("Valkyrie", 4, '#ff69b4', 90, 120, 600, 0, true, false, false, true), 
-            new Card("Hog Rider", 4, '#cc5500', 130, 150, 450, 0, true, false, true), // Hog Rider targets buildings
+            new Card("Hog Rider", 4, '#cc5500', 130, 150, 450, 0, true, false, true), 
             new Card("Fireball", 4, '#dc143c', 0, 400, 0, 0, false, false, false, false, 1, true, 100) 
         ];
         
-        // AI Opponent Deck (using the same card definitions)
         const ENEMY_DECK_NAMES = ["Knight", "Archer", "Goblins", "Giant", "Skeletons"];
 
 
@@ -382,10 +385,16 @@
                 this.timeSinceLastAttack = 0;
                 this.targetLaneX = targetLaneX;
                 this.targetUnit = null; 
+                this.damageFlashTimer = 0; // NEW: For damage visual feedback
             }
 
             draw() {
                 ctx.save();
+                
+                // NEW: Apply damage flash effect
+                if (this.damageFlashTimer > 0) {
+                    ctx.filter = 'brightness(200%)';
+                }
                 
                 const emoji = EMOTICON_MAP[this.name] || '👾';
                 const teamColor = this.isPlayerUnit ? '#007bff' : '#ff4500';
@@ -417,92 +426,112 @@
                 }
                 
                 this.timeSinceLastAttack += deltaTime;
+                
+                // NEW: Update damage flash timer
+                if (this.damageFlashTimer > 0) {
+                    this.damageFlashTimer -= deltaTime;
+                }
+                
                 let currentTarget = this.targetUnit;
                 let targetBuilding = null;
-                
+                let targetXCenter = 0;
+                let targetYCenter = 0;
+
                 if (currentTarget && currentTarget.isDead) {
                     this.targetUnit = null;
                     currentTarget = null;
                 }
                 
-                // 1. Target enemy buildings if unit targets buildings
+                // 1. Determine primary target
                 if (this.targetBuilding) {
                     targetBuilding = findTargetTowerInLane(this, gameObjects.filter(obj => obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit));
                     if (targetBuilding) {
                         this.targetUnit = null; 
+                        targetXCenter = targetBuilding.x + targetBuilding.width / 2;
+                        targetYCenter = targetBuilding.y + targetBuilding.height / 2;
                     }
                 }
                 
-                // 2. If no specific unit target and not building-focused, find the closest enemy unit
                 if (currentTarget === null && !this.targetBuilding) {
                     const newTarget = findTarget(this);
                     if (newTarget) {
                         this.targetUnit = newTarget; 
                         currentTarget = newTarget;
+                        targetXCenter = currentTarget.x + currentTarget.width / 2;
+                        targetYCenter = currentTarget.y + currentTarget.height / 2;
                     }
                 }
                 
-                // 3. Movement and Attack Logic (against Units)
-                if (currentTarget) {
-                    const distance = calculateDistance(this, currentTarget);
-                    
-                    if (distance <= this.attackRange + (this.isMelee ? 10 : 0)) { 
-                        if (this.timeSinceLastAttack >= this.attackCooldown) {
-                            if (this.isMelee || this.isSplash) {
-                                // Instant attack for melee/splash
-                                if (this.isSplash) {
-                                    splashAttack(this, currentTarget);
-                                } else {
-                                    attackTarget(this, currentTarget);
-                                }
-                            } else {
-                                // Ranged attack uses a projectile
-                                createProjectile(this, currentTarget, this.damage, this.projectileSpeed);
-                            }
-                            this.timeSinceLastAttack = 0;
-                        }
+                // 2. Determine default movement target (Tower if no unit target found)
+                if (!currentTarget && !targetBuilding) {
+                    targetBuilding = findTargetTowerInLane(this, gameObjects.filter(obj => obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit));
+                    if (targetBuilding) {
+                        targetXCenter = targetBuilding.x + targetBuilding.width / 2;
+                        targetYCenter = targetBuilding.y + targetBuilding.height / 2;
                     } else {
-                        moveTowards(this, currentTarget.x + currentTarget.width / 2, currentTarget.y + currentTarget.height / 2, deltaTime);
-                    }
-                } 
-                // 4. Movement and Attack Logic (against Towers/Buildings)
-                else if (targetBuilding) { 
-                    const distance = calculateDistance(this, targetBuilding);
-                    
-                    if (distance <= this.attackRange + targetBuilding.height) { 
-                        if (this.timeSinceLastAttack >= this.attackCooldown) {
-                            // Building targeters are generally melee/instant
-                            attackTower(this, targetBuilding);
-                            this.timeSinceLastAttack = 0;
+                        // All towers down, just move to enemy king tower center
+                        const kingTower = gameObjects.find(t => t.name === "Enemy King" && !t.isPlayerTower);
+                        if (kingTower) {
+                            targetXCenter = kingTower.x + kingTower.width / 2;
+                            targetYCenter = kingTower.y + kingTower.height / 2;
+                        } else {
+                            // Should only happen in an impossible scenario
+                            return;
                         }
-                    } else {
-                        moveTowards(this, targetBuilding.x + targetBuilding.width / 2, targetBuilding.y + targetBuilding.height / 2, deltaTime);
                     }
                 }
-                // 5. Default pathing to enemy towers (for non-building-targeters with no units nearby)
-                else { 
-                    const towers = gameObjects.filter(obj => 
-                        obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit
-                    );
-                    
-                    let targetTower = findTargetTowerInLane(this, towers);
+                
+                let attackTargetObj = currentTarget || targetBuilding;
 
-                    if (targetTower) {
-                         const distance = calculateDistance(this, targetTower);
-                         
-                         if (distance <= this.attackRange + targetTower.height) { 
-                             if (this.timeSinceLastAttack >= this.attackCooldown) {
-                                 // Non-targeting unit attacking tower
-                                 if (this.isMelee) {
-                                     attackTower(this, targetTower);
-                                 } else {
-                                     createProjectile(this, targetTower, this.damage, this.projectileSpeed);
-                                 }
-                                 this.timeSinceLastAttack = 0;
+                // 3. Attack or Move
+                if (attackTargetObj) {
+                    const distance = calculateDistance(this, attackTargetObj);
+                    
+                    if (distance <= this.attackRange + (this.isMelee ? 10 : attackTargetObj.height)) { 
+                        if (this.timeSinceLastAttack >= this.attackCooldown) {
+                            if (attackTargetObj instanceof Unit) {
+                                if (this.isMelee || this.isSplash) {
+                                    if (this.isSplash) {
+                                        splashAttack(this, attackTargetObj);
+                                    } else {
+                                        attackTarget(this, attackTargetObj);
+                                    }
+                                } else {
+                                    createProjectile(this, attackTargetObj, this.damage, this.projectileSpeed);
+                                }
+                            } else if (attackTargetObj instanceof Tower) {
+                                if (this.isMelee) {
+                                    attackTower(this, attackTargetObj, this.damage);
+                                } else {
+                                    createProjectile(this, attackTargetObj, this.damage, this.projectileSpeed);
+                                }
                             }
-                         } else {
-                             moveTowards(this, targetTower.x + targetTower.width / 2, targetTower.y + targetTower.height / 2, deltaTime);
-                         }
+                            this.timeSinceLastAttack = 0;
+                        }
+                    } else {
+                        // NEW: Pathing logic to cross the bridge correctly
+                        let moveTargetX = targetXCenter;
+                        let moveTargetY = targetYCenter;
+
+                        // Check if the unit is near the river (Y-coordinate check)
+                        if (this.y > MID_Y - RIVER_HEIGHT / 2 - 50 && this.y < MID_Y + RIVER_HEIGHT / 2 + 50) {
+                            // If unit is near the river, force pathing towards the center of its designated lane
+                            const targetLaneX = (this.targetLaneX === LEFT_LANE_X_CENTER) ? LEFT_LANE_X_CENTER : RIGHT_LANE_X_CENTER;
+                            
+                            // Adjust X target towards the bridge center
+                            moveTargetX = targetLaneX;
+                            
+                            // Adjust Y target towards the bridge center
+                            if (this.isPlayerUnit) {
+                                // Player units path up
+                                moveTargetY = Math.min(moveTargetY, BRIDGE_CENTER_Y - 5);
+                            } else {
+                                // Enemy units path down
+                                moveTargetY = Math.max(moveTargetY, BRIDGE_CENTER_Y + 5);
+                            }
+                        }
+
+                        moveTowards(this, moveTargetX, moveTargetY, deltaTime);
                     }
                 }
             }
@@ -524,16 +553,23 @@
                 this.targetUnit = null;
                 this.attackCooldown = TOWER_ATTACK_COOLDOWN;
                 this.timeSinceLastAttack = 0;
+                this.damageFlashTimer = 0; // NEW: For damage visual feedback
             }
 
             draw() {
                 ctx.save();
                 
+                // NEW: Apply damage flash effect
+                if (this.health > 0 && this.damageFlashTimer > 0) {
+                    ctx.filter = 'brightness(200%) drop-shadow(0 0 10px white)';
+                }
+
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
 
                 if (this.health <= 0) {
                      // Draw rubble
+                     ctx.filter = 'none'; // Clear filter for rubble
                      ctx.fillStyle = '#444444'; 
                      ctx.fillRect(this.x, this.y + this.height * 0.8, this.width, this.height * 0.2); 
                      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -570,6 +606,11 @@
                 if (this.health <= 0) return;
                 
                 this.timeSinceLastAttack += deltaTime;
+                
+                // NEW: Update damage flash timer
+                if (this.damageFlashTimer > 0) {
+                    this.damageFlashTimer -= deltaTime;
+                }
 
                 if (this.targetUnit && this.targetUnit.isDead) {
                     this.targetUnit = null;
@@ -672,7 +713,6 @@
                 this.speed = speed;
                 this.isDead = false;
                 
-                // Calculate direction vector
                 const dx = (target.x + target.width / 2) - this.x;
                 const dy = (target.y + target.height / 2) - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -699,15 +739,14 @@
                     return;
                 }
                 
-                // Move projectile
                 this.x += this.dirX * this.speed * deltaTime;
                 this.y += this.dirY * this.speed * deltaTime;
                 
-                // Check collision
                 const distance = calculateDistanceToCenter(this.x, this.y, this.target);
                 
-                if (distance < this.radius + 10) { // Collision buffer
+                if (distance < this.radius + 10) { 
                     this.target.health -= this.damage;
+                    this.target.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash target on hit
                     this.isDead = true;
                 }
             }
@@ -782,6 +821,7 @@
 
         function attackTarget(attacker, defender) {
             defender.health -= attacker.damage;
+            defender.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash target
         }
         
         function createProjectile(source, target, damage, speed) {
@@ -792,6 +832,7 @@
         function splashAttack(attacker, target) {
             const splashRadius = 50; 
             target.health -= attacker.damage;
+            target.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash primary target
             
             const secondaryTargets = gameObjects.filter(obj => 
                 obj instanceof Unit && obj.isPlayerUnit !== attacker.isPlayerUnit && obj !== target && calculateDistance(target, obj) <= splashRadius
@@ -799,6 +840,7 @@
             
             for (const secondaryTarget of secondaryTargets) {
                 secondaryTarget.health -= attacker.damage; 
+                secondaryTarget.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash secondary targets
             }
         }
         
@@ -821,17 +863,19 @@
                     }
                     
                     target.health -= card.damage;
+                    target.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash targets
                 }
             }
             
             gameObjects.push(new SpellEffect(x, y, card.spellRadius, card.color));
         }
 
-        function attackTower(attacker, tower) {
+        function attackTower(attacker, tower, damage) {
             const isPrincessTower = tower.name.includes("Left") || tower.name.includes("Right");
             
             const towerBeforeHealth = tower.health;
-            tower.health -= attacker.damage;
+            tower.health -= damage;
+            tower.damageFlashTimer = DAMAGE_FLASH_DURATION; // NEW: Flash tower
 
             // Sudden Death Check
             if (isSuddenDeath && towerBeforeHealth > 0 && tower.health <= 0) {
@@ -850,7 +894,7 @@
                      playerKingActive = true;
                  }
             }
-            if (tower.name.includes("King") && tower.health === tower.maxHealth && tower.health <= towerBeforeHealth) {
+            if (tower.name.includes("King") && tower.health > 0 && tower.health <= towerBeforeHealth) {
                 if (tower.isPlayerTower === false) {
                     enemyKingActive = true;
                 } else {
@@ -901,7 +945,7 @@
             modal.style.display = 'flex';
         }
         
-        // --- TIME LOGIC ---
+        // --- TIME LOGIC (Unchanged) ---
 
         function formatTime(seconds) {
             const minutes = Math.floor(seconds / 60);
@@ -940,7 +984,7 @@
         }
 
 
-        // --- UI and Gameplay Updates ---
+        // --- UI and Gameplay Updates (Mostly Unchanged) ---
 
         function checkTowerStatusAndUpdateDeployment() {
             const enemyLeftTower = gameObjects.filter(obj => obj.name === "Enemy Left").find(t => t instanceof Tower);
@@ -1022,17 +1066,14 @@
         function spawnEnemyUnit() {
             if (isGameOver) return;
             
-            // 1. Choose a random card from the enemy deck
             const randomCardName = ENEMY_DECK_NAMES[Math.floor(Math.random() * ENEMY_DECK_NAMES.length)];
             const card = CARD_MAP[randomCardName]; 
 
-            // 2. Determine a valid lane to spawn in (prioritize towers that are still up)
             const leftTowerUp = gameObjects.find(t => t.name === "Your Left" && t.health > 0);
             const rightTowerUp = gameObjects.find(t => t.name === "Your Right" && t.health > 0);
 
             let isLeft = Math.random() < 0.5;
 
-            // Simple AI: If one tower is down, force spawn on the side that still has a tower
             if (leftTowerUp && !rightTowerUp) {
                 isLeft = true;
             } else if (!leftTowerUp && rightTowerUp) {
@@ -1161,7 +1202,7 @@
 
             // 3. River 
             ctx.fillStyle = '#2d5b7a'; 
-            ctx.fillRect(0, MID_Y - 30, GAME_WIDTH, 60);
+            ctx.fillRect(0, MID_Y - RIVER_HEIGHT / 2, GAME_WIDTH, RIVER_HEIGHT);
 
             // 4. Bridges 
             ctx.fillStyle = '#8f6844'; 
@@ -1250,7 +1291,6 @@
             updateElixir(deltaTime);
             updateEnemySpawn(deltaTime); 
             
-            // Separate object types for drawing/updating order
             const unitsAndTowers = gameObjects.filter(obj => obj instanceof Unit || obj instanceof Tower);
             const projectiles = gameObjects.filter(obj => obj instanceof Projectile);
             const spellEffects = gameObjects.filter(obj => obj instanceof SpellEffect);
