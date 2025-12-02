@@ -2,365 +2,392 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mini Clash Royale</title>
 <style>
   body {
     margin: 0;
     font-family: Arial, sans-serif;
-    background: #0b6623;
+    background: #111;
     color: white;
-    overflow: hidden;
-    user-select: none;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    touch-action: manipulation;
   }
   #game {
-    width: 100vw;
-    height: 100vh;
+    flex: 1;
     position: relative;
-    background: linear-gradient(to bottom, #228B22 50%, #006400 50%);
+    background: linear-gradient(to bottom, #4a5568 50%, #2d3748 50%);
+    overflow: hidden;
+  }
+  .bridge {
+    position: absolute;
+    left: 50%;
+    width: 80px;
+    height: 100px;
+    background: #d4af37;
+    transform: translateX(-50%);
+    top: 50%;
+    margin-top: -50px;
+    border-radius: 10px;
+    box-shadow: 0 0 20px gold;
   }
   .tower {
     position: absolute;
     width: 80px;
     height: 120px;
-    background: #444;
-    border-radius: 10px;
-    border: 5px solid #888;
+    background: #4a5568;
+    border: 6px solid #a0aec0;
+    border-radius: 15px;
+    box-shadow: 0 0 15px #000;
   }
-  .king-tower {
-    width: 100px;
+  .tower.king {
     height: 160px;
+    width: 100px;
+    background: #2d3748;
+    border-color: gold;
+  }
+  .health-bar {
+    position: absolute;
+    top: -25px;
+    left: 0;
+    right: 0;
+    height: 12px;
     background: #333;
-    border: 8px solid gold;
-  }
-  #player-king { bottom: 80px; left: 50%; transform: translateX(-50%); }
-  #enemy-king  { top: 80px;  left: 50%; transform: translateX(-50%); }
-
-  #player-left  { bottom: 140px; left: 120px; }
-  #player-right { bottom: 140px; right: 120px; }
-  #enemy-left   { top: 140px; left: 120px; }
-  #enemy-right  { top: 140px; right: 120px; }
-
-  .hp {
-    position: absolute;
-    top: -30px;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-weight: bold;
-  }
-
-  .river {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    height: 80px;
-    background: #1E90FF;
-    transform: translateY(-50%);
-    opacity: 0.6;
-  }
-
-  .bridge {
-    position: absolute;
-    width: 100%;
-    height: 20px;
-    background: #8B4513;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  .bridge.left { left: 0; width: 200px; }
-  .bridge.right { right: 0; width: 200px; }
-
-  #elixir-bar {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 300px;
-    height: 40px;
-    background: #222;
-    border-radius: 20px;
+    border-radius: 6px;
     overflow: hidden;
-    border: 3px solid #9400D3;
+  }
+  .health {
+    height: 100%;
+    width: 100%;
+    background: #48bb78;
+    transition: width 0.3s;
+  }
+  .health.low { background: #f56565; }
+
+  .troop {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    transition: all 0.2s;
+  }
+  .troop.player { background-image: url('https://i.imgur.com/2F5lZ1V.png'); } /* Knight */
+  .troop-troop { background-image: url('https://i.imgur.com/8QZ8QZs.png'); } /* Goblin */
+
+  #cards {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    background: rgba(0,0,0,0.7);
+    padding: 15px;
+  }
+  .card {
+    width: 70px;
+    height: 100px;
+    background: #4a5568 url('https://i.imgur.com/2F5lZ1V.png') center/cover;
+    border-radius: 12px;
+    border: 3px solid #a0aec0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  }
+  .card.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  #elixir-bar {
+    height: 12px;
+    background: #333;
+    margin: 10px 20px;
+    border-radius: 6px;
+    overflow: hidden;
   }
   #elixir {
     height: 100%;
     width: 100%;
-    background: linear-gradient(to right, #9400D3, #FF1493);
+    background: #9f7aea;
     transition: width 0.3s;
   }
-
-  #cards {
-    position: absolute;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 15px;
-  }
-  .card {
-    width: 80px;
-    height: 110px;
-    background: #333;
-    border-radius: 12px;
+  #elixir-text {
     text-align: center;
-    padding-top: 10px;
-    font-size: 12px;
-   : 3s;
-    cursor: pointer;
-    border: 3px solid #555;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-  }
-  .card:hover { border-color: yellow; }
-  .card.disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .cost {
-    position: absolute;
-    top: 5px;
-    left: 5px;
-    background: #9400D3;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    font-size: 14px;
-    line-height: 24px;
-  }
-
-  .troop {
-    position: absolute;
-    width: 40px;
-    height: 40px;
-    background: #FF6347;
-    border-radius: 50%;
-    border: 3px solid #000;
-    transition: all 0.4s;
-  }
-  .troop.enemy { background: #4169E1; }
-  .troop img { width: 100%; height: 100%; object-fit: contain; }
-
-  #timer {
-    position: absolute;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 32px;
+    font-size: 18px;
     font-weight: bold;
-  }
-
-  #next-card {
-    position: absolute;
-    bottom: 80px;
-    right: 50px;
-    width: 60px;
-    height: 80px;
-    background: #222;
-    border: 2px dashed #666;
-    border-radius: 10px;
   }
 </style>
 </head>
 <body>
 
 <div id="game">
-  <div class="river"></div>
-  <div class="bridge left"></div>
-  <div class="bridge right"></div>
-
   <!-- Towers -->
-  <div id="player-king" class="tower king-tower"><div class="hp">4000</div></div>
-  <div id="player-left" class="tower"><div class="hp">2000</div></div>
-  <div id="player-right" class="tower"><div class="hp">2000</div></div>
-  <div id="enemy-king" class="tower king-tower"><div class="hp">4000</div></div>
-  <div id="enemy-left" class="tower"><div class="hp">2000</div></div>
-  <div id="enemy-right" class="tower"><div class="hp">2000</div></div>
+  <div class="tower king" style="left:50%; margin-left:-50px; bottom:20px;" id="player-king"></div>
+  <div class="tower" style="left:80px; bottom:20px;" id="player-left"></div>
+  <div class="tower" style="right:80px; bottom:20px;" id="player-right"></div>
 
-  <div id="timer">3:00</div>
+  <div class="tower king" style="left:50%; margin-left:-50px; top:20px;" id="enemy-king"></div>
+  <div class="tower" style="left:80px; top:20px;" id="enemy-left"></div>
+  <div class="tower" style="right:80px; top:20px;" id="enemy-right"></div>
 
-  <div id="elixir-bar"><div id="elixir"></div></div>
+  <div class="bridge"></div>
+</div>
 
-  <div id="cards"></div>
-  <div id="next-card">Next</div>
+<div id="elixir-bar"><div id="elixir"></div></div>
+<div id="elixir-text">10 / 10</div>
+
+<div id="cards">
+  <div class="card" data-cost="3" id="card1"><span>3</span></div>
+  <div class="card" data-cost="3" id="card2"><span>3</span></div>
+  <div class="card" data-cost="4" id="card3"><span>4</span></div>
+  <div class="card" data-cost="2" id="card4"><span>2</span></div>
 </div>
 
 <script>
-const TROOPS = [
-  { name: "Knight", cost: 3, hp: 1400, damage: 160, speed: 60, img: "⚔️" },
-  { name: "Archers", cost: 3, hp: 250, damage: 90, speed: 70, img: "🏹" },
-  { name: "Giant", cost: 5, hp: 3300, damage: 210, speed: 40, img: "🗿" },
-  { name: "Fireball", cost: 4, hp: 0, damage: 570, speed: 0, img: "🔥", spell: true },
-  { name: "Mini PEKKA", cost: 4, hp: 1100, damage: 570, speed: 80, img: "🪓" },
-];
-
+// Game state
 let elixir = 10;
 let maxElixir = 10;
-let elixirRegen = setInterval(() => {
+let playerTroops = [];
+let enemyTroops = [];
+let towers = {
+  'player-king': { hp: 3000, maxHp: 3000 },
+  'player-left': { hp: 2000, maxHp: 2000 },
+  'player-right': { hp: 2000, maxHp: 2000 },
+  'enemy-king': { hp: 3000, maxHp: 3000 },
+  'enemy-left': { hp: 2000, maxHp: 2000 },
+  'enemy-right': { hp: 2000, maxHp: 2000 },
+};
+
+const game = document.getElementById('game');
+const elixirBar = document.getElementById('elixir');
+const elixirText = document.getElementById('elixir-text');
+
+// Create health bars
+Object.keys(towers).forEach(id => {
+  const tower = document.getElementById(id);
+  const hb = document.createElement('div');
+  hb.className = 'health-bar';
+  const inner = document.createElement('div');
+  inner.className = 'health';
+  hb.appendChild(inner);
+  tower.appendChild(hb);
+});
+
+function updateHealthBars() {
+  Object.keys(towers).forEach(id => {
+    const t = towers[id];
+    const towerEl = document.getElementById(id);
+    const healthEl = towerEl.querySelector('.health');
+    const percent = (t.hp / t.maxHp) * 100;
+    healthEl.style.width = percent + '%';
+    if (percent < 30) healthEl.classList.add('low');
+    else healthEl.classList.remove('low');
+  });
+}
+
+// Elixir system
+setInterval(() => {
   if (elixir < maxElixir) {
-    elixir = Math.min(elixir + 1, maxElixir);
+    elixir++;
     updateElixir();
   }
-}, 2800);
-
-let hand = [];
-let nextCard = null;
-let troops = [];
-let gameTime = 180; // 3 minutes
-let timer = setInterval(() => {
-  gameTime--;
-  const min = String(Math.floor(gameTime / 60)).padStart(2, '0');
-  const sec = String(gameTime % 60).padStart(2, '0');
-  document.getElementById('timer').textContent = `${min}:${sec}`;
-  if (gameTime <= 0) endGame();
-}, 1000);
-
-function startGame() {
-  refillHand();
-  updateElixir();
-}
-
-function refillHand() {
-  while (hand.length < 4) {
-    const card = TROOPS[Math.floor(Math.random() * TROOPS.length)];
-    hand.push({ ...card });
-  }
-  if (!nextCard) nextCard = TROOPS[Math.floor(Math.random() * TROOPS.length)];
-  renderCards();
-}
-
-function renderCards() {
-  const cardsDiv = document.getElementById('cards');
-  cardsDiv.innerHTML = '';
-  hand.forEach((card, i) => {
-    const el = document.createElement('div');
-    el.className = 'card' + (card.cost > elixir ? ' disabled' : '');
-    el.innerHTML = `
-      <div class="cost">${card.cost}</div>
-      <div style="font-size:40px">${card.img}</div>
-      <div>${card.name}</div>
-    `;
-    el.onclick = card.cost <= elixir && !card.spell ? () => deployTroop(i) : null;
-    if (card.spell) el.onclick = () => alert("Fireball spell not implemented in this mini version!");
-    cardsDiv.appendChild(el);
-  });
-
-  document.getElementById('next-card').textContent = nextCard ? nextCard.img : '?';
-}
-
-function deployTroop(cardIndex) {
-  const card = hand[cardIndex];
-  if (card.cost > elixir) return;
-
-  const troop = {
-    ...card,
-    side: 'player',
-    x: Math.random() * (innerWidth - 100) + 50,
-    y: innerHeight - 200,
-    element: document.createElement('div')
-  };
-
-  troop.element.className = 'troop';
-  troop.element.innerHTML = `<img src="" alt="${card.img}"> ${card.img}`;
-  troop.element.style.left = troop.x + 'px';
-  troop.element.style.top = troop.y + 'px';
-  document.getElementById('game').appendChild(troop.element);
-
-  elixir -= card.cost;
-  updateElixir();
-
-  hand.splice(cardIndex, 1);
-  if (nextCard) {
-    hand.push(nextCard);
-    nextCard = TROOPS[Math.floor(Math.random() * TROOPS.length)];
-  }
-  refillHand();
-
-  troops.push(troop);
-  moveTroop(troop);
-}
-
-function moveTroop(troop) {
-  const interval = setInterval(() => {
-    if (troop.side === 'player') troop.y -= 2;
-    else troop.y += 2;
-
-    troop.element.style.top = troop.y + 'px';
-
-    // Simple targeting: attack nearest enemy tower or troop
-    let target = findTarget(troop);
-    if (target) {
-      if (Math.abs(troop.x - target.x) > 10) {
-        troop.x += troop.x < target.x ? 3 : -3;
-        troop.element.style.left = troop.x + 'px';
-      }
-      // Attack
-      if (Date.now() - (troop.lastAttack || 0) > 1000) {
-        troop.lastAttack = Date.now();
-        if (target.isTower) {
-          target.hp -= troop.damage;
-          updateTowerHP(target.element, target.hp);
-          if (target.hp <= 0) destroyTower(target.element);
-        }
-      }
-    }
-
-    if (troop.y < 0 || troop.y > innerHeight) {
-      clearInterval(interval);
-      troop.element.remove();
-      troops = troops.filter(t => t !== troop);
-    }
-  }, 50);
-}
-
-// Very simple AI
-setInterval(() => {
-  if (Math.random() < 0.3 && elixir >= 3) {
-    const card = TROOPS[Math.floor(Math.random() * 3)];
-    const troop = {
-      ...card,
-      side: 'enemy',
-      x: Math.random() * (innerWidth - 100) + 50,
-      y: 100,
-      element: document.createElement('div')
-    };
-    troop.element.className = 'troop enemy';
-    troop.element.innerHTML = card.img;
-    troop.element.style.left = troop.x + 'px';
-    troop.element.style.top = troop.y + 'px';
-    document.getElementById('game').appendChild(troop.element);
-    troops.push(troop);
-    moveTroop(troop);
-  }
-}, 4000);
-
-function findTarget(troop) {
-  // Prioritize towers
-  const towers = [
-    { element: document.getElementById('enemy-king'), hp: 4000, x: innerWidth/2, y: 100, isTower: true },
-    { element: document.getElementById('enemy-left'), hp: 2000, x: 160, y: 140, isTower: true },
-    { element: document.getElementById('enemy-right'), hp: 2000, x: innerWidth-160, y: 140, isTower: true },
-  ];
-  return towers[0]; // Simplified: always target king tower first
-}
-
-function updateTowerHP(el, hp) {
-  el.querySelector('.hp').textContent = hp;
-}
-
-function destroyTower(el) {
-  el.style.opacity = '0.3';
-  el.querySelector('.hp').textContent = 'DESTROYED';
-}
+}, 2200);
 
 function updateElixir() {
-  document.getElementById('elixir').style.width = (elixir / maxElixir * 100) + '%';
+  elixirBar.style.width = (elixir / maxElixir) * 100 + '%';
+  elixirText.textContent = `${elixir} / ${maxElixir}`;
+  document.querySelectorAll('.card').forEach(card => {
+    const cost = parseInt(card.dataset.cost);
+    if (elixir >= cost) card.classList.remove('disabled');
+    else card.classList.add('disabled');
+  });
 }
 
-function endGame() {
-  clearInterval(timer);
-  clearInterval(elixirRegen);
-  alert("Game Over! (This is a demo)");
+// Card placement
+let selectedCard = null;
+document.querySelectorAll('.card').forEach(card => {
+  card.addEventListener('click', () => {
+    if (card.classList.contains('disabled')) return;
+    if (selectedCard === card) {
+      selectedCard = null;
+      game.style.cursor = 'default';
+    } else {
+      selectedCard = card;
+      game.style.cursor = 'crosshair';
+    }
+  });
+});
+
+game.addEventListener('click', (e) => {
+  if (!selectedCard) return;
+  const rect = game.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  // Only allow placement in player's half
+  if (y < rect.height / 2) {
+    alert("You can only place troops in your half!");
+    return;
+  }
+
+  const cost = parseInt(selectedCard.dataset.cost);
+  if (elixir < cost) return;
+
+  elixir -= cost;
+  updateElixir();
+
+  spawnTroop(x, y, 'player');
+  selectedCard = null;
+  game.style.cursor = 'default';
+});
+
+function spawnTroop(x, y, side) {
+  const troop = document.createElement('div');
+  troop.className = 'troop ' + (side === 'player' ? 'player' : 'op-troop');
+  troop.style.left = (x - 25) + 'px';
+  troop.style.top = (y - 25) + 'px';
+  troop.dataset.side = side;
+  troop.dataset.hp = side === 'player' ? 600 : 300;
+  troop.dataset.damage = side === 'player' ? 80 : 50;
+  troop.dataset.speed = 1.2;
+  troop.dataset.attackSpeed = 0; // cooldown
+
+  game.appendChild(troop);
+
+  if (side === 'player') playerTroops.push(troop);
+  else enemyTroops.push(troop);
 }
 
-startGame();
+// Enemy AI - places troops every 5-10 seconds
+setInterval(() => {
+  if (Math.random() < 0.7) {
+    const x = 100 + Math.random() * (game.offsetWidth - 200);
+    const y = 50 + Math.random() * 150;
+    spawnTroop(x, y, 'enemy');
+  }
+},  // Sometimes place two
+  if (Math.random() < 0.3) {
+    setTimeout(() => {
+      const x = 100 + Math.random() * (game.offsetWidth - 200);
+      const y = 50 + Math.random() * 150;
+      spawnTroop(x, y, 'enemy');
+    }, 800);
+  }
+}, 6000);
+
+// Game loop
+function gameLoop() {
+  // Move troops
+  [...playerTroops, ...enemyTroops].forEach(troop => {
+    if (!troop.isConnected) return;
+
+    let target = null;
+    let minDist = Infinity;
+
+    // Find closest enemy troop or tower
+    const isPlayer = troop.dataset.side === 'player';
+
+    const enemies = isPlayer ? enemyTroops : playerTroops;
+    enemies.forEach(enemy => {
+      if (!enemy.isConnected) return;
+      const dx = enemy.offsetLeft + 25 - (parseFloat(troop.style.left) + 25);
+      const dy = enemy.offsetTop + 25 - (parseFloat(troop.style.top) + 25);
+      const dist = Math.hypot(dx, dy);
+      if (dist < minDist) {
+        minDist = dist;
+        target = enemy;
+      }
+    });
+
+    // If no troops, target closest tower
+    if (!target) {
+      Object.keys(towers).forEach(id => {
+        const tower = document.getElementById(id);
+        const belongsToPlayer = id.includes('player');
+        if (isPlayer && !belongsToPlayer) || (!isPlayer && belongsToPlayer)
+
+        const tx = tower.offsetLeft + tower.offsetWidth / 2;
+        const ty = tower.offsetTop + tower.offsetHeight / 2;
+        const dx = tx - (parseFloat(troop.style.left) + 25);
+        const dy = ty - (parseFloat(troop.style.top) + 25);
+        const dist = Math.hypot(dx, dy);
+        if (dist < minDist) {
+          minDist = dist;
+          target = tower;
+        }
+      });
+    }
+
+    if (target) {
+      const tx = target === troop ? parseFloat(troop.style.left) + 25 : 
+                 (target.offsetLeft !== undefined ? target.offsetLeft + target.offsetWidth/2 : target.offsetLeft + 25);
+      const ty = target === troop ? parseFloat(troop.style.top) + 25 : 
+                 (target.offsetTop !== undefined ? target.offsetTop + target.offsetHeight/2 : target.offsetTop + 25);
+
+      const dx = tx - (parseFloat(troop.style.left) + 25);
+      const dy = ty - (parseFloat(troop.style.top) + 25);
+      const dist = Math.hypot(dx, dy);
+
+      if (dist < 60) {
+        // Attack!
+        troop.dataset.attackSpeed = 30; // 0.5 sec cooldown at 60fps
+        let damage = parseInt(troop.dataset.damage);
+
+        if (target.classList && target.classList.contains('troop')) {
+          let hp = parseInt(target.dataset.hp) - damage;
+          target.dataset.hp = hp;
+          if (hp <= 0) {
+            target.remove();
+            if (isPlayer) {
+              enemyTroops = enemyTroops.filter(t => t !== target);
+            } else {
+              playerTroops = playerTroops.filter(t => t !== target);
+            }
+          }
+        } else if (target.id && towers[target.id]) {
+          towers[target.id].hp -= damage;
+          updateHealthBars();
+          if (towers[target.id].hp <= 0) {
+            alert(isPlayer ? "You destroyed an enemy tower!" : "Enemy destroyed your tower!");
+            towers[target.id].hp = 0;
+          }
+          // Win condition
+          if (towers['enemy-king'].hp <= 0) {
+            alert("YOU WIN! King Tower destroyed!");
+            location.reload();
+          }
+          if (towers['player-king'].hp <= 0) {
+            alert("YOU LOSE! Your King Tower was destroyed!");
+            location.reload();
+          }
+        }
+      } else {
+        // Move toward target
+        const angle = Math.atan2(dy, dx, dy);
+        const speed = parseFloat(troop.dataset.speed);
+        troop.style.left = (parseFloat(troop.style.left) + Math.cos(angle) * speed) + 'px';
+        troop.style.top = (parseFloat(troop.style.top) + Math.sin(angle) * speed) + 'px';
+      }
+    }
+
+    // Attack cooldown
+    if (parseInt(troop.dataset.attackSpeed) > 0) {
+      troop.dataset.attackSpeed = parseInt(troop.dataset.attackSpeed) - 1;
+    }
+  });
+
+  requestAnimationFrame(gameLoop);
+}
+
+updateElixir();
+updateHealthBars();
+gameLoop();
 </script>
 </body>
 </html>
