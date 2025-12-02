@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - High Fidelity Visuals</title>
+    <title>Clash Clone - Card Draw & New Units</title>
     
     <style>
         /* --- General Styling --- */
@@ -66,8 +66,25 @@
         #card-deck {
             display: flex;
             gap: 5px; 
+            min-width: 400px; /* Ensure space for 4 cards */
         }
         
+        /* Next Card Preview */
+        #next-card-preview {
+            position: absolute;
+            left: 50%;
+            bottom: 80px; 
+            transform: translateX(-50%);
+            color: white;
+            padding: 5px;
+            font-size: 0.8em;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 5px;
+            border: 1px solid #aaa;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            pointer-events: none; /* Ignore clicks */
+        }
+
         .deploy-card {
             padding: 8px 5px; 
             color: white;
@@ -77,10 +94,11 @@
             border-radius: 8px;
             transition: transform 0.1s, box-shadow 0.1s;
             box-shadow: 0 4px #c43500;
-            min-width: 65px; 
+            min-width: 80px; /* Made cards slightly wider */
             text-align: center;
             line-height: 1.1;
             font-size: 0.85em; 
+            position: relative;
         }
         
         .deploy-card:disabled {
@@ -96,17 +114,36 @@
             transform: translateY(2px);
         }
         
-        /* Specific Card Styles (Vibrant Colors) */
-        #card0 { background-color: #007bff; } 
-        #card1 { background-color: #ff4500; } 
-        #card2 { background-color: #4CAF50; } 
-        #card3 { background-color: #800080; } 
-        #card4 { background-color: #00CED1; } 
-        
+        /* Individual card colors (mapped in JS) */
+        .card-knight { background-color: #007bff; } 
+        .card-archer { background-color: #ff4500; } 
+        .card-goblins { background-color: #4CAF50; } 
+        .card-pekka { background-color: #800080; } 
+        .card-giant { background-color: #00CED1; } 
+        .card-skeletons { background-color: #cccccc; }
+        .card-valkyrie { background-color: #ff69b4; }
+        .card-hogrider { background-color: #cc5500; }
+        .card-fireball { background-color: #dc143c; }
+
         .selected-card {
             box-shadow: 0 0 15px 5px yellow !important;
             border-color: yellow !important;
             transform: scale(1.05);
+        }
+        
+        /* Elixir cost badge */
+        .elixir-cost {
+            position: absolute;
+            top: -10px;
+            left: 5px;
+            background: #6a0dad;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+            font-size: 0.7em;
+            border: 2px solid gold;
         }
 
         /* --- Game Over Modal --- */
@@ -168,6 +205,8 @@
             </div>
         </div>
 
+        <div id="next-card-preview"></div>
+
         <div id="ui-overlay">
             <p><span class="icon">❤️</span> King Tower: <span id="playerHealth">2000</span></p>
             
@@ -186,7 +225,6 @@
         const GAME_HEIGHT = canvas.height; 
         const MID_Y = GAME_HEIGHT / 2; 
         
-        // Deployment line is now the middle (full player half)
         const DEPLOY_LINE_Y = MID_Y; // 400
         
         const LEFT_LANE_X = GAME_WIDTH * 0.25; 
@@ -209,11 +247,17 @@
         const ENEMY_SPAWN_RATE = 5; 
         let selectedCardIndex = null; 
 
+        // NEW CARD & HAND SYSTEM VARIABLES
+        let fullDeck = []; // The complete list of cards
+        let deck = [];     // Shuffled array of card names (to cycle through)
+        let hand = [];     // Array of 4 card names (the current hand)
+        let nextCardIndex = 0; // Index in the deck array for the next card to draw
+
         const gameObjects = []; 
 
         // --- CARD DEFINITION ---
         class Card {
-            constructor(name, cost, color, speed, damage, health, attackRange = 0, isMelee = true, isTank = false) {
+            constructor(name, cost, color, speed, damage, health, attackRange = 0, isMelee = true, isTank = false, targetBuilding = false, isSplash = false, unitCount = 1, isSpell = false, spellRadius = 0) {
                 this.name = name;
                 this.cost = cost;
                 this.color = color;
@@ -223,16 +267,34 @@
                 this.attackRange = attackRange; 
                 this.isMelee = isMelee;
                 this.isTank = isTank; 
+                this.targetBuilding = targetBuilding;
+                this.isSplash = isSplash;
+                this.unitCount = unitCount;
+                this.isSpell = isSpell;
+                this.spellRadius = spellRadius;
             }
         }
 
-        const CARD_DECK = [
+        const CARD_DECK_DEFINITION = [
+            // Old Cards
             new Card("Knight", 3, '#007bff', 70, 80, 400),                                     
             new Card("Archer", 3, '#ff4500', 80, 40, 150, 150, false),                          
-            new Card("Goblins", 2, '#4CAF50', 120, 30, 80),                                    
+            new Card("Goblins", 2, '#4CAF50', 120, 30, 80, 0, true, false, false, false, 3), // Unit count 3
             new Card("Mini P.E.K.K.A.", 4, '#800080', 100, 200, 350),                           
             new Card("Giant", 5, '#00CED1', 50, 60, 800, 0, true, true),                       
+            
+            // NEW Cards
+            new Card("Skeletons", 1, '#cccccc', 150, 20, 30, 0, true, false, false, false, 4), // Unit count 4
+            new Card("Valkyrie", 4, '#ff69b4', 90, 120, 600, 0, true, false, false, true), // isSplash: true
+            new Card("Hog Rider", 4, '#cc5500', 130, 150, 450, 0, true, false, true), // targetBuilding: true
+            new Card("Fireball", 4, '#dc143c', 0, 400, 0, 0, false, false, false, false, 1, true, 100) // isSpell: true, spellRadius: 100
         ];
+        
+        // Convert array of Card objects into a map for easy lookup
+        const CARD_MAP = {};
+        CARD_DECK_DEFINITION.forEach(card => {
+            CARD_MAP[card.name] = card;
+        });
 
         // --- Game Object Classes ---
 
@@ -256,13 +318,11 @@
                 ctx.save();
                 ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
                 
-                // Set fill color based on player/enemy
                 const teamColor = this.isPlayerUnit ? '#007bff' : '#ff4500';
                 const teamStroke = this.isPlayerUnit ? '#004a80' : '#b32e00';
 
                 // --- Unit Specific Art ---
                 if (this.name === "Knight") {
-                    // Draw a stylized shield/helmet
                     ctx.fillStyle = teamColor;
                     ctx.beginPath();
                     ctx.arc(0, 0, this.width / 2, 0, Math.PI * 2);
@@ -270,17 +330,14 @@
                     ctx.strokeStyle = teamStroke;
                     ctx.lineWidth = 4;
                     ctx.stroke();
-                    // Draw a simple white visor/cross
                     ctx.fillStyle = 'white';
                     ctx.fillRect(-this.width/4, -this.height/8, this.width/2, this.height/4);
                 } else if (this.name === "Archer") {
-                    // Draw a smaller body with a hat
                     const bodySize = this.width * 0.7;
                     ctx.fillStyle = teamColor;
                     ctx.beginPath();
                     ctx.arc(0, 0, bodySize / 2, 0, Math.PI * 2);
                     ctx.fill();
-                    // Hat
                     ctx.fillStyle = '#4CAF50'; 
                     ctx.beginPath();
                     ctx.moveTo(-bodySize/2, -bodySize/2);
@@ -289,7 +346,6 @@
                     ctx.closePath();
                     ctx.fill();
                 } else if (this.name === "Giant") {
-                    // Large, rounded, tan shape for Giant
                     ctx.fillStyle = '#a88675';
                     ctx.beginPath();
                     ctx.arc(0, 0, this.width * 0.5, 0, Math.PI * 2);
@@ -298,21 +354,34 @@
                     ctx.lineWidth = 3;
                     ctx.stroke();
                 } else if (this.name === "Mini P.E.K.K.A.") {
-                    // Dark, angular body
                     ctx.fillStyle = '#800080';
                     ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
-                    // Blue eye/face plate
                     ctx.fillStyle = '#00CED1';
                     ctx.fillRect(-this.width / 4, -this.height / 4, this.width / 2, this.height / 2);
-                } else {
-                    // Default fallback (Goblins) - simple rectangle with team color
-                    ctx.fillStyle = teamColor;
+                } else if (this.name === "Valkyrie") {
+                    ctx.fillStyle = '#ff69b4'; // Pink
+                    ctx.beginPath();
+                    ctx.rect(-this.width / 2, -this.height / 2, this.width, this.height);
+                    ctx.fill();
+                    ctx.fillStyle = '#000000';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.width / 4, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (this.name === "Hog Rider") {
+                    ctx.fillStyle = '#cc5500'; // Brown/Orange
+                    ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '15px Arial';
+                    ctx.fillText('HOG', -15, 5);
+                } else if (this.name === "Skeletons" || this.name === "Goblins") {
+                    // Default fallback (Goblins/Skeletons) - simple rectangle with team color
+                    ctx.fillStyle = this.name === "Skeletons" ? '#ffffff' : teamColor;
                     ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
                 }
 
                 ctx.restore();
 
-                // --- Health Bar (Always drawn outside the save/restore block for absolute positioning) ---
+                // --- Health Bar ---
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = healthRatio > 0.5 ? 'lime' : (healthRatio > 0.2 ? 'yellow' : 'red');
                 ctx.fillRect(this.x, this.y - 10, this.width * healthRatio, 5);
@@ -329,34 +398,61 @@
                 this.timeSinceLastAttack += deltaTime;
 
                 let currentTarget = this.targetUnit;
+                let targetBuilding = null;
                 let targetTower = null;
 
                 if (currentTarget && currentTarget.isDead) {
                     this.targetUnit = null;
                     currentTarget = null;
                 }
-
-                if (currentTarget === null) {
+                
+                // 1. Prioritize Buildings if targetBuilding is true (Hog Rider)
+                if (this.targetBuilding) {
+                    targetBuilding = findTargetTowerInLane(this, gameObjects.filter(obj => obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit));
+                    if (targetBuilding) {
+                        this.targetUnit = null; // Clear troop target if building exists
+                    }
+                }
+                
+                // 2. If no targetBuilding, search for troops if currentTarget is null
+                if (currentTarget === null && !this.targetBuilding) {
                     const newTarget = findTarget(this);
                     if (newTarget) {
                         this.targetUnit = newTarget; 
                         currentTarget = newTarget;
                     }
                 }
-
+                
+                // 3. Attack / Move logic
                 if (currentTarget) {
                     const distance = calculateDistance(this, currentTarget);
                     
                     if (distance <= this.attackRange + (this.isMelee ? 10 : 0)) { 
                         if (this.timeSinceLastAttack >= this.attackCooldown) {
-                            attackTarget(this, currentTarget);
+                            if (this.isSplash) {
+                                splashAttack(this, currentTarget);
+                            } else {
+                                attackTarget(this, currentTarget);
+                            }
                             this.timeSinceLastAttack = 0;
                         }
                     } else {
                         moveTowards(this, currentTarget.x + currentTarget.width / 2, currentTarget.y + currentTarget.height / 2, deltaTime);
                     }
-
-                } else {
+                } 
+                else if (targetBuilding) { // If targetBuilding found (Hog Rider case)
+                    const distance = calculateDistance(this, targetBuilding);
+                    
+                    if (distance <= this.attackRange + targetBuilding.height) { 
+                        if (this.timeSinceLastAttack >= this.attackCooldown) {
+                            attackTower(this, targetBuilding);
+                            this.timeSinceLastAttack = 0;
+                        }
+                    } else {
+                        moveTowards(this, targetBuilding.x + targetBuilding.width / 2, targetBuilding.y + targetBuilding.height / 2, deltaTime);
+                    }
+                }
+                else { // 4. Final Fallback: Move towards and attack the nearest Princess/King Tower
                     const towers = gameObjects.filter(obj => 
                         obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit
                     );
@@ -397,19 +493,15 @@
                 this.timeSinceLastAttack = 0;
             }
 
-            // Tower Art (Simulation)
             draw() {
                 ctx.save();
                 
-                // Base (Grey Stone)
                 ctx.fillStyle = '#6e7b8b'; 
                 ctx.fillRect(this.x, this.y + this.height * 0.5, this.width, this.height * 0.5);
                 
-                // Main Tower Body (Color based on team)
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x + 5, this.y, this.width - 10, this.height * 0.7);
                 
-                // Crown/Roof
                 ctx.fillStyle = '#ffd700'; // Gold
                 ctx.beginPath();
                 ctx.moveTo(this.x, this.y);
@@ -419,7 +511,6 @@
 
                 ctx.restore();
                 
-                // Health Bar 
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = 'white';
                 ctx.fillRect(this.x, this.y - 15, this.width, 10);
@@ -487,30 +578,7 @@
             }
         }
         
-        // Projectile Art (Simulating a bolt)
-        function drawProjectile(source, target, color) {
-            const startX = source.x + source.width / 2;
-            const startY = source.y + source.height / 2;
-            const endX = target.x + target.width / 2;
-            const endY = target.y + target.height / 2;
-
-            // Draw a thin, fast-moving projectile line
-            ctx.strokeStyle = 'yellow';
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(startX, startY);
-            ctx.lineTo(endX, endY);
-            ctx.stroke();
-            
-            // Draw an impact flash 
-            ctx.fillStyle = 'white';
-            ctx.beginPath();
-            ctx.arc(endX, endY, 4, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-
-        // --- Utility Functions (Omitted for brevity, assumed unchanged) ---
+        // --- Utility Functions ---
         
         function calculateDistance(obj1, obj2) {
             const dx = (obj1.x + obj1.width/2) - (obj2.x + obj2.width/2);
@@ -574,6 +642,50 @@
         function attackTarget(attacker, defender) {
             defender.health -= attacker.damage;
         }
+        
+        function splashAttack(attacker, target) {
+            // Splash range for Valkyrie is simulated by hitting all units within a small radius
+            const splashRadius = 50; 
+            
+            // Apply damage to the primary target
+            target.health -= attacker.damage;
+            
+            // Find secondary targets (only troops, not buildings/towers)
+            const secondaryTargets = gameObjects.filter(obj => 
+                obj instanceof Unit && obj.isPlayerUnit !== attacker.isPlayerUnit && obj !== target && calculateDistance(target, obj) <= splashRadius
+            );
+            
+            for (const secondaryTarget of secondaryTargets) {
+                secondaryTarget.health -= attacker.damage; // Full damage splash
+            }
+        }
+        
+        function applyFireball(x, y, card) {
+            // Apply Fireball damage in a radius
+            const unitsAndTowers = gameObjects.filter(obj => 
+                (obj instanceof Unit && !obj.isPlayerUnit) || (obj instanceof Tower && !obj.isPlayerTower)
+            );
+            
+            for (const target of unitsAndTowers) {
+                const targetCenterX = target.x + target.width / 2;
+                const targetCenterY = target.y + target.height / 2;
+                const dx = targetCenterX - x;
+                const dy = targetCenterY - y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance <= card.spellRadius) {
+                    target.health -= card.damage;
+                    
+                    // Specific health update for King Tower
+                    if (target.name && target.name.includes("Enemy King")) {
+                        // Activate King Tower (optional future feature, but good practice)
+                    }
+                }
+            }
+            
+            // Visual effect for the spell
+            drawSpellEffect(x, y, card.spellRadius, card.color);
+        }
 
         function attackTower(attacker, tower) {
             tower.health -= attacker.damage;
@@ -609,44 +721,64 @@
         function deployUnit(x, y) {
             if (selectedCardIndex === null || isGameOver) return;
             
-            const card = CARD_DECK[selectedCardIndex];
-            if (elixir < card.cost || y < DEPLOY_LINE_Y) return; 
+            // Get the card name from the hand array
+            const cardName = hand[selectedCardIndex];
+            if (!cardName) return; 
+
+            const card = CARD_MAP[cardName];
+            
+            if (elixir < card.cost) return; 
+            
+            if (!card.isSpell) {
+                // Troop Deployment check: must be in player half
+                if (y < DEPLOY_LINE_Y) return; 
+            } else {
+                 // Spell Deployment check: can be anywhere
+                 // We'll allow spell casting anywhere for simplicity, though CR has range limits
+            }
 
             elixir -= card.cost;
             
-            let targetLaneX = x < GAME_WIDTH / 2 ? LEFT_LANE_X : RIGHT_LANE_X;
-            
-            const unitWidth = card.isTank ? 40 : 30;
-            const unitHeight = card.isTank ? 40 : 30;
+            if (card.isSpell) {
+                applyFireball(x, y, card);
+            } else {
+                // Troop logic
+                let targetLaneX = x < GAME_WIDTH / 2 ? LEFT_LANE_X : RIGHT_LANE_X;
+                const unitWidth = card.isTank ? 40 : 30;
+                const unitHeight = card.isTank ? 40 : 30;
 
-            if (card.name === "Goblins") {
-                for(let i = 0; i < 3; i++) {
+                for(let i = 0; i < card.unitCount; i++) {
                      const newUnit = new Unit(
-                        x - 15 + (i * 10), 
-                        y - 15 + (i * 10), 
+                        x - unitWidth / 2 - 10 + (i * 5), 
+                        y - unitHeight / 2 - 10 + (i * 5), 
                         card, 
                         true, 
                         targetLaneX 
                     );
                     gameObjects.push(newUnit);
                 }
-            } else {
-                 const newUnit = new Unit(
-                    x - unitWidth / 2, 
-                    y - unitHeight / 2,
-                    card, 
-                    true, 
-                    targetLaneX 
-                );
-                gameObjects.push(newUnit);
             }
+            
+            // Card cycling logic: Replace the card just played
+            replaceCardInHand(selectedCardIndex);
             
             setSelectedCard(null);
         }
         
+        function replaceCardInHand(index) {
+            // Replace the played card with the next card from the deck
+            hand[index] = deck[nextCardIndex];
+            
+            // Move to the next card in the deck (cycling)
+            nextCardIndex = (nextCardIndex + 1) % deck.length;
+            
+            // Redraw card buttons to show the new card
+            createCardButtons();
+        }
+        
         function spawnEnemyUnit() {
             if (isGameOver) return;
-             const basicEnemyCard = CARD_DECK.find(c => c.name === "Goblins");
+             const basicEnemyCard = CARD_MAP["Goblins"];
              
              const isLeft = Math.random() < 0.5;
              const spawnX = isLeft ? LEFT_LANE_X : RIGHT_LANE_X;
@@ -662,8 +794,8 @@
             gameObjects.push(newEnemy);
         }
 
-        // --- UI and Update Functions (Omitted for brevity, assumed unchanged) ---
-        
+        // --- UI and Update Functions ---
+
         function updateElixir(deltaTime) {
             elixirTimer += deltaTime;
             if (elixirTimer >= 1) { 
@@ -708,23 +840,35 @@
         
         function createCardButtons() {
             const cardDeckElement = document.getElementById('card-deck');
+            const nextCardElement = document.getElementById('next-card-preview');
+
+            cardDeckElement.innerHTML = ''; // Clear existing buttons
             
-            CARD_DECK.forEach((card, index) => {
+            hand.forEach((cardName, index) => {
+                const card = CARD_MAP[cardName];
                 const button = document.createElement('button');
-                button.id = `card${index}`;
-                button.className = 'deploy-card';
+                button.id = `card-slot-${index}`;
+                button.className = `deploy-card card-${cardName.toLowerCase().replace(/ /g, '')}`;
                 button.onclick = () => setSelectedCard(selectedCardIndex === index ? null : index);
                 button.innerHTML = `
+                    <span class="elixir-cost">${card.cost}</span>
                     ${card.name} <br> 
-                    <span class="icon">🧪 ${card.cost}</span>
+                    <span style="font-size: 0.8em;">${card.isSpell ? 'SPELL' : 'UNIT'}</span>
                 `;
                 cardDeckElement.appendChild(button);
             });
+            
+            // Update next card preview
+            const nextCardName = deck[nextCardIndex];
+            nextCardElement.innerHTML = `Next: ${nextCardName}`;
+            
+            updateCardButtons();
         }
         
         function updateCardButtons() {
-            CARD_DECK.forEach((card, index) => {
-                const button = document.getElementById(`card${index}`);
+            hand.forEach((cardName, index) => {
+                const button = document.getElementById(`card-slot-${index}`);
+                const card = CARD_MAP[cardName];
                 if (button) {
                     button.disabled = elixir < card.cost;
                     if (selectedCardIndex === index && elixir < card.cost) {
@@ -733,11 +877,10 @@
                 }
             });
         }
-
-        // --- NEW: Detailed Map Art Function ---
+        
         function drawMap() {
             // --- 1. Background Grass (Dark, Gritty Green) ---
-            ctx.fillStyle = '#3a6639'; // Primary battlefield color
+            ctx.fillStyle = '#3a6639'; 
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
             
             // --- 2. Stone Paths (Lane simulation) ---
@@ -751,18 +894,18 @@
             ctx.fillRect(RIGHT_LANE_X - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
 
             // --- 3. River (Middle section) ---
-            ctx.fillStyle = '#2d5b7a'; // Deep water blue
+            ctx.fillStyle = '#2d5b7a'; 
             ctx.fillRect(0, MID_Y - 30, GAME_WIDTH, 60);
 
             // --- 4. Bridges (Over river) ---
-            ctx.fillStyle = '#8f6844'; // Wood color
+            ctx.fillStyle = '#8f6844'; 
             const bridgeHeight = 50;
             const bridgeWidth = 120;
             ctx.fillRect(LEFT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
             ctx.fillRect(RIGHT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
 
             // --- 5. Deployment Zone (Player's side - lower half) ---
-            ctx.fillStyle = 'rgba(0, 0, 150, 0.1)'; // Very subtle blue overlay
+            ctx.fillStyle = 'rgba(0, 0, 150, 0.1)'; 
             ctx.fillRect(0, DEPLOY_LINE_Y, GAME_WIDTH, GAME_HEIGHT - DEPLOY_LINE_Y);
             
             // --- 6. Deployment Line (Visual Separator - top of river) ---
@@ -781,67 +924,78 @@
             ctx.lineTo(GAME_WIDTH/2, GAME_HEIGHT);
             ctx.stroke();
         }
+        
+        // --- Visual Effects ---
+        function drawProjectile(source, target, color) {
+            const startX = source.x + source.width / 2;
+            const startY = source.y + source.height / 2;
+            const endX = target.x + target.width / 2;
+            const endY = target.y + target.height / 2;
+
+            ctx.strokeStyle = 'yellow';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+            
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(endX, endY, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function drawSpellEffect(x, y, radius, color) {
+            // Draw a quick red explosion effect
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            
+            // Draw an outer ring for impact
+            ctx.strokeStyle = 'yellow';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        
+        // --- Initialization and Deck Shuffling ---
+        
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function setupDeck() {
+            // 1. Create the full deck array using the names of all defined cards
+            fullDeck = CARD_DECK_DEFINITION.map(card => card.name);
+            
+            // 2. Shuffle the deck names 
+            // We'll create a deck of 8 cards (4 starting hand + 4 in cycle)
+            deck = [...fullDeck];
+            shuffleArray(deck);
+            
+            // 3. Draw the initial 4-card hand
+            hand = deck.slice(0, 4);
+            
+            // 4. Set the index for the next card to be drawn (the 5th card)
+            nextCardIndex = 4;
+        }
 
 
         function initGame() {
+            // Setup the cards and hand system
+            setupDeck();
+            
             // Opponent Towers (Top)
             gameObjects.push(new Tower(CENTER_LANE_X - 25, 50, 2000, 'red', "Enemy King", false, 'center'));
             gameObjects.push(new Tower(LEFT_LANE_X - 25, 150, 1000, 'red', "Enemy Left", false, 'left'));
             gameObjects.push(new Tower(RIGHT_LANE_X - 25, 150, 1000, 'red', "Enemy Right", false, 'right'));
             
             // Player Towers (Bottom)
-            gameObjects.push(new Tower(CENTER_LANE_X - 25, GAME_HEIGHT - 120, 2000, 'blue', "Your King", true, 'center'));
-            gameObjects.push(new Tower(LEFT_LANE_X - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Left", true, 'left'));
-            gameObjects.push(new Tower(RIGHT_LANE_X - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Right", true, 'right'));
-            
-            createCardButtons();
-            canvas.addEventListener('click', handleCanvasClick);
-        }
-
-
-        // --- Main Game Loop ---
-        function gameLoop(timestamp) {
-            if (isGameOver) {
-                return; 
-            }
-            
-            const deltaTime = (timestamp - lastTime) / 1000;
-            lastTime = timestamp;
-
-            drawMap(); 
-
-            updateElixir(deltaTime);
-            updateEnemySpawn(deltaTime); 
-            
-            // Tower Update Loop 
-            for (const obj of gameObjects) {
-                if (obj instanceof Tower) {
-                    obj.update(deltaTime);
-                }
-            }
-
-            // Unit Update Loop
-            for (let i = gameObjects.length - 1; i >= 0; i--) {
-                const obj = gameObjects[i];
-                if (obj instanceof Unit) {
-                    obj.update(deltaTime);
-                    if (obj.isDead) {
-                        gameObjects.splice(i, 1);
-                    }
-                }
-            }
-
-            // Draw Everything
-            for (const obj of gameObjects) {
-                obj.draw();
-            }
-            
-            requestAnimationFrame(gameLoop);
-        }
-
-        // Start the game!
-        initGame();
-        requestAnimationFrame(gameLoop);
-    </script>
-</body>
-</html>
+            gameObjects.push(new Tower(CENTER_LANE_X - 25, GAME_HEIGHT -
