@@ -225,6 +225,9 @@
         const GAME_HEIGHT = canvas.height; 
         const MID_Y = GAME_HEIGHT / 2; // 400
         
+        // **CRITICAL FIX:** Define the center of the battlefield
+        const CENTER_LANE_X = GAME_WIDTH / 2; // 400
+
         // Initial Deployment Line is just behind the river.
         const INITIAL_DEPLOY_Y = MID_Y + 50; // 450 
         
@@ -240,12 +243,11 @@
         const LEFT_LANE_X_CENTER = GAME_WIDTH * 0.25; // 200
         const RIGHT_LANE_X_CENTER = GAME_WIDTH * 0.75; // 600
         
-        // Boundary definitions for click checking (expanded slightly for better usability)
-        const LANE_TOLERANCE = 50; // Allow 50px outside the strict path width
-        const LEFT_LANE_MIN_X = LEFT_LANE_X_CENTER - LANE_WIDTH / 2 - LANE_TOLERANCE;
-        const LEFT_LANE_MAX_X = LEFT_LANE_X_CENTER + LANE_WIDTH / 2 + LANE_TOLERANCE;
-        const RIGHT_LANE_MIN_X = RIGHT_LANE_X_CENTER - LANE_WIDTH / 2 - LANE_TOLERANCE;
-        const RIGHT_LANE_MAX_X = RIGHT_LANE_X_CENTER + LANE_WIDTH / 2 + LANE_TOLERANCE;
+        // Define the horizontal boundaries of the playing lanes
+        const LEFT_LANE_MIN_X = LEFT_LANE_X_CENTER - LANE_WIDTH / 2;
+        const LEFT_LANE_MAX_X = LEFT_LANE_X_CENTER + LANE_WIDTH / 2;
+        const RIGHT_LANE_MIN_X = RIGHT_LANE_X_CENTER - LANE_WIDTH / 2;
+        const RIGHT_LANE_MAX_X = RIGHT_LANE_X_CENTER + LANE_WIDTH / 2;
         
         // TOWER CONSTANTS
         const TOWER_RANGE = 300; 
@@ -525,7 +527,6 @@
                 ctx.beginPath();
                 ctx.moveTo(this.x, this.y);
                 ctx.lineTo(this.x + this.width / 2, this.y - 10);
-                // **FIX:** Corrected typo 'the.y' to 'this.y' in the triangle drawing
                 ctx.lineTo(this.x + this.width, this.y); 
                 ctx.fill();
 
@@ -675,16 +676,19 @@
         }
 
         function findTargetTowerInLane(unit, towers) {
+             // Find towers belonging to the target lane (left or right)
              const laneTowers = towers.filter(t => 
                  t.lane === (unit.targetLaneX === LEFT_LANE_X_CENTER ? 'left' : 
                             unit.targetLaneX === RIGHT_LANE_X_CENTER ? 'right' : 'center')
              );
              
+             // Prioritize the Princess Tower (non-center)
              let princessTower = laneTowers.find(t => t.lane !== 'center' && t.health > 0);
              if (princessTower) {
                  return princessTower;
              }
              
+             // If Princess Tower is destroyed, target the King Tower (center)
              let kingTower = towers.find(t => t.lane === 'center');
              if (kingTower && kingTower.health > 0) {
                  return kingTower;
@@ -795,26 +799,23 @@
             
             if (elixir < card.cost) return; 
             
-            // Determine which lane the click is in, or if it's a spell (no lane required)
             let targetLane = null;
             let targetLaneX = 0;
             let currentDeployY = GAME_HEIGHT;
 
-            // Check Left Lane boundaries
+            // Determine which lane the click is in based on X position
             if (x >= LEFT_LANE_MIN_X && x <= LEFT_LANE_MAX_X) {
                 targetLane = 'left';
                 targetLaneX = LEFT_LANE_X_CENTER;
                 currentDeployY = deploymentLines.left;
-            } 
-            // Check Right Lane boundaries
-            else if (x >= RIGHT_LANE_MIN_X && x <= RIGHT_LANE_MAX_X) {
+            } else if (x >= RIGHT_LANE_MIN_X && x <= RIGHT_LANE_MAX_X) {
                 targetLane = 'right';
                 targetLaneX = RIGHT_LANE_X_CENTER;
                 currentDeployY = deploymentLines.right;
             }
 
             if (card.isSpell) {
-                // Spells bypass lane checks and Y-axis deployment restrictions
+                // Spells deploy anywhere (no lane or Y-axis check needed)
                 applyFireball(x, y, card);
                 elixir -= card.cost;
                 replaceCardInHand(selectedCardIndex);
@@ -824,7 +825,7 @@
             
             // UNIT DEPLOYMENT CHECKS:
             
-            // 1. Must be clicked in an acceptable lane (targetLane != null)
+            // 1. Must be clicked in an acceptable lane 
             if (targetLane === null) return;
             
             // 2. Must be deployed at or below the current lane deployment line
@@ -987,9 +988,9 @@
             ctx.fillStyle = 'rgba(0, 0, 150, 0.1)'; 
             
             // Left Lane Zone
-            ctx.fillRect(LEFT_LANE_X_CENTER - LANE_WIDTH/2, deploymentLines.left, LANE_WIDTH, GAME_HEIGHT - deploymentLines.left);
+            ctx.fillRect(LEFT_LANE_MIN_X, deploymentLines.left, LEFT_LANE_MAX_X - LEFT_LANE_MIN_X, GAME_HEIGHT - deploymentLines.left);
             // Right Lane Zone
-            ctx.fillRect(RIGHT_LANE_X_CENTER - LANE_WIDTH/2, deploymentLines.right, LANE_WIDTH, GAME_HEIGHT - deploymentLines.right);
+            ctx.fillRect(RIGHT_LANE_MIN_X, deploymentLines.right, RIGHT_LANE_MAX_X - RIGHT_LANE_MIN_X, GAME_HEIGHT - deploymentLines.right);
             
             // 6. Deployment Lines (Visual Separator)
             ctx.strokeStyle = '#ffffff';
@@ -997,14 +998,14 @@
             
             // Left Line
             ctx.beginPath();
-            ctx.moveTo(LEFT_LANE_X_CENTER - LANE_WIDTH/2, deploymentLines.left);
-            ctx.lineTo(LEFT_LANE_X_CENTER + LANE_WIDTH/2, deploymentLines.left);
+            ctx.moveTo(LEFT_LANE_MIN_X, deploymentLines.left);
+            ctx.lineTo(LEFT_LANE_MAX_X, deploymentLines.left);
             ctx.stroke();
             
             // Right Line
             ctx.beginPath();
-            ctx.moveTo(RIGHT_LANE_X_CENTER - LANE_WIDTH/2, deploymentLines.right);
-            ctx.lineTo(RIGHT_LANE_X_CENTER + LANE_WIDTH/2, deploymentLines.right);
+            ctx.moveTo(RIGHT_LANE_MIN_X, deploymentLines.right);
+            ctx.lineTo(RIGHT_LANE_MAX_X, deploymentLines.right);
             ctx.stroke();
 
             // 7. Detail: Center Line
@@ -1058,6 +1059,7 @@
             setupDeck();
             
             // Opponent Towers (Top)
+            // Use CENTER_LANE_X
             gameObjects.push(new Tower(LEFT_LANE_X_CENTER - 25, 150, 1000, 'red', "Enemy Left", false, 'left'));
             gameObjects.push(new Tower(RIGHT_LANE_X_CENTER - 25, 150, 1000, 'red', "Enemy Right", false, 'right'));
             gameObjects.push(new Tower(CENTER_LANE_X - 25, 50, 2000, 'red', "Enemy King", false, 'center'));
