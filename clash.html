@@ -184,11 +184,10 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const GAME_WIDTH = canvas.width;
-        // CHANGED: Increased height to 800
-        const GAME_HEIGHT = canvas.height; // Now 800
-        const MID_Y = GAME_HEIGHT / 2; // Now 400
-        // CHANGED: Lowered deployment line to give more back space (e.g., 75% height)
-        const DEPLOY_LINE_Y = GAME_HEIGHT * 0.75; // Now 600
+        const GAME_HEIGHT = canvas.height; // 800
+        const MID_Y = GAME_HEIGHT / 2; // 400
+        // FIXED: Lowered deployment line to 85% height (680px)
+        const DEPLOY_LINE_Y = GAME_HEIGHT * 0.85; // 680
         const LEFT_LANE_X = GAME_WIDTH * 0.25; 
         const RIGHT_LANE_X = GAME_WIDTH * 0.75; 
         const CENTER_LANE_X = GAME_WIDTH * 0.5;
@@ -453,6 +452,7 @@
             if (selectedCardIndex === null || isGameOver) return;
             
             const card = CARD_DECK[selectedCardIndex];
+            // Check deployment line: If y is less than the DEPLOY_LINE_Y (higher on screen), deny placement
             if (elixir < card.cost || y < DEPLOY_LINE_Y) return;
 
             elixir -= card.cost;
@@ -613,12 +613,12 @@
 
 
         function initGame() {
-            // Opponent Towers (Top) - Positions adjusted for taller map
+            // Opponent Towers (Top)
             gameObjects.push(new Tower(CENTER_LANE_X - 25, 50, 2000, 'red', "Enemy King", false, 'center'));
             gameObjects.push(new Tower(LEFT_LANE_X - 25, 150, 1000, 'red', "Enemy Left", false, 'left'));
             gameObjects.push(new Tower(RIGHT_LANE_X - 25, 150, 1000, 'red', "Enemy Right", false, 'right'));
             
-            // Player Towers (Bottom) - Positions adjusted for taller map
+            // Player Towers (Bottom)
             gameObjects.push(new Tower(CENTER_LANE_X - 25, GAME_HEIGHT - 120, 2000, 'blue', "Your King", true, 'center'));
             gameObjects.push(new Tower(LEFT_LANE_X - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Left", true, 'left'));
             gameObjects.push(new Tower(RIGHT_LANE_X - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Right", true, 'right'));
