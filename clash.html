@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Emoji Graphics & Timer</title>
+    <title>Clash Clone - Projectiles & Better AI</title>
     
     <style>
         /* --- General Styling --- */
@@ -290,7 +290,7 @@
         let enemySpawnTimer = 0; 
         let isGameOver = false; 
         const ELIXIR_REGEN_RATE = 1; 
-        const ENEMY_SPAWN_RATE = 5; 
+        const ENEMY_SPAWN_RATE = 5; // Base spawn rate
         let selectedCardIndex = null; 
         
         let playerKingActive = false;
@@ -319,12 +319,13 @@
             "Skeletons": "💀",
             "Valkyrie": "🪓",
             "Hog Rider": "🐗",
-            "Tower": "🏰"
+            "Tower": "🏰",
+            "Projectile": "🔸" 
         };
         
         // --- CARD DEFINITION ---
         class Card {
-            constructor(name, cost, color, speed, damage, health, attackRange = 0, isMelee = true, isTank = false, targetBuilding = false, isSplash = false, unitCount = 1, isSpell = false, spellRadius = 0) {
+            constructor(name, cost, color, speed, damage, health, attackRange = 0, isMelee = true, isTank = false, targetBuilding = false, isSplash = false, unitCount = 1, isSpell = false, spellRadius = 0, projectileSpeed = 500) {
                 this.name = name;
                 this.cost = cost;
                 this.color = color;
@@ -339,28 +340,33 @@
                 this.unitCount = unitCount;
                 this.isSpell = isSpell;
                 this.spellRadius = spellRadius;
+                this.projectileSpeed = projectileSpeed; 
             }
         }
 
         const CARD_DECK_DEFINITION = [
             new Card("Knight", 3, '#007bff', 70, 80, 400),                                     
-            new Card("Archer", 3, '#ff4500', 80, 40, 150, 150, false),                          
+            new Card("Archer", 3, '#ff4500', 80, 40, 150, 150, false, false, false, false, 1, false, 0, 400),                          
             new Card("Goblins", 2, '#4CAF50', 120, 30, 80, 0, true, false, false, false, 3), 
             new Card("Mini P.E.K.K.A.", 4, '#800080', 100, 200, 350),                           
-            new Card("Giant", 5, '#00CED1', 50, 60, 800, 0, true, true),                       
+            new Card("Giant", 5, '#00CED1', 50, 60, 800, 0, true, true, true), // Giant targets buildings                      
             
             new Card("Skeletons", 1, '#cccccc', 150, 20, 30, 0, true, false, false, false, 4), 
             new Card("Valkyrie", 4, '#ff69b4', 90, 120, 600, 0, true, false, false, true), 
-            new Card("Hog Rider", 4, '#cc5500', 130, 150, 450, 0, true, false, true), 
+            new Card("Hog Rider", 4, '#cc5500', 130, 150, 450, 0, true, false, true), // Hog Rider targets buildings
             new Card("Fireball", 4, '#dc143c', 0, 400, 0, 0, false, false, false, false, 1, true, 100) 
         ];
         
+        // AI Opponent Deck (using the same card definitions)
+        const ENEMY_DECK_NAMES = ["Knight", "Archer", "Goblins", "Giant", "Skeletons"];
+
+
         const CARD_MAP = {};
         CARD_DECK_DEFINITION.forEach(card => {
             CARD_MAP[card.name] = card;
         });
 
-        // --- Game Object Classes (Unit, Tower, SpellEffect are largely the same) ---
+        // --- Game Object Classes ---
 
         class Unit {
             constructor(x, y, cardData, isPlayerUnit, targetLaneX) {
@@ -413,13 +419,13 @@
                 this.timeSinceLastAttack += deltaTime;
                 let currentTarget = this.targetUnit;
                 let targetBuilding = null;
-
+                
                 if (currentTarget && currentTarget.isDead) {
                     this.targetUnit = null;
                     currentTarget = null;
                 }
                 
-                // Prioritize finding targets based on unit type (Building targeting)
+                // 1. Target enemy buildings if unit targets buildings
                 if (this.targetBuilding) {
                     targetBuilding = findTargetTowerInLane(this, gameObjects.filter(obj => obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit));
                     if (targetBuilding) {
@@ -427,7 +433,7 @@
                     }
                 }
                 
-                // If no specific unit target, find the closest enemy unit
+                // 2. If no specific unit target and not building-focused, find the closest enemy unit
                 if (currentTarget === null && !this.targetBuilding) {
                     const newTarget = findTarget(this);
                     if (newTarget) {
@@ -436,16 +442,22 @@
                     }
                 }
                 
-                // Movement and Attack Logic (against Units)
+                // 3. Movement and Attack Logic (against Units)
                 if (currentTarget) {
                     const distance = calculateDistance(this, currentTarget);
                     
                     if (distance <= this.attackRange + (this.isMelee ? 10 : 0)) { 
                         if (this.timeSinceLastAttack >= this.attackCooldown) {
-                            if (this.isSplash) {
-                                splashAttack(this, currentTarget);
+                            if (this.isMelee || this.isSplash) {
+                                // Instant attack for melee/splash
+                                if (this.isSplash) {
+                                    splashAttack(this, currentTarget);
+                                } else {
+                                    attackTarget(this, currentTarget);
+                                }
                             } else {
-                                attackTarget(this, currentTarget);
+                                // Ranged attack uses a projectile
+                                createProjectile(this, currentTarget, this.damage, this.projectileSpeed);
                             }
                             this.timeSinceLastAttack = 0;
                         }
@@ -453,12 +465,13 @@
                         moveTowards(this, currentTarget.x + currentTarget.width / 2, currentTarget.y + currentTarget.height / 2, deltaTime);
                     }
                 } 
-                // Movement and Attack Logic (against Towers/Buildings)
+                // 4. Movement and Attack Logic (against Towers/Buildings)
                 else if (targetBuilding) { 
                     const distance = calculateDistance(this, targetBuilding);
                     
                     if (distance <= this.attackRange + targetBuilding.height) { 
                         if (this.timeSinceLastAttack >= this.attackCooldown) {
+                            // Building targeters are generally melee/instant
                             attackTower(this, targetBuilding);
                             this.timeSinceLastAttack = 0;
                         }
@@ -466,7 +479,7 @@
                         moveTowards(this, targetBuilding.x + targetBuilding.width / 2, targetBuilding.y + targetBuilding.height / 2, deltaTime);
                     }
                 }
-                // Default pathing to enemy towers
+                // 5. Default pathing to enemy towers (for non-building-targeters with no units nearby)
                 else { 
                     const towers = gameObjects.filter(obj => 
                         obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit
@@ -479,8 +492,13 @@
                          
                          if (distance <= this.attackRange + targetTower.height) { 
                              if (this.timeSinceLastAttack >= this.attackCooldown) {
-                                attackTower(this, targetTower);
-                                this.timeSinceLastAttack = 0;
+                                 // Non-targeting unit attacking tower
+                                 if (this.isMelee) {
+                                     attackTower(this, targetTower);
+                                 } else {
+                                     createProjectile(this, targetTower, this.damage, this.projectileSpeed);
+                                 }
+                                 this.timeSinceLastAttack = 0;
                             }
                          } else {
                              moveTowards(this, targetTower.x + targetTower.width / 2, targetTower.y + targetTower.height / 2, deltaTime);
@@ -566,7 +584,8 @@
                     
                     if (distance <= TOWER_RANGE) {
                         if (this.timeSinceLastAttack >= this.attackCooldown) {
-                            this.attackUnit(this.targetUnit);
+                            // Towers always use projectiles
+                            createProjectile(this, this.targetUnit, TOWER_DAMAGE, 600); 
                             this.timeSinceLastAttack = 0;
                         }
                     } else {
@@ -600,11 +619,6 @@
                 }
                 
                 return closestTarget;
-            }
-            
-            attackUnit(unit) {
-                unit.health -= TOWER_DAMAGE;
-                drawProjectile(this, unit, this.color); 
             }
         }
         
@@ -648,12 +662,68 @@
                 }
             }
         }
+        
+        class Projectile {
+            constructor(source, target, damage, speed) {
+                this.x = source.x + source.width / 2;
+                this.y = source.y + source.height / 2;
+                this.target = target;
+                this.damage = damage;
+                this.speed = speed;
+                this.isDead = false;
+                
+                // Calculate direction vector
+                const dx = (target.x + target.width / 2) - this.x;
+                const dy = (target.y + target.height / 2) - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                this.dirX = dx / dist;
+                this.dirY = dy / dist;
+                
+                this.radius = 5;
+                this.color = source.isPlayerUnit ? '#00FFFF' : '#FF00FF'; 
+            }
+            
+            draw() {
+                ctx.save();
+                ctx.fillStyle = this.color;
+                ctx.font = '15px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(EMOTICON_MAP["Projectile"], this.x, this.y); 
+                ctx.restore();
+            }
+            
+            update(deltaTime) {
+                if (this.isDead || this.target.health <= 0) {
+                    this.isDead = true;
+                    return;
+                }
+                
+                // Move projectile
+                this.x += this.dirX * this.speed * deltaTime;
+                this.y += this.dirY * this.speed * deltaTime;
+                
+                // Check collision
+                const distance = calculateDistanceToCenter(this.x, this.y, this.target);
+                
+                if (distance < this.radius + 10) { // Collision buffer
+                    this.target.health -= this.damage;
+                    this.isDead = true;
+                }
+            }
+        }
 
-        // --- Utility Functions (unchanged) ---
+        // --- Utility Functions ---
         
         function calculateDistance(obj1, obj2) {
             const dx = (obj1.x + obj1.width/2) - (obj2.x + obj2.width/2);
             const dy = (obj1.y + obj1.height/2) - (obj2.y + obj2.height/2);
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        
+        function calculateDistanceToCenter(x, y, obj) {
+            const dx = x - (obj.x + obj.width / 2);
+            const dy = y - (obj.y + obj.height / 2);
             return Math.sqrt(dx * dx + dy * dy);
         }
 
@@ -714,6 +784,11 @@
             defender.health -= attacker.damage;
         }
         
+        function createProjectile(source, target, damage, speed) {
+            const projectile = new Projectile(source, target, damage, speed);
+            gameObjects.push(projectile);
+        }
+        
         function splashAttack(attacker, target) {
             const splashRadius = 50; 
             target.health -= attacker.damage;
@@ -758,7 +833,7 @@
             const towerBeforeHealth = tower.health;
             tower.health -= attacker.damage;
 
-            // Sudden Death Check (Any tower destruction wins the game immediately)
+            // Sudden Death Check
             if (isSuddenDeath && towerBeforeHealth > 0 && tower.health <= 0) {
                 if (tower.isPlayerTower) {
                      endGame("DEFEAT", "SUDDEN DEATH");
@@ -826,7 +901,7 @@
             modal.style.display = 'flex';
         }
         
-        // --- NEW TIME LOGIC ---
+        // --- TIME LOGIC ---
 
         function formatTime(seconds) {
             const minutes = Math.floor(seconds / 60);
@@ -841,14 +916,12 @@
             
             if (gameTime <= 0) {
                 if (!isSuddenDeath) {
-                    // Transition to Sudden Death / Overtime
                     isOvertime = true;
                     isSuddenDeath = true;
                     gameTime = OVERTIME_DURATION;
                     document.getElementById('timer-display').classList.add('sudden-death');
                     
                 } else {
-                    // Sudden Death ends, check for tie based on remaining towers
                     const playerTowers = getTowerCount(true);
                     const enemyTowers = getTowerCount(false);
 
@@ -857,7 +930,7 @@
                     } else if (enemyTowers > playerTowers) {
                         endGame("DEFEAT", "TOWER COUNT");
                     } else {
-                        endGame("TIE", "TIME_TIE"); // True Tie (same tower count)
+                        endGame("TIE", "TIME_TIE"); 
                     }
                     gameTime = 0;
                 }
@@ -948,17 +1021,36 @@
         
         function spawnEnemyUnit() {
             if (isGameOver) return;
-             const basicEnemyCard = CARD_MAP["Goblins"]; 
-             
-             const isLeft = Math.random() < 0.5;
-             const spawnX = isLeft ? LEFT_LANE_X_CENTER : RIGHT_LANE_X_CENTER;
-             const targetLaneX = isLeft ? LEFT_LANE_X_CENTER : RIGHT_LANE_X_CENTER;
+            
+            // 1. Choose a random card from the enemy deck
+            const randomCardName = ENEMY_DECK_NAMES[Math.floor(Math.random() * ENEMY_DECK_NAMES.length)];
+            const card = CARD_MAP[randomCardName]; 
 
-            for(let i = 0; i < basicEnemyCard.unitCount; i++) {
+            // 2. Determine a valid lane to spawn in (prioritize towers that are still up)
+            const leftTowerUp = gameObjects.find(t => t.name === "Your Left" && t.health > 0);
+            const rightTowerUp = gameObjects.find(t => t.name === "Your Right" && t.health > 0);
+
+            let isLeft = Math.random() < 0.5;
+
+            // Simple AI: If one tower is down, force spawn on the side that still has a tower
+            if (leftTowerUp && !rightTowerUp) {
+                isLeft = true;
+            } else if (!leftTowerUp && rightTowerUp) {
+                isLeft = false;
+            }
+            
+            const spawnX = isLeft ? LEFT_LANE_X_CENTER : RIGHT_LANE_X_CENTER;
+            const targetLaneX = isLeft ? LEFT_LANE_X_CENTER : RIGHT_LANE_X_CENTER;
+            
+            const unitWidth = card.isTank ? 40 : 30;
+            const unitHeight = card.isTank ? 40 : 30;
+
+
+            for(let i = 0; i < card.unitCount; i++) {
                  const newEnemy = new Unit(
-                    spawnX - 10 + (i * 10), 
-                    130 - 10 + (i * 10), 
-                    basicEnemyCard, 
+                    spawnX - unitWidth / 2 - 10 + (i * 10), 
+                    130 - unitHeight / 2 - 10 + (i * 10), 
+                    card, 
                     false, 
                     targetLaneX 
                 );
@@ -967,7 +1059,6 @@
         }
 
         function updateElixir(deltaTime) {
-            // Double regen rate if in Overtime/Sudden Death
             const regenMultiplier = isSuddenDeath ? 2 : 1; 
             
             elixirTimer += deltaTime;
@@ -983,7 +1074,6 @@
         
         function updateEnemySpawn(deltaTime) {
             enemySpawnTimer += deltaTime;
-            // Enemy units spawn faster during Sudden Death
             const spawnRate = isSuddenDeath ? 3 : ENEMY_SPAWN_RATE; 
             
             if (enemySpawnTimer >= spawnRate) {
@@ -1109,25 +1199,6 @@
             ctx.stroke();
         }
         
-        function drawProjectile(source, target, color) {
-            const startX = source.x + source.width / 2;
-            const startY = source.y + source.height / 2;
-            const endX = target.x + target.width / 2;
-            const endY = target.y + target.height / 2;
-
-            ctx.strokeStyle = 'yellow';
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(startX, startY);
-            ctx.lineTo(endX, endY);
-            ctx.stroke();
-            
-            ctx.fillStyle = 'white';
-            ctx.beginPath();
-            ctx.arc(endX, endY, 4, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -1175,32 +1246,43 @@
 
             drawMap(); 
 
-            updateTimer(deltaTime); // NEW
+            updateTimer(deltaTime); 
             updateElixir(deltaTime);
             updateEnemySpawn(deltaTime); 
             
+            // Separate object types for drawing/updating order
             const unitsAndTowers = gameObjects.filter(obj => obj instanceof Unit || obj instanceof Tower);
+            const projectiles = gameObjects.filter(obj => obj instanceof Projectile);
             const spellEffects = gameObjects.filter(obj => obj instanceof SpellEffect);
             
+            // Update & Draw Logic
+            
+            // 1. Update/Draw Towers and Units
             for (const obj of unitsAndTowers) {
                 obj.update(deltaTime);
+                obj.draw(); 
             }
             
-            for (const obj of spellEffects) {
+            // 2. Update/Draw Projectiles
+            for (const obj of projectiles) {
                 obj.update(deltaTime);
+                obj.draw();
             }
 
+            // 3. Update/Draw Spell Effects (always on top)
+            for (const obj of spellEffects) {
+                obj.update(deltaTime);
+                obj.draw();
+            }
+
+            // Cleanup dead objects
             for (let i = gameObjects.length - 1; i >= 0; i--) {
                 const obj = gameObjects[i];
-                if ((obj instanceof Unit && obj.isDead) || (obj instanceof SpellEffect && obj.isDead)) { 
+                if ((obj instanceof Unit && obj.isDead) || (obj instanceof SpellEffect && obj.isDead) || (obj instanceof Projectile && obj.isDead)) { 
                     gameObjects.splice(i, 1);
                 }
             }
 
-            for (const obj of gameObjects) {
-                obj.draw();
-            }
-            
             requestAnimationFrame(gameLoop);
         }
 
