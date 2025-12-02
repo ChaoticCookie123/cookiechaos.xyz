@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple JS Tower Defense Clone (Single File)</title>
+    <title>Simple JS Tower Defense Clone (Multi-Card)</title>
     
     <style>
         /* --- CSS Styling --- */
@@ -46,7 +46,6 @@
             border-top: 2px solid #555;
             border-bottom-left-radius: 10px;
             border-bottom-right-radius: 10px;
-            
         }
         
         #ui-overlay p {
@@ -61,9 +60,13 @@
             margin-right: 5px;
         }
 
-        #deployButton {
-            padding: 10px 15px;
-            background-color: #ff4500; /* Orange/Red color for action */
+        #card-deck {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .deploy-card {
+            padding: 8px 10px;
             color: white;
             font-weight: bold;
             border: 3px solid #ffd700;
@@ -72,24 +75,42 @@
             transition: background-color 0.2s;
             box-shadow: 0 4px #c43500;
             margin: 5px;
+            min-width: 80px;
+            text-align: center;
+            line-height: 1.2;
         }
         
-        #deployButton:active {
+        .deploy-card:disabled {
+            background-color: #555 !important;
+            border-color: #333;
+            cursor: not-allowed;
+            box-shadow: none;
+            color: #ccc;
+        }
+        
+        .deploy-card:not(:disabled):active {
             box-shadow: 0 2px #c43500;
             transform: translateY(2px);
         }
+        
+        /* Specific Card Styles */
+        #card0 { background-color: #007bff; } /* Blue/Knight */
+        #card1 { background-color: #ff4500; } /* Red/Archer */
     </style>
 </head>
 <body>
     
-    <h1>👑 Simple Tower Defense (Clash Clone)</h1>
+    <h1>👑 Simple Tower Defense (Multi-Card)</h1>
 
     <div id="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         
         <div id="ui-overlay">
             <p><span class="icon">❤️</span> King Tower: <span id="playerHealth">2000</span></p>
-            <button id="deployButton" onclick="deployUnit()">Deploy Unit (Cost: 3)</button>
+            
+            <div id="card-deck">
+                </div>
+            
             <p><span class="icon">🧪</span> Elixir: <span id="elixirCount">10</span>/10</p>
         </div>
     </div>
@@ -106,29 +127,45 @@
         let elixir = 10;
         let lastTime = 0;
         let elixirTimer = 0;
-        let enemySpawnTimer = 0; // NEW: Timer for enemy units
+        let enemySpawnTimer = 0; 
         const ELIXIR_REGEN_RATE = 1; 
-        const ENEMY_SPAWN_RATE = 4; // NEW: Enemy spawns every 4 seconds
-        const UNIT_COST = 3;
+        const ENEMY_SPAWN_RATE = 4; // Enemy spawns every 4 seconds
 
         const gameObjects = []; 
+
+        // --- CARD DEFINITION (NEW) ---
+        class Card {
+            constructor(name, cost, color, speed, damage, health) {
+                this.name = name;
+                this.cost = cost;
+                this.color = color;
+                this.speed = speed;
+                this.damage = damage;
+                this.health = health;
+            }
+        }
+
+        const CARD_DECK = [
+            new Card("Knight", 4, 'blue', 70, 80, 400),    // High Health, Medium Speed/Damage
+            new Card("Archer", 2, 'red', 100, 30, 100)  // Low Cost/Health/Damage, High Speed
+        ];
 
         // --- Game Object Classes ---
 
         class Unit {
-            constructor(x, y, color, speed, damage, health, isPlayerUnit) {
+            constructor(x, y, cardData, isPlayerUnit) {
                 this.x = x;
                 this.y = y;
-                this.color = color;
-                this.speed = speed; 
-                this.damage = damage;
-                this.health = health;
-                this.maxHealth = health;
+                this.color = cardData.color;
+                this.speed = cardData.speed; 
+                this.damage = cardData.damage;
+                this.health = cardData.health;
+                this.maxHealth = cardData.health;
                 this.width = 30;
                 this.height = 30;
-                this.isPlayerUnit = isPlayerUnit; // Identifies faction
+                this.isPlayerUnit = isPlayerUnit;
                 this.isDead = false;
-                this.attackCooldown = 1.0; // Attack once per second
+                this.attackCooldown = 1.0; 
                 this.timeSinceLastAttack = 0;
             }
 
@@ -153,11 +190,10 @@
                 
                 this.timeSinceLastAttack += deltaTime;
 
-                // 1. Find a target (prioritize enemy units over the King Tower)
                 let target = findTarget(this);
 
                 if (target) {
-                    // Check if unit is in attack range (simplified: overlap)
+                    // Collision/Attack Range Check
                     if (checkCollision(this, target)) {
                         if (this.timeSinceLastAttack >= this.attackCooldown) {
                             attackTarget(this, target);
@@ -166,15 +202,12 @@
                     } else {
                         // Move toward the target
                         const directionY = target.y - this.y;
-                        const directionX = target.x - this.x;
-
-                        // Only move vertically for now (Clash Royale simplicity)
                         const dirY = directionY > 0 ? 1 : -1;
                         this.y += dirY * this.speed * deltaTime;
                     }
 
                 } else {
-                    // If no unit target, move towards the enemy King Tower
+                    // Move towards the enemy King Tower
                     const kingTower = this.isPlayerUnit 
                         ? gameObjects.find(obj => obj instanceof Tower && obj.name === "Enemy King")
                         : gameObjects.find(obj => obj instanceof Tower && obj.name === "Your King");
@@ -183,7 +216,6 @@
                          const directionY = kingTower.y - this.y;
                          const dirY = directionY > 0 ? 1 : -1;
                          
-                         // Check distance to tower
                          if (Math.abs(directionY) > kingTower.height) { 
                              this.y += dirY * this.speed * deltaTime;
                          } else {
@@ -231,13 +263,10 @@
             let potentialTargets = gameObjects.filter(obj => 
                 obj instanceof Unit && obj.isPlayerUnit !== unit.isPlayerUnit
             );
-            
-            // Simplified: return the first unit found that is an enemy
             return potentialTargets[0];
         }
 
         function checkCollision(unit1, unit2) {
-            // Simple bounding box collision check
             return unit1.x < unit2.x + unit2.width &&
                    unit1.x + unit1.width > unit2.x &&
                    unit1.y < unit2.y + unit2.height &&
@@ -246,65 +275,55 @@
         
         function attackTarget(attacker, defender) {
             defender.health -= attacker.damage;
-            console.log(`${attacker.color} unit attacked ${defender.color} unit! Defender health: ${defender.health}`);
         }
 
         function attackTower(attacker, tower) {
             tower.health -= attacker.damage;
             
             if (tower.name === "Your King") {
-                document.getElementById('playerHealth').textContent = tower.health;
+                // Update player UI health when enemy attacks player tower
+                document.getElementById('playerHealth').textContent = Math.max(0, tower.health); 
             }
             
             if (tower.health <= 0) {
                 alert(`${tower.name} destroyed! ${tower.name === "Your King" ? "Game Over! You Lose." : "Victory!"}`);
-                // In a real game, you would stop the loop here.
             }
         }
 
-        function initGame() {
-            // Opponent's King Tower (Top)
-            const opponentTower = new Tower(
-                GAME_WIDTH / 2 - 25, 20, 2000, 'red', "Enemy King"
-            );
-            gameObjects.push(opponentTower);
-            
-            // Player's King Tower (Bottom)
-            const playerTower = new Tower(
-                GAME_WIDTH / 2 - 25, GAME_HEIGHT - 100, 2000, 'blue', "Your King"
-            );
-            gameObjects.push(playerTower);
-        }
+        // MODIFIED: Takes the index of the card to deploy
+        function deployUnit(cardIndex) {
+            const card = CARD_DECK[cardIndex];
 
-        function deployUnit() {
-            if (elixir >= UNIT_COST) {
-                elixir -= UNIT_COST;
-                // Player Unit (Bottom, isPlayerUnit: true)
+            if (elixir >= card.cost) {
+                elixir -= card.cost;
+                
+                // Player Unit (Bottom, uses card stats)
                 const newUnit = new Unit(
                     GAME_WIDTH / 2 - 15, 
                     GAME_HEIGHT - 150,
-                    'green', // Player Unit color
-                    80, // speed 
-                    50, // damage
-                    200, // health
+                    card, // Pass the entire card data
                     true 
                 );
                 gameObjects.push(newUnit);
             } else {
-                console.log("Not enough Elixir!");
+                console.log(`Not enough Elixir to deploy ${card.name}!`);
             }
         }
         
+        // Enemy units are now static (simplified)
         function spawnEnemyUnit() {
-             // Enemy Unit (Top, isPlayerUnit: false)
+             const basicEnemyCard = { 
+                 color: 'purple', 
+                 speed: 70, 
+                 damage: 60, 
+                 health: 180 
+             }; 
+             
             const newEnemy = new Unit(
                 GAME_WIDTH / 2 - 15, 
                 130, // Spawn just below the enemy tower
-                'purple', // Enemy Unit color
-                70, // speed (a little slower)
-                60, // damage (a little stronger)
-                180, // health
-                false 
+                basicEnemyCard, 
+                false // isPlayerUnit: false
             );
             gameObjects.push(newEnemy);
         }
@@ -318,6 +337,9 @@
                 elixirTimer = 0;
             }
             document.getElementById('elixirCount').textContent = Math.floor(elixir);
+            
+            // Update button status based on Elixir (NEW)
+            updateCardButtons();
         }
         
         function updateEnemySpawn(deltaTime) {
@@ -326,6 +348,44 @@
                 spawnEnemyUnit();
                 enemySpawnTimer = 0;
             }
+        }
+        
+        // NEW: Function to dynamically create card buttons
+        function createCardButtons() {
+            const cardDeckElement = document.getElementById('card-deck');
+            
+            CARD_DECK.forEach((card, index) => {
+                const button = document.createElement('button');
+                button.id = `card${index}`;
+                button.className = 'deploy-card';
+                button.onclick = () => deployUnit(index);
+                button.innerHTML = `
+                    ${card.name} <br> 
+                    <span class="icon">🧪 ${card.cost}</span>
+                `;
+                cardDeckElement.appendChild(button);
+            });
+        }
+        
+        // NEW: Disable/Enable card buttons based on Elixir
+        function updateCardButtons() {
+            CARD_DECK.forEach((card, index) => {
+                const button = document.getElementById(`card${index}`);
+                if (button) {
+                    button.disabled = elixir < card.cost;
+                }
+            });
+        }
+        
+        function initGame() {
+            // Setup Towers
+            const opponentTower = new Tower(GAME_WIDTH / 2 - 25, 20, 2000, 'red', "Enemy King");
+            const playerTower = new Tower(GAME_WIDTH / 2 - 25, GAME_HEIGHT - 100, 2000, 'blue', "Your King");
+            gameObjects.push(opponentTower, playerTower);
+            
+            // Setup UI
+            createCardButtons();
+            updateCardButtons(); // Initial check
         }
 
 
@@ -339,9 +399,9 @@
 
             // 2. Update Game State
             updateElixir(deltaTime);
-            updateEnemySpawn(deltaTime); // NEW: Enemy Spawning
+            updateEnemySpawn(deltaTime); 
             
-            // Update all game objects (movement, attacks, etc.)
+            // Update all game objects 
             for (let i = gameObjects.length - 1; i >= 0; i--) {
                 const obj = gameObjects[i];
                 if (obj instanceof Unit) {
@@ -353,7 +413,6 @@
             }
 
             // 3. Draw Objects
-            // Draw the river/bridge line
             ctx.fillStyle = '#4c5d88'; 
             ctx.fillRect(0, GAME_HEIGHT / 2 - 5, GAME_WIDTH, 10);
 
