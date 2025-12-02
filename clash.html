@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Graphics Integrated</title>
+    <title>Clash Clone - Emoji Graphics</title>
     
     <style>
         /* --- General Styling --- */
@@ -189,22 +189,6 @@
             font-size: 1.2em;
             margin-top: 20px;
         }
-        
-        /* Loading Screen Style */
-        #loadingScreen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #2c2c2c;
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 2em;
-            z-index: 100;
-        }
     </style>
 </head>
 <body>
@@ -212,8 +196,6 @@
     <h1>⚔️ Strategic Clash Clone</h1>
 
     <div id="game-container">
-        <div id="loadingScreen">Loading Graphics...</div>
-        
         <canvas id="gameCanvas" width="800" height="800"></canvas>
         
         <div id="gameOverModal">
@@ -241,12 +223,11 @@
         const ctx = canvas.getContext('2d');
         const GAME_WIDTH = canvas.width;
         const GAME_HEIGHT = canvas.height; 
-        const MID_Y = GAME_HEIGHT / 2; // 400
+        const MID_Y = GAME_HEIGHT / 2; 
         
-        const CENTER_LANE_X = GAME_WIDTH / 2; // 400
+        const CENTER_LANE_X = GAME_WIDTH / 2; 
 
-        // Initial Deployment Line is just behind the river.
-        const INITIAL_DEPLOY_Y = MID_Y + 50; // 450 
+        const INITIAL_DEPLOY_Y = MID_Y + 50; 
         const DEPLOY_Y_EXPANDED = 50; 
         
         let deploymentLines = {
@@ -255,8 +236,8 @@
         };
         
         const LANE_WIDTH = 140;
-        const LEFT_LANE_X_CENTER = GAME_WIDTH * 0.25; // 200
-        const RIGHT_LANE_X_CENTER = GAME_WIDTH * 0.75; // 600
+        const LEFT_LANE_X_CENTER = GAME_WIDTH * 0.25; 
+        const RIGHT_LANE_X_CENTER = GAME_WIDTH * 0.75; 
         
         const LEFT_LANE_MIN_X = LEFT_LANE_X_CENTER - LANE_WIDTH / 2;
         const LEFT_LANE_MAX_X = LEFT_LANE_X_CENTER + LANE_WIDTH / 2;
@@ -289,58 +270,20 @@
 
         const gameObjects = []; 
 
-        // --- IMAGE LOADING SYSTEM ---
-        
-        // **!!! IMPORTANT: REPLACE PLACEHOLDER PATHS WITH ACTUAL IMAGE URLS/PATHS !!!**
-        const imageAssets = {
-            // Units
-            Knight: "PATH_TO_KNIGHT_IMAGE.png",
-            Archer: "PATH_TO_ARCHER_IMAGE.png",
-            Goblins: "PATH_TO_GOBLINS_IMAGE.png",
-            'Mini P.E.K.K.A.': "PATH_TO_MINIPEKKA_IMAGE.png",
-            Giant: "PATH_TO_GIANT_IMAGE.png",
-            Skeletons: "PATH_TO_SKELETONS_IMAGE.png",
-            Valkyrie: "PATH_TO_VALKYRIE_IMAGE.png",
-            'Hog Rider': "PATH_TO_HOGRIDER_IMAGE.png",
-            
-            // Towers (You might need different images for blue/red, or use tinting)
-            Tower_Player_King: "PATH_TO_PLAYER_KING_TOWER_IMAGE.png",
-            Tower_Player_Princess: "PATH_TO_PLAYER_PRINCESS_TOWER_IMAGE.png",
-            Tower_Enemy_King: "PATH_TO_ENEMY_KING_TOWER_IMAGE.png",
-            Tower_Enemy_Princess: "PATH_TO_ENEMY_PRINCESS_TOWER_IMAGE.png",
-            
-            // Map
-            Background: "PATH_TO_BACKGROUND_IMAGE.jpg", 
+        // --- EMOTICON MAPPING ---
+        const EMOTICON_MAP = {
+            "Knight": "🛡️",
+            "Archer": "🏹",
+            "Goblins": "💚", // Green heart for Goblins
+            "Mini P.E.K.K.A.": "🤖",
+            "Giant": "🦍",
+            "Skeletons": "💀",
+            "Valkyrie": "🪓",
+            "Hog Rider": "🐗",
+            "Tower": "🏰"
         };
         
-        const images = {}; // Holds the loaded Image objects
-
-        class ImageLoader {
-            static load() {
-                const promises = [];
-                const keys = Object.keys(imageAssets);
-
-                for (const key of keys) {
-                    const img = new Image();
-                    img.src = imageAssets[key];
-                    images[key] = img; 
-
-                    const p = new Promise((resolve, reject) => {
-                        img.onload = () => resolve();
-                        img.onerror = (e) => {
-                            console.error(`Failed to load image: ${key} at ${imageAssets[key]}`, e);
-                            // Resolve anyway to allow the game to start using fallback shapes
-                            resolve(); 
-                        };
-                    });
-                    promises.push(p);
-                }
-
-                return Promise.all(promises);
-            }
-        }
-        
-        // --- CARD DEFINITION (Same as before) ---
+        // --- CARD DEFINITION ---
         class Card {
             constructor(name, cost, color, speed, damage, health, attackRange = 0, isMelee = true, isTank = false, targetBuilding = false, isSplash = false, unitCount = 1, isSpell = false, spellRadius = 0) {
                 this.name = name;
@@ -377,7 +320,7 @@
         CARD_DECK_DEFINITION.forEach(card => {
             CARD_MAP[card.name] = card;
         });
-        
+
         // --- Game Object Classes ---
 
         class Unit {
@@ -396,39 +339,27 @@
                 this.targetUnit = null; 
             }
 
-            drawSprite() {
-                const imageName = this.name;
-                const image = images[imageName];
-                
+            draw() {
                 ctx.save();
                 
-                // Draw the unit image if loaded, otherwise fallback to the old drawing
-                if (image && image.complete && image.naturalWidth > 0) {
-                    // Simple flip for enemy units (assuming player units face up/forward by default)
-                    if (!this.isPlayerUnit) {
-                         ctx.translate(this.x + this.width, this.y);
-                         ctx.scale(-1, 1);
-                         ctx.drawImage(image, 0, 0, this.width, this.height);
-                    } else {
-                         ctx.drawImage(image, this.x, this.y, this.width, this.height);
-                    }
-                } else {
-                    // Fallback (old drawing logic)
-                    ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
-                    const teamColor = this.isPlayerUnit ? '#007bff' : '#ff4500';
-                    ctx.fillStyle = teamColor;
-                    ctx.beginPath();
-                    ctx.arc(0, 0, this.width / 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+                // Get the emoji for the unit
+                const emoji = EMOTICON_MAP[this.name] || '👾';
+                const teamColor = this.isPlayerUnit ? '#007bff' : '#ff4500';
+
+                // Draw a colored background circle (optional, for team identification)
+                ctx.fillStyle = teamColor;
+                ctx.beginPath();
+                ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw the Emoji
+                ctx.font = `${this.width * 0.8}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(emoji, this.x + this.width / 2, this.y + this.height / 2 + 2); // +2 for slight centering adjustment
 
                 ctx.restore();
-            }
 
-
-            draw() {
-                this.drawSprite();
-                
                 // Draw Health Bar
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = healthRatio > 0.5 ? 'lime' : (healthRatio > 0.2 ? 'yellow' : 'red');
@@ -438,7 +369,6 @@
             }
 
             update(deltaTime) {
-                // (Update logic remains the same, omitted for brevity)
                 if (this.health <= 0) {
                     this.isDead = true;
                     return;
@@ -542,46 +472,31 @@
             draw() {
                 ctx.save();
                 
-                const isKing = this.name.includes("King");
-                let imageName = '';
-                
-                if (this.isPlayerTower) {
-                    imageName = isKing ? 'Tower_Player_King' : 'Tower_Player_Princess';
-                } else {
-                    imageName = isKing ? 'Tower_Enemy_King' : 'Tower_Enemy_Princess';
-                }
-                
-                const image = images[imageName];
+                // Draw tower base (solid color block)
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
 
                 if (this.health <= 0) {
                      // Draw rubble
                      ctx.fillStyle = '#444444'; 
-                     ctx.fillRect(this.x, this.y + this.height * 0.7, this.width, this.height * 0.3); 
+                     ctx.fillRect(this.x, this.y + this.height * 0.8, this.width, this.height * 0.2); 
                      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                     ctx.fillRect(this.x, this.y, this.width, this.height * 0.7);
+                     ctx.fillRect(this.x, this.y, this.width, this.height * 0.8);
                      ctx.restore();
-                } else if (image && image.complete && image.naturalWidth > 0) {
-                    ctx.drawImage(image, this.x, this.y, this.width, this.height);
-                    ctx.restore();
-                } else {
-                    // Fallback (old drawing logic)
-                    ctx.fillStyle = '#6e7b8b'; 
-                    ctx.fillRect(this.x, this.y + this.height * 0.5, this.width, this.height * 0.5);
-                    
-                    ctx.fillStyle = this.color;
-                    ctx.fillRect(this.x + 5, this.y, this.width - 10, this.height * 0.7);
-                    
-                    ctx.fillStyle = '#ffd700'; 
-                    ctx.beginPath();
-                    ctx.moveTo(this.x, this.y);
-                    ctx.lineTo(this.x + this.width / 2, this.y - 10);
-                    ctx.lineTo(this.x + this.width, this.y); 
-                    ctx.fill();
-                    ctx.restore();
+                     return;
                 }
 
+                // Draw Emoji
+                const emoji = EMOTICON_MAP["Tower"];
                 
-                // Draw Health Bar (always drawn on top)
+                ctx.font = `${this.width * 0.8}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(emoji, this.x + this.width / 2, this.y + this.height / 2); 
+                
+                ctx.restore();
+                
+                // Draw Health Bar
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = 'white';
                 ctx.fillRect(this.x, this.y - 15, this.width, 10);
@@ -596,8 +511,7 @@
             }
             
             update(deltaTime) {
-                 // (Update logic remains the same, omitted for brevity)
-                 if (this.health <= 0) return;
+                if (this.health <= 0) return;
                 
                 this.timeSinceLastAttack += deltaTime;
 
@@ -624,8 +538,7 @@
             }
             
             findTargetUnit() {
-                 // (findTargetUnit logic remains the same, omitted for brevity)
-                 const isEnemy = !this.isPlayerTower; 
+                const isEnemy = !this.isPlayerTower; 
                 const isActive = this.isPlayerTower ? playerKingActive : enemyKingActive;
 
                 // King Tower Check: Only attack if active
@@ -699,7 +612,7 @@
             }
         }
 
-        // --- Utility Functions (Mostly unchanged) ---
+        // --- Utility Functions ---
         
         function calculateDistance(obj1, obj2) {
             const dx = (obj1.x + obj1.width/2) - (obj2.x + obj2.width/2);
@@ -733,6 +646,7 @@
 
             for (const target of potentialTargets) {
                  const distance = calculateDistance(unit, target);
+                 // Check if the target is roughly in the unit's target lane
                  if (distance < minDistance && Math.abs(target.x - unit.targetLaneX) < 150) { 
                      minDistance = distance;
                      closestTarget = target;
@@ -747,11 +661,13 @@
                             unit.targetLaneX === RIGHT_LANE_X_CENTER ? 'right' : 'center')
              );
              
+             // Prioritize the Princess Tower (non-center)
              let princessTower = laneTowers.find(t => t.lane !== 'center' && t.health > 0);
              if (princessTower) {
                  return princessTower;
              }
              
+             // If Princess Tower is destroyed, target the King Tower (center)
              let kingTower = towers.find(t => t.lane === 'center');
              if (kingTower && kingTower.health > 0) {
                  return kingTower;
@@ -766,6 +682,7 @@
         
         function splashAttack(attacker, target) {
             const splashRadius = 50; 
+            
             target.health -= attacker.damage;
             
             const secondaryTargets = gameObjects.filter(obj => 
@@ -791,6 +708,7 @@
                 
                 if (distance <= card.spellRadius) {
                     
+                    // Activate King Tower if hit!
                     if (target.name.includes("King") && target.isPlayerTower === false && target.health === target.maxHealth) {
                         enemyKingActive = true;
                     }
@@ -799,10 +717,13 @@
                 }
             }
             
+            // Add the visual spell effect object to the game loop
             gameObjects.push(new SpellEffect(x, y, card.spellRadius, card.color));
         }
 
         function attackTower(attacker, tower) {
+            
+            // Activate King Tower if a Princess Tower falls
             const isPrincessTower = tower.name.includes("Left") || tower.name.includes("Right");
             
             if (isPrincessTower && tower.isPlayerTower === false) {
@@ -815,6 +736,7 @@
                  }
             }
 
+            // Activate King Tower if directly attacked and undamaged 
             if (tower.name.includes("King") && tower.isPlayerTower === false && tower.health === tower.maxHealth) {
                 enemyKingActive = true;
             } else if (tower.name.includes("King") && tower.isPlayerTower === true && tower.health === tower.maxHealth) {
@@ -823,6 +745,7 @@
             
             tower.health -= attacker.damage;
             
+            // Update Player King Tower UI
             const myKingTower = gameObjects.find(t => t.name === "Your King");
             if (myKingTower) {
                  document.getElementById('playerHealth').textContent = Math.max(0, myKingTower.health); 
@@ -856,12 +779,14 @@
             const enemyLeftTower = gameObjects.filter(obj => obj.name === "Enemy Left").find(t => t instanceof Tower);
             const enemyRightTower = gameObjects.filter(obj => obj.name === "Enemy Right").find(t => t instanceof Tower);
 
+            // Check Left Lane
             if (enemyLeftTower && enemyLeftTower.health <= 0) {
                 deploymentLines.left = DEPLOY_Y_EXPANDED; 
             } else {
                 deploymentLines.left = INITIAL_DEPLOY_Y;
             }
             
+            // Check Right Lane
             if (enemyRightTower && enemyRightTower.health <= 0) {
                 deploymentLines.right = DEPLOY_Y_EXPANDED; 
             } else {
@@ -883,6 +808,7 @@
             let targetLaneX = 0;
             let currentDeployY = GAME_HEIGHT;
 
+            // Determine which lane the click is in based on X position
             if (x >= LEFT_LANE_MIN_X && x <= LEFT_LANE_MAX_X) {
                 targetLane = 'left';
                 targetLaneX = LEFT_LANE_X_CENTER;
@@ -894,6 +820,7 @@
             }
 
             if (card.isSpell) {
+                // Spells deploy anywhere (no lane or Y-axis check needed)
                 applyFireball(x, y, card);
                 elixir -= card.cost;
                 replaceCardInHand(selectedCardIndex);
@@ -901,6 +828,7 @@
                 return;
             }
             
+            // UNIT DEPLOYMENT CHECKS:
             if (targetLane === null) return;
             if (y < currentDeployY) return; 
             
@@ -948,6 +876,8 @@
                 gameObjects.push(newEnemy);
             }
         }
+
+        // --- UI and Update Functions ---
 
         function updateElixir(deltaTime) {
             elixirTimer += deltaTime;
@@ -999,20 +929,23 @@
             
             hand.forEach((cardName, index) => {
                 const card = CARD_MAP[cardName];
+                const emoji = EMOTICON_MAP[cardName] || '❓'; 
+
                 const button = document.createElement('button');
                 button.id = `card-slot-${index}`;
                 button.className = `deploy-card card-${cardName.toLowerCase().replace(/[\s\.]/g, '')}`; 
                 button.onclick = () => setSelectedCard(selectedCardIndex === index ? null : index);
                 button.innerHTML = `
                     <span class="elixir-cost">${card.cost}</span>
-                    ${card.name} <br> 
-                    <span style="font-size: 0.8em;">${card.isSpell ? 'SPELL' : 'UNIT'}</span>
+                    <span style="font-size: 1.5em;">${emoji}</span><br>
+                    ${card.name}
                 `;
                 cardDeckElement.appendChild(button);
             });
             
             const nextCardName = deck[nextCardIndex];
-            nextCardElement.innerHTML = `Next: ${nextCardName}`;
+            const nextCardEmoji = EMOTICON_MAP[nextCardName] || '❓';
+            nextCardElement.innerHTML = `Next: ${nextCardEmoji} ${nextCardName}`;
             
             updateCardButtons();
         }
@@ -1031,54 +964,54 @@
         }
         
         function drawMap() {
-            // Check for a loaded background image
-            const bgImage = images['Background'];
-            if (bgImage && bgImage.complete && bgImage.naturalWidth > 0) {
-                ctx.drawImage(bgImage, 0, 0, GAME_WIDTH, GAME_HEIGHT);
-            } else {
-                // 1. Fallback Background Grass 
-                ctx.fillStyle = '#3a6639'; 
-                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-                
-                // 2. Stone Paths 
-                const pathColor = '#5c5c5c';
-                const pathWidth = 140;
-                
-                ctx.fillStyle = pathColor; 
-                ctx.fillRect(LEFT_LANE_X_CENTER - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
-                ctx.fillRect(RIGHT_LANE_X_CENTER - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
+            // 1. Background Grass 
+            ctx.fillStyle = '#3a6639'; 
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            
+            // 2. Stone Paths 
+            const pathColor = '#5c5c5c';
+            const pathWidth = 140;
+            
+            ctx.fillStyle = pathColor; 
+            ctx.fillRect(LEFT_LANE_X_CENTER - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
+            ctx.fillRect(RIGHT_LANE_X_CENTER - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
 
-                // 3. River 
-                ctx.fillStyle = '#2d5b7a'; 
-                ctx.fillRect(0, MID_Y - 30, GAME_WIDTH, 60);
+            // 3. River 
+            ctx.fillStyle = '#2d5b7a'; 
+            ctx.fillRect(0, MID_Y - 30, GAME_WIDTH, 60);
 
-                // 4. Bridges 
-                ctx.fillStyle = '#8f6844'; 
-                const bridgeHeight = 50;
-                const bridgeWidth = 120;
-                ctx.fillRect(LEFT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
-                ctx.fillRect(RIGHT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
-            }
+            // 4. Bridges 
+            ctx.fillStyle = '#8f6844'; 
+            const bridgeHeight = 50;
+            const bridgeWidth = 120;
+            ctx.fillRect(LEFT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
+            ctx.fillRect(RIGHT_LANE_X_CENTER - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
 
-            // Deployment Zone (Player's side) - Always draw over map
+            // 5. Deployment Zone (Player's side)
             ctx.fillStyle = 'rgba(0, 0, 150, 0.1)'; 
             
+            // Left Lane Zone
             ctx.fillRect(LEFT_LANE_MIN_X, deploymentLines.left, LEFT_LANE_MAX_X - LEFT_LANE_MIN_X, GAME_HEIGHT - deploymentLines.left);
+            // Right Lane Zone
             ctx.fillRect(RIGHT_LANE_MIN_X, deploymentLines.right, RIGHT_LANE_MAX_X - RIGHT_LANE_MIN_X, GAME_HEIGHT - deploymentLines.right);
             
+            // 6. Deployment Lines (Visual Separator)
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 3;
             
+            // Left Line
             ctx.beginPath();
             ctx.moveTo(LEFT_LANE_MIN_X, deploymentLines.left);
             ctx.lineTo(LEFT_LANE_MAX_X, deploymentLines.left);
             ctx.stroke();
             
+            // Right Line
             ctx.beginPath();
             ctx.moveTo(RIGHT_LANE_MIN_X, deploymentLines.right);
             ctx.lineTo(RIGHT_LANE_MAX_X, deploymentLines.right);
             ctx.stroke();
 
+            // 7. Detail: Center Line
             ctx.strokeStyle = '#3a3a3a'; 
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -1115,9 +1048,12 @@
 
         function setupDeck() {
             fullDeck = CARD_DECK_DEFINITION.map(card => card.name);
+            
             deck = [...fullDeck];
             shuffleArray(deck);
+            
             hand = deck.slice(0, 4);
+            
             nextCardIndex = 4 % deck.length; 
         }
 
@@ -1128,11 +1064,13 @@
             // Opponent Towers (Top)
             gameObjects.push(new Tower(LEFT_LANE_X_CENTER - 25, 150, 1000, 'red', "Enemy Left", false, 'left'));
             gameObjects.push(new Tower(RIGHT_LANE_X_CENTER - 25, 150, 1000, 'red', "Enemy Right", false, 'right'));
+            // Enemy King starts passive (health=2000)
             gameObjects.push(new Tower(CENTER_LANE_X - 25, 50, 2000, 'red', "Enemy King", false, 'center')); 
             
             // Player Towers (Bottom)
             gameObjects.push(new Tower(LEFT_LANE_X_CENTER - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Left", true, 'left'));
             gameObjects.push(new Tower(RIGHT_LANE_X_CENTER - 25, GAME_HEIGHT - 220, 1000, 'blue', "Your Right", true, 'right'));
+            // Player King starts passive (health=2000)
             gameObjects.push(new Tower(CENTER_LANE_X - 25, GAME_HEIGHT - 120, 2000, 'blue', "Your King", true, 'center')); 
             
             createCardButtons();
@@ -1149,6 +1087,7 @@
             const deltaTime = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
+            // Check and update the valid deployment zone
             checkTowerStatusAndUpdateDeployment();
 
             drawMap(); 
@@ -1156,24 +1095,29 @@
             updateElixir(deltaTime);
             updateEnemySpawn(deltaTime); 
             
+            // Filter gameObjects: process Units/Towers first, then SpellEffects
             const unitsAndTowers = gameObjects.filter(obj => obj instanceof Unit || obj instanceof Tower);
             const spellEffects = gameObjects.filter(obj => obj instanceof SpellEffect);
             
+            // Update Towers and Units
             for (const obj of unitsAndTowers) {
                 obj.update(deltaTime);
             }
             
+            // Update Spell Effects
             for (const obj of spellEffects) {
                 obj.update(deltaTime);
             }
 
+            // Cleanup dead units and expired spell effects
             for (let i = gameObjects.length - 1; i >= 0; i--) {
                 const obj = gameObjects[i];
-                if ((obj instanceof Unit && obj.isDead) || (obj instanceof SpellEffect && obj.isDead) || (obj instanceof Tower && obj.health <= -500)) { // Give towers a health buffer before removal
+                if ((obj instanceof Unit && obj.isDead) || (obj instanceof SpellEffect && obj.isDead)) {
                     gameObjects.splice(i, 1);
                 }
             }
 
+            // Draw all remaining objects
             for (const obj of gameObjects) {
                 obj.draw();
             }
@@ -1181,26 +1125,9 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // --- Game Start ---
-        document.addEventListener('DOMContentLoaded', () => {
-             const loadingScreen = document.getElementById('loadingScreen');
-             loadingScreen.textContent = "Loading Assets...";
-
-             ImageLoader.load().then(() => {
-                 loadingScreen.style.display = 'none';
-                 initGame();
-                 requestAnimationFrame(gameLoop);
-             }).catch(() => {
-                 loadingScreen.textContent = "Error loading images. Starting game with fallback graphics.";
-                 // If there's an error, still try to start the game
-                 setTimeout(() => {
-                     loadingScreen.style.display = 'none';
-                     initGame();
-                     requestAnimationFrame(gameLoop);
-                 }, 1000);
-             });
-        });
-
+        // Start the game!
+        initGame();
+        requestAnimationFrame(gameLoop);
     </script>
 </body>
 </html>
