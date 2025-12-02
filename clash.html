@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple JS Tower Defense Clone (Multi-Card)</title>
+    <title>Simple JS Clash Clone (Click-to-Deploy & Lanes)</title>
     
     <style>
         /* --- CSS Styling --- */
@@ -28,7 +28,8 @@
 
         #gameCanvas {
             display: block;
-            background-image: linear-gradient(to bottom, #7b3d3d 10%, #6a9c37 10%, #6a9c37 90%, #3d3d7b 90%);
+            cursor: pointer; /* Indicate it's clickable */
+            /* Background visualization is now handled by JS for more detail */
         }
 
         #ui-overlay {
@@ -72,7 +73,7 @@
             border: 3px solid #ffd700;
             cursor: pointer;
             border-radius: 8px;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, box-shadow 0.1s;
             box-shadow: 0 4px #c43500;
             margin: 5px;
             min-width: 80px;
@@ -94,13 +95,19 @@
         }
         
         /* Specific Card Styles */
-        #card0 { background-color: #007bff; } /* Blue/Knight */
-        #card1 { background-color: #ff4500; } /* Red/Archer */
+        #card0 { background-color: #007bff; } /* Knight */
+        #card1 { background-color: #ff4500; } /* Archer */
+        
+        .selected-card {
+            box-shadow: 0 0 15px 5px yellow !important;
+            border-color: yellow !important;
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
     
-    <h1>👑 Simple Tower Defense (Multi-Card)</h1>
+    <h1>👑 Simple Clash Clone (Lanes & Deploy)</h1>
 
     <div id="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
@@ -121,6 +128,10 @@
         const ctx = canvas.getContext('2d');
         const GAME_WIDTH = canvas.width;
         const GAME_HEIGHT = canvas.height;
+        const MID_Y = GAME_HEIGHT / 2;
+        const BRIDGE_Y = MID_Y + 10;
+        const DEPLOY_LINE_Y = GAME_HEIGHT * 0.6; // Player can only deploy in their half
+        const LANE_WIDTH = GAME_WIDTH / 4; 
 
         // --- Game State Variables ---
         let playerHealth = 2000;
@@ -129,11 +140,12 @@
         let elixirTimer = 0;
         let enemySpawnTimer = 0; 
         const ELIXIR_REGEN_RATE = 1; 
-        const ENEMY_SPAWN_RATE = 4; // Enemy spawns every 4 seconds
+        const ENEMY_SPAWN_RATE = 4;
+        let selectedCardIndex = null; // NEW: Track which card is selected
 
         const gameObjects = []; 
 
-        // --- CARD DEFINITION (NEW) ---
+        // --- CARD DEFINITION ---
         class Card {
             constructor(name, cost, color, speed, damage, health) {
                 this.name = name;
@@ -146,8 +158,8 @@
         }
 
         const CARD_DECK = [
-            new Card("Knight", 4, 'blue', 70, 80, 400),    // High Health, Medium Speed/Damage
-            new Card("Archer", 2, 'red', 100, 30, 100)  // Low Cost/Health/Damage, High Speed
+            new Card("Knight", 4, 'blue', 70, 80, 400),
+            new Card("Archer", 2, 'red', 100, 30, 100)
         ];
 
         // --- Game Object Classes ---
@@ -193,35 +205,37 @@
                 let target = findTarget(this);
 
                 if (target) {
-                    // Collision/Attack Range Check
                     if (checkCollision(this, target)) {
                         if (this.timeSinceLastAttack >= this.attackCooldown) {
                             attackTarget(this, target);
                             this.timeSinceLastAttack = 0;
                         }
                     } else {
-                        // Move toward the target
+                        // Move toward the target (simplified vertical movement)
                         const directionY = target.y - this.y;
                         const dirY = directionY > 0 ? 1 : -1;
                         this.y += dirY * this.speed * deltaTime;
                     }
 
                 } else {
-                    // Move towards the enemy King Tower
-                    const kingTower = this.isPlayerUnit 
-                        ? gameObjects.find(obj => obj instanceof Tower && obj.name === "Enemy King")
-                        : gameObjects.find(obj => obj instanceof Tower && obj.name === "Your King");
+                    // Move towards the nearest King or Princess Tower
+                    const towers = gameObjects.filter(obj => 
+                        obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit
+                    );
                     
-                    if (kingTower) {
-                         const directionY = kingTower.y - this.y;
+                    let primaryTarget = findNearestTower(this, towers);
+
+                    if (primaryTarget) {
+                         const directionY = primaryTarget.y - this.y;
                          const dirY = directionY > 0 ? 1 : -1;
                          
-                         if (Math.abs(directionY) > kingTower.height) { 
+                         // Check distance to tower (stop and attack when close)
+                         if (Math.abs(directionY) > primaryTarget.height) { 
                              this.y += dirY * this.speed * deltaTime;
                          } else {
                              // Attack the tower
                              if (this.timeSinceLastAttack >= this.attackCooldown) {
-                                attackTower(this, kingTower);
+                                attackTower(this, primaryTarget);
                                 this.timeSinceLastAttack = 0;
                             }
                          }
@@ -231,13 +245,14 @@
         }
 
         class Tower {
-            constructor(x, y, health, color, name) {
+            constructor(x, y, health, color, name, isPlayerTower) {
                 this.x = x;
                 this.y = y;
                 this.health = health;
                 this.maxHealth = health;
                 this.color = color;
                 this.name = name;
+                this.isPlayerTower = isPlayerTower; // NEW: Faction ID
                 this.width = 50;
                 this.height = 80;
             }
@@ -254,6 +269,11 @@
                 ctx.fillRect(this.x, this.y - 15, this.width * healthRatio, 10);
                 ctx.strokeStyle = 'black';
                 ctx.strokeRect(this.x, this.y - 15, this.width, 10);
+
+                // Draw Tower Name (for debugging lanes)
+                ctx.fillStyle = 'white';
+                ctx.font = '10px Arial';
+                ctx.fillText(this.name, this.x + 5, this.y + this.height + 15);
             }
         }
 
@@ -263,14 +283,32 @@
             let potentialTargets = gameObjects.filter(obj => 
                 obj instanceof Unit && obj.isPlayerUnit !== unit.isPlayerUnit
             );
+            // Simplified: return the first unit found
             return potentialTargets[0];
         }
 
+        function findNearestTower(unit, towers) {
+             let nearest = null;
+             let minDistance = Infinity;
+             
+             for(const tower of towers) {
+                 // Simple distance calculation (ignoring x for now since lanes are fixed)
+                 const dist = Math.abs(tower.y - unit.y);
+                 if (dist < minDistance) {
+                     minDistance = dist;
+                     nearest = tower;
+                 }
+             }
+             return nearest;
+        }
+
         function checkCollision(unit1, unit2) {
-            return unit1.x < unit2.x + unit2.width &&
-                   unit1.x + unit1.width > unit2.x &&
-                   unit1.y < unit2.y + unit2.height &&
-                   unit1.y + unit1.height > unit2.y;
+            // Check for overlap + a small attack radius (10px)
+            const range = 10;
+            return unit1.x < unit2.x + unit2.width + range &&
+                   unit1.x + unit1.width > unit2.x - range &&
+                   unit1.y < unit2.y + unit2.height + range &&
+                   unit1.y + unit1.height > unit2.y - range;
         }
         
         function attackTarget(attacker, defender) {
@@ -280,37 +318,64 @@
         function attackTower(attacker, tower) {
             tower.health -= attacker.damage;
             
-            if (tower.name === "Your King") {
-                // Update player UI health when enemy attacks player tower
+            if (tower.name.includes("Your")) {
                 document.getElementById('playerHealth').textContent = Math.max(0, tower.health); 
             }
             
             if (tower.health <= 0) {
-                alert(`${tower.name} destroyed! ${tower.name === "Your King" ? "Game Over! You Lose." : "Victory!"}`);
+                alert(`${tower.name} destroyed! ${tower.isPlayerTower ? "Game Over! You Lose." : "Tower Down!"}`);
             }
         }
 
-        // MODIFIED: Takes the index of the card to deploy
-        function deployUnit(cardIndex) {
-            const card = CARD_DECK[cardIndex];
-
-            if (elixir >= card.cost) {
-                elixir -= card.cost;
-                
-                // Player Unit (Bottom, uses card stats)
-                const newUnit = new Unit(
-                    GAME_WIDTH / 2 - 15, 
-                    GAME_HEIGHT - 150,
-                    card, // Pass the entire card data
-                    true 
-                );
-                gameObjects.push(newUnit);
-            } else {
-                console.log(`Not enough Elixir to deploy ${card.name}!`);
+        // MODIFIED: Takes X and Y coordinates from the mouse click
+        function deployUnit(x, y) {
+            if (selectedCardIndex === null) {
+                console.log("No card selected.");
+                return;
             }
+            
+            const card = CARD_DECK[selectedCardIndex];
+
+            // 1. Check Elixir
+            if (elixir < card.cost) {
+                console.log(`Not enough Elixir to deploy ${card.name}!`);
+                return;
+            }
+
+            // 2. Check Deployment Zone (Player must deploy in their half)
+            if (y < DEPLOY_LINE_Y) {
+                console.log("Cannot deploy past the middle line!");
+                return;
+            }
+            
+            // 3. Deploy Unit
+            elixir -= card.cost;
+            
+            const newUnit = new Unit(
+                x - 15, // Center the unit on the click point
+                y - 15,
+                card, 
+                true // isPlayerUnit: true
+            );
+            gameObjects.push(newUnit);
+            
+            // 4. Deselect card after deployment
+            setSelectedCard(null);
         }
         
-        // Enemy units are now static (simplified)
+        // NEW: Handles card selection logic
+        function setSelectedCard(index) {
+            selectedCardIndex = index;
+            const buttons = document.querySelectorAll('.deploy-card');
+            
+            buttons.forEach((btn, i) => {
+                btn.classList.remove('selected-card');
+                if (i === index) {
+                    btn.classList.add('selected-card');
+                }
+            });
+        }
+        
         function spawnEnemyUnit() {
              const basicEnemyCard = { 
                  color: 'purple', 
@@ -319,9 +384,12 @@
                  health: 180 
              }; 
              
+             // Spawn randomly in the enemy half near a tower (Left, King, or Right)
+             const spawnPoint = Math.random() < 0.5 ? LANE_WIDTH : GAME_WIDTH - LANE_WIDTH;
+             
             const newEnemy = new Unit(
-                GAME_WIDTH / 2 - 15, 
-                130, // Spawn just below the enemy tower
+                spawnPoint, 
+                130, // Spawn just below the enemy towers
                 basicEnemyCard, 
                 false // isPlayerUnit: false
             );
@@ -337,8 +405,6 @@
                 elixirTimer = 0;
             }
             document.getElementById('elixirCount').textContent = Math.floor(elixir);
-            
-            // Update button status based on Elixir (NEW)
             updateCardButtons();
         }
         
@@ -350,7 +416,17 @@
             }
         }
         
-        // NEW: Function to dynamically create card buttons
+        // Function to handle canvas clicks for deployment (NEW)
+        function handleCanvasClick(event) {
+            if (selectedCardIndex !== null) {
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+                
+                deployUnit(x, y);
+            }
+        }
+
         function createCardButtons() {
             const cardDeckElement = document.getElementById('card-deck');
             
@@ -358,7 +434,8 @@
                 const button = document.createElement('button');
                 button.id = `card${index}`;
                 button.className = 'deploy-card';
-                button.onclick = () => deployUnit(index);
+                // Toggle card selection on click
+                button.onclick = () => setSelectedCard(selectedCardIndex === index ? null : index);
                 button.innerHTML = `
                     ${card.name} <br> 
                     <span class="icon">🧪 ${card.cost}</span>
@@ -367,25 +444,73 @@
             });
         }
         
-        // NEW: Disable/Enable card buttons based on Elixir
         function updateCardButtons() {
             CARD_DECK.forEach((card, index) => {
                 const button = document.getElementById(`card${index}`);
                 if (button) {
+                    // Disable if cost is too high
                     button.disabled = elixir < card.cost;
+                    
+                    // Maintain selection visual state
+                    if (selectedCardIndex === index) {
+                         if (elixir < card.cost) {
+                             // If selected card cannot be played, deselect it
+                             setSelectedCard(null);
+                         }
+                    }
                 }
             });
         }
         
-        function initGame() {
-            // Setup Towers
-            const opponentTower = new Tower(GAME_WIDTH / 2 - 25, 20, 2000, 'red', "Enemy King");
-            const playerTower = new Tower(GAME_WIDTH / 2 - 25, GAME_HEIGHT - 100, 2000, 'blue', "Your King");
-            gameObjects.push(opponentTower, playerTower);
+        // NEW: Draw the map background details
+        function drawMap() {
+            // Draw the grass field
+            ctx.fillStyle = '#6a9c37';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            // Draw the player's blue zone (Deployment Area)
+            ctx.fillStyle = 'rgba(0, 0, 150, 0.1)';
+            ctx.fillRect(0, DEPLOY_LINE_Y, GAME_WIDTH, GAME_HEIGHT - DEPLOY_LINE_Y);
             
-            // Setup UI
+            // Draw the central river
+            ctx.fillStyle = '#4c5d88'; 
+            ctx.fillRect(0, MID_Y - 20, GAME_WIDTH, 40);
+
+            // Draw the bridges (Left and Right)
+            ctx.fillStyle = '#a97e4b'; // Wood color
+            const bridgeHeight = 40;
+            const bridgeWidth = 100;
+
+            // Left Bridge
+            ctx.fillRect(LANE_WIDTH - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
+
+            // Right Bridge
+            ctx.fillRect(GAME_WIDTH - LANE_WIDTH - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
+
+            // Draw the deployment line (for clarity)
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, DEPLOY_LINE_Y);
+            ctx.lineTo(GAME_WIDTH, DEPLOY_LINE_Y);
+            ctx.stroke();
+        }
+
+
+        function initGame() {
+            // Opponent Towers (Top, isPlayerTower: false)
+            gameObjects.push(new Tower(GAME_WIDTH / 2 - 25, 20, 2000, 'red', "Enemy King", false));
+            gameObjects.push(new Tower(LANE_WIDTH - 25, 120, 1000, 'red', "Enemy Left", false));
+            gameObjects.push(new Tower(GAME_WIDTH - LANE_WIDTH - 25, 120, 1000, 'red', "Enemy Right", false));
+            
+            // Player Towers (Bottom, isPlayerTower: true)
+            gameObjects.push(new Tower(GAME_WIDTH / 2 - 25, GAME_HEIGHT - 100, 2000, 'blue', "Your King", true));
+            gameObjects.push(new Tower(LANE_WIDTH - 25, GAME_HEIGHT - 200, 1000, 'blue', "Your Left", true));
+            gameObjects.push(new Tower(GAME_WIDTH - LANE_WIDTH - 25, GAME_HEIGHT - 200, 1000, 'blue', "Your Right", true));
+            
+            // Setup UI and input
             createCardButtons();
-            updateCardButtons(); // Initial check
+            canvas.addEventListener('click', handleCanvasClick);
         }
 
 
@@ -394,28 +519,25 @@
             const deltaTime = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
-            // 1. Clear the canvas
-            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            // 1. Draw the map and clear the canvas
+            drawMap(); 
 
             // 2. Update Game State
             updateElixir(deltaTime);
             updateEnemySpawn(deltaTime); 
             
-            // Update all game objects 
+            // Update and clean up game objects 
             for (let i = gameObjects.length - 1; i >= 0; i--) {
                 const obj = gameObjects[i];
                 if (obj instanceof Unit) {
                     obj.update(deltaTime);
                     if (obj.isDead) {
-                        gameObjects.splice(i, 1); // Remove dead units
+                        gameObjects.splice(i, 1);
                     }
                 }
             }
 
             // 3. Draw Objects
-            ctx.fillStyle = '#4c5d88'; 
-            ctx.fillRect(0, GAME_HEIGHT / 2 - 5, GAME_WIDTH, 10);
-
             for (const obj of gameObjects) {
                 obj.draw();
             }
