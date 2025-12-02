@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Deploy on Destruction</title>
+    <title>Clash Clone - Deploy on Destruction (FIXED)</title>
     
     <style>
         /* --- General Styling --- */
@@ -223,10 +223,10 @@
         const ctx = canvas.getContext('2d');
         const GAME_WIDTH = canvas.width;
         const GAME_HEIGHT = canvas.height; 
-        const MID_Y = GAME_HEIGHT / 2; 
+        const MID_Y = GAME_HEIGHT / 2; // 400
         
-        // Initial Deployment Line (Top of Player's side)
-        const INITIAL_DEPLOY_Y = GAME_HEIGHT - 350; 
+        // **FIXED:** Initial Deployment Line (Top of Player's side - well behind the bridge)
+        const INITIAL_DEPLOY_Y = 650; 
         
         // Dynamic Deployment Line (This will be updated)
         let currentDeployY = INITIAL_DEPLOY_Y;
@@ -297,7 +297,7 @@
             CARD_MAP[card.name] = card;
         });
 
-        // --- Game Object Classes (Unchanged from previous successful version) ---
+        // --- Game Object Classes ---
 
         class Unit {
             constructor(x, y, cardData, isPlayerUnit, targetLaneX) {
@@ -574,7 +574,7 @@
             }
         }
         
-        // --- Utility Functions (Unchanged) ---
+        // --- Utility Functions ---
         
         function calculateDistance(obj1, obj2) {
             const dx = (obj1.x + obj1.width/2) - (obj2.x + obj2.width/2);
@@ -676,12 +676,14 @@
         function attackTower(attacker, tower) {
             tower.health -= attacker.damage;
             
-            if (tower.name.includes("Your King")) {
-                document.getElementById('playerHealth').textContent = Math.max(0, tower.health); 
-                
-                if (tower.health <= 0) {
-                    endGame("DEFEAT");
-                }
+            // Update Player King Tower UI
+            const myKingTower = gameObjects.find(t => t.name === "Your King");
+            if (myKingTower) {
+                 document.getElementById('playerHealth').textContent = Math.max(0, myKingTower.health); 
+            }
+            
+            if (tower.name.includes("Your King") && tower.health <= 0) {
+                 endGame("DEFEAT");
             }
             
             if (tower.name.includes("Enemy King") && tower.health <= 0) {
@@ -704,21 +706,18 @@
             modal.style.display = 'flex';
         }
         
-        // --- NEW: Dynamic Deployment Line Check ---
+        // --- FIXED: Dynamic Deployment Line Check ---
         function checkTowerStatusAndUpdateDeployment() {
             const enemyPrincessTowers = gameObjects.filter(obj => 
                 obj instanceof Tower && !obj.isPlayerTower && (obj.lane === 'left' || obj.lane === 'right')
             );
 
-            // Check if both Princess Towers are destroyed (health <= 0)
-            const allPrincessDestroyed = enemyPrincessTowers.every(tower => tower.health <= 0);
-
-            // If at least one Princess Tower is destroyed, advance the deployment line to the middle of the arena (MID_Y).
+            // If ANY enemy Princess Tower is destroyed, advance the deployment line.
             if (enemyPrincessTowers.some(tower => tower.health <= 0)) {
-                // Deployment extends to the middle river line
-                currentDeployY = MID_Y + 30; // 30 is the river's half width + a small buffer
+                // Deployment extends slightly past the river (MID_Y = 400)
+                currentDeployY = MID_Y - 5; 
             } else {
-                // If no princess towers are destroyed, deployment remains behind the river
+                // Deployment remains behind player's princess towers
                 currentDeployY = INITIAL_DEPLOY_Y; 
             }
         }
@@ -734,7 +733,7 @@
             if (elixir < card.cost) return; 
             
             if (!card.isSpell) {
-                // **UPDATED CHECK:** Must be in the valid deployment zone (below currentDeployY)
+                // **CORRECTED CHECK:** Must be deployed at or below the current deployment line
                 if (y < currentDeployY) return; 
             } 
 
@@ -790,7 +789,7 @@
             }
         }
 
-        // --- UI and Update Functions (Mostly Unchanged) ---
+        // --- UI and Update Functions ---
 
         function updateElixir(deltaTime) {
             elixirTimer += deltaTime;
@@ -874,11 +873,11 @@
         }
         
         function drawMap() {
-            // --- 1. Background Grass (Dark, Gritty Green) ---
+            // 1. Background Grass 
             ctx.fillStyle = '#3a6639'; 
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
             
-            // --- 2. Stone Paths (Lane simulation) ---
+            // 2. Stone Paths 
             const pathColor = '#5c5c5c';
             const pathWidth = 140;
             
@@ -886,23 +885,24 @@
             ctx.fillRect(LEFT_LANE_X - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
             ctx.fillRect(RIGHT_LANE_X - pathWidth / 2, 0, pathWidth, GAME_HEIGHT);
 
-            // --- 3. River (Middle section) ---
+            // 3. River 
             ctx.fillStyle = '#2d5b7a'; 
             ctx.fillRect(0, MID_Y - 30, GAME_WIDTH, 60);
 
-            // --- 4. Bridges (Over river) ---
+            // 4. Bridges 
             ctx.fillStyle = '#8f6844'; 
             const bridgeHeight = 50;
             const bridgeWidth = 120;
             ctx.fillRect(LEFT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
             ctx.fillRect(RIGHT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
 
-            // --- 5. Deployment Zone (Player's side - lower half) ---
+            // 5. Deployment Zone (Player's side - lower half)
             // Draw deployment zone dynamically based on currentDeployY
             ctx.fillStyle = 'rgba(0, 0, 150, 0.1)'; 
+            // The box starts at the deployment line and goes down to the bottom
             ctx.fillRect(0, currentDeployY, GAME_WIDTH, GAME_HEIGHT - currentDeployY);
             
-            // --- 6. Deployment Line (Visual Separator) ---
+            // 6. Deployment Line (Visual Separator)
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 3;
             ctx.beginPath();
@@ -910,7 +910,7 @@
             ctx.lineTo(GAME_WIDTH, currentDeployY);
             ctx.stroke();
 
-            // --- 7. Detail: Center Line ---
+            // 7. Detail: Center Line
             ctx.strokeStyle = '#3a3a3a'; 
             ctx.lineWidth = 2;
             ctx.beginPath();
