@@ -29,7 +29,6 @@
         #gameCanvas {
             display: block;
             background-image: linear-gradient(to bottom, #7b3d3d 10%, #6a9c37 10%, #6a9c37 90%, #3d3d7b 90%);
-            /* Simplified lane visualization: dividing line at the center */
         }
 
         #ui-overlay {
@@ -107,27 +106,30 @@
         let elixir = 10;
         let lastTime = 0;
         let elixirTimer = 0;
-        const ELIXIR_REGEN_RATE = 1; // 1 elixir per second
+        let enemySpawnTimer = 0; // NEW: Timer for enemy units
+        const ELIXIR_REGEN_RATE = 1; 
+        const ENEMY_SPAWN_RATE = 4; // NEW: Enemy spawns every 4 seconds
         const UNIT_COST = 3;
 
-        const gameObjects = []; // Array to hold all units, towers, etc.
+        const gameObjects = []; 
 
         // --- Game Object Classes ---
 
-        // Base class for anything that moves or fights
         class Unit {
-            constructor(x, y, color, speed, damage, health, targetY) {
+            constructor(x, y, color, speed, damage, health, isPlayerUnit) {
                 this.x = x;
                 this.y = y;
                 this.color = color;
-                this.speed = speed; // Pixels per second
+                this.speed = speed; 
                 this.damage = damage;
                 this.health = health;
                 this.maxHealth = health;
-                this.targetY = targetY; // Where the unit is trying to go
                 this.width = 30;
                 this.height = 30;
+                this.isPlayerUnit = isPlayerUnit; // Identifies faction
                 this.isDead = false;
+                this.attackCooldown = 1.0; // Attack once per second
+                this.timeSinceLastAttack = 0;
             }
 
             draw() {
@@ -149,22 +151,53 @@
                     return;
                 }
                 
-                // Simple vertical movement towards the target Y (Enemy King Tower)
-                const distance = this.targetY - this.y;
-                if (Math.abs(distance) > 5) { // If not at the target
-                    const direction = distance > 0 ? 1 : -1;
-                    this.y += direction * this.speed * deltaTime;
+                this.timeSinceLastAttack += deltaTime;
+
+                // 1. Find a target (prioritize enemy units over the King Tower)
+                let target = findTarget(this);
+
+                if (target) {
+                    // Check if unit is in attack range (simplified: overlap)
+                    if (checkCollision(this, target)) {
+                        if (this.timeSinceLastAttack >= this.attackCooldown) {
+                            attackTarget(this, target);
+                            this.timeSinceLastAttack = 0;
+                        }
+                    } else {
+                        // Move toward the target
+                        const directionY = target.y - this.y;
+                        const directionX = target.x - this.x;
+
+                        // Only move vertically for now (Clash Royale simplicity)
+                        const dirY = directionY > 0 ? 1 : -1;
+                        this.y += dirY * this.speed * deltaTime;
+                    }
+
                 } else {
-                    // Attack the Tower (assuming the first tower in gameObjects is the enemy tower)
-                    const enemyTower = gameObjects.find(obj => obj instanceof Tower && obj.color === 'red');
-                    if (enemyTower) {
-                         attackTower(this, enemyTower);
+                    // If no unit target, move towards the enemy King Tower
+                    const kingTower = this.isPlayerUnit 
+                        ? gameObjects.find(obj => obj instanceof Tower && obj.name === "Enemy King")
+                        : gameObjects.find(obj => obj instanceof Tower && obj.name === "Your King");
+                    
+                    if (kingTower) {
+                         const directionY = kingTower.y - this.y;
+                         const dirY = directionY > 0 ? 1 : -1;
+                         
+                         // Check distance to tower
+                         if (Math.abs(directionY) > kingTower.height) { 
+                             this.y += dirY * this.speed * deltaTime;
+                         } else {
+                             // Attack the tower
+                             if (this.timeSinceLastAttack >= this.attackCooldown) {
+                                attackTower(this, kingTower);
+                                this.timeSinceLastAttack = 0;
+                            }
+                         }
                     }
                 }
             }
         }
 
-        // Fixed position object
         class Tower {
             constructor(x, y, health, color, name) {
                 this.x = x;
@@ -181,35 +214,64 @@
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
                 
-                // Tower Health Bar (Simplified)
+                // Tower Health Bar
                 const healthRatio = this.health / this.maxHealth;
                 ctx.fillStyle = 'white';
                 ctx.fillRect(this.x, this.y - 15, this.width, 10);
                 ctx.fillStyle = 'darkred';
                 ctx.fillRect(this.x, this.y - 15, this.width * healthRatio, 10);
+                ctx.strokeStyle = 'black';
+                ctx.strokeRect(this.x, this.y - 15, this.width, 10);
             }
         }
 
         // --- Game Logic Functions ---
+        
+        function findTarget(unit) {
+            let potentialTargets = gameObjects.filter(obj => 
+                obj instanceof Unit && obj.isPlayerUnit !== unit.isPlayerUnit
+            );
+            
+            // Simplified: return the first unit found that is an enemy
+            return potentialTargets[0];
+        }
+
+        function checkCollision(unit1, unit2) {
+            // Simple bounding box collision check
+            return unit1.x < unit2.x + unit2.width &&
+                   unit1.x + unit1.width > unit2.x &&
+                   unit1.y < unit2.y + unit2.height &&
+                   unit1.y + unit1.height > unit2.y;
+        }
+        
+        function attackTarget(attacker, defender) {
+            defender.health -= attacker.damage;
+            console.log(`${attacker.color} unit attacked ${defender.color} unit! Defender health: ${defender.health}`);
+        }
+
+        function attackTower(attacker, tower) {
+            tower.health -= attacker.damage;
+            
+            if (tower.name === "Your King") {
+                document.getElementById('playerHealth').textContent = tower.health;
+            }
+            
+            if (tower.health <= 0) {
+                alert(`${tower.name} destroyed! ${tower.name === "Your King" ? "Game Over! You Lose." : "Victory!"}`);
+                // In a real game, you would stop the loop here.
+            }
+        }
 
         function initGame() {
-            // Opponent's King Tower (Target for units - top)
+            // Opponent's King Tower (Top)
             const opponentTower = new Tower(
-                GAME_WIDTH / 2 - 25, // Centered
-                20,
-                2000,
-                'red',
-                "Enemy King"
+                GAME_WIDTH / 2 - 25, 20, 2000, 'red', "Enemy King"
             );
             gameObjects.push(opponentTower);
             
-            // Player's King Tower (Defensive position - bottom)
+            // Player's King Tower (Bottom)
             const playerTower = new Tower(
-                GAME_WIDTH / 2 - 25, // Centered
-                GAME_HEIGHT - 100,
-                2000,
-                'blue',
-                "Your King"
+                GAME_WIDTH / 2 - 25, GAME_HEIGHT - 100, 2000, 'blue', "Your King"
             );
             gameObjects.push(playerTower);
         }
@@ -217,59 +279,58 @@
         function deployUnit() {
             if (elixir >= UNIT_COST) {
                 elixir -= UNIT_COST;
-                // Deploy unit near the player's tower (bottom center)
+                // Player Unit (Bottom, isPlayerUnit: true)
                 const newUnit = new Unit(
-                    GAME_WIDTH / 2 - 15, // Lane 1 (Center)
+                    GAME_WIDTH / 2 - 15, 
                     GAME_HEIGHT - 150,
                     'green', // Player Unit color
-                    100, // speed (pixels per second)
-                    100, // damage
+                    80, // speed 
+                    50, // damage
                     200, // health
-                    20 + 80 // Target opponent's tower top edge (y=20) + height (80)
+                    true 
                 );
                 gameObjects.push(newUnit);
             } else {
                 console.log("Not enough Elixir!");
             }
         }
+        
+        function spawnEnemyUnit() {
+             // Enemy Unit (Top, isPlayerUnit: false)
+            const newEnemy = new Unit(
+                GAME_WIDTH / 2 - 15, 
+                130, // Spawn just below the enemy tower
+                'purple', // Enemy Unit color
+                70, // speed (a little slower)
+                60, // damage (a little stronger)
+                180, // health
+                false 
+            );
+            gameObjects.push(newEnemy);
+        }
 
         function updateElixir(deltaTime) {
             elixirTimer += deltaTime;
-            if (elixirTimer >= 1) { // Every 1 second
+            if (elixirTimer >= 1) { 
                 if (elixir < 10) {
                     elixir = Math.min(10, elixir + ELIXIR_REGEN_RATE);
                 }
                 elixirTimer = 0;
             }
-            // Update UI
             document.getElementById('elixirCount').textContent = Math.floor(elixir);
         }
-
-        function attackTower(unit, tower) {
-            // For simplicity, a unit attacks the tower immediately upon arrival, then dies.
-            tower.health -= unit.damage;
-            
-            if (tower.name === "Enemy King") {
-                 // The enemy tower is hit, this game state is only tracking player health for now,
-                 // but we'll remove the unit and track the enemy health in the object itself.
-            } else if (tower.name === "Your King") {
-                // Player's Tower is hit (only happens if we add enemy units later)
-                document.getElementById('playerHealth').textContent = tower.health;
-            }
-            
-            // Mark unit for removal (simulating a single big attack hit)
-            unit.health = 0; 
-            
-            if (tower.health <= 0) {
-                alert(`${tower.name} destroyed! ${tower.name === "Your King" ? "Game Over! You Lose." : "Victory!"}`);
-                // Stop the game loop here in a real scenario
+        
+        function updateEnemySpawn(deltaTime) {
+            enemySpawnTimer += deltaTime;
+            if (enemySpawnTimer >= ENEMY_SPAWN_RATE) {
+                spawnEnemyUnit();
+                enemySpawnTimer = 0;
             }
         }
 
 
         // --- Main Game Loop ---
         function gameLoop(timestamp) {
-            // Calculate time passed since last frame (deltaTime in seconds)
             const deltaTime = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
@@ -278,28 +339,28 @@
 
             // 2. Update Game State
             updateElixir(deltaTime);
+            updateEnemySpawn(deltaTime); // NEW: Enemy Spawning
             
-            // Update all game objects and filter dead ones
+            // Update all game objects (movement, attacks, etc.)
             for (let i = gameObjects.length - 1; i >= 0; i--) {
                 const obj = gameObjects[i];
                 if (obj instanceof Unit) {
                     obj.update(deltaTime);
                     if (obj.isDead) {
-                        gameObjects.splice(i, 1);
+                        gameObjects.splice(i, 1); // Remove dead units
                     }
                 }
             }
 
             // 3. Draw Objects
             // Draw the river/bridge line
-            ctx.fillStyle = '#4c5d88'; // Blue-grey for river
+            ctx.fillStyle = '#4c5d88'; 
             ctx.fillRect(0, GAME_HEIGHT / 2 - 5, GAME_WIDTH, 10);
 
             for (const obj of gameObjects) {
                 obj.draw();
             }
             
-            // Request the next frame
             requestAnimationFrame(gameLoop);
         }
 
