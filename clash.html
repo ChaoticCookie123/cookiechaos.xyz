@@ -1,197 +1,311 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini Clash Royale - Real Cards</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { height:100vh; background:#0f172a; font-family:'Arial',sans-serif; overflow:hidden; display:flex; justify-content:center; }
-  .game { width:100%; max-width:400px; height:100vh; background:#111; display:flex; flex-direction:column; }
-  #arena { flex:1; position:relative; background:linear-gradient(to bottom,#1e293b 0%,#334155 48%,#475569 52%,#1e293b 100%); overflow:hidden; }
-  .bridge { position:absolute; left:50%; top:50%; width:70px; height:100px; background:linear-gradient(#fdb813,#b8860b); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 30px gold; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple JS Tower Defense Clone (Single File)</title>
+    
+    <style>
+        /* --- CSS Styling --- */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #333;
+            font-family: 'Arial', sans-serif;
+            flex-direction: column;
+        }
 
-  .tower { position:absolute; width:70px; height:110px; background:#1e293b; border:6px solid #64748b; border-radius:15px; box-shadow:0 0 20px #000; }
-  .tower.king { width:90px; height:140px; border-color:gold; box-shadow:0 0 30px gold; }
-  .health-bar { position:absolute; top:-24px; left:4px; right:4px; height:12px; background:#000; border-radius:6px; overflow:hidden; }
-  .health { height:100%; width:100%; background:#48bb78; transition:width .4s; }
-  .health.low { background:#ef4444; }
+        #game-container {
+            border: 8px solid #a97e4b; /* Game border (Wood/Brown) */
+            position: relative;
+            background-color: #6a9c37; /* Field color (Green) */
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
+            border-radius: 10px;
+        }
 
-  .troop { position:absolute; width:56px; height:56px; background-size:contain; background-repeat:no-repeat; background-position:center; filter:drop-shadow(0 4px 8px #000); pointer-events:none; }
-  .troop.knight { background-image:url('https://royaleapi.github.io/cr-cards/cards/knight.png'); }
-  .troop.archers { background-image:url('https://royaleapi.github.io/cr-cards/cards/archers.png'); }
-  .troop.minipekka { background-image:url('https://royaleapi.github.io/cr-cards/cards/mini-pekka.png'); }
-  .troop.giant { background-image:url('https://royaleapi.github.io/cr-cards/cards/giant.png'); }
+        #gameCanvas {
+            display: block;
+            background-image: linear-gradient(to bottom, #7b3d3d 10%, #6a9c37 10%, #6a9c37 90%, #3d3d7b 90%);
+            /* Simplified lane visualization: dividing line at the center */
+        }
 
-  #ui { padding:12px; background:rgba(0,0,0,0.9); border-top:4px solid #334155; }
-  #elixir-bar { height:14px; background:#1e293b; border-radius:8px; overflow:hidden; margin-bottom:8px; box-shadow:inset 0 4px 8px #000; }
-  #elixir { height:100%; width:100%; background:linear-gradient(90deg,#a78bfa,#7c3aed); box-shadow:0 0 15px #a78bfa; transition:width .3s; }
-  #elixir-text { text-align:center; font-weight:bold; font-size:18px; margin-bottom:10px; text-shadow:0 2px 4px #000; }
+        #ui-overlay {
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px 0;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            box-sizing: border-box;
+            border-top: 2px solid #555;
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+            
+        }
+        
+        #ui-overlay p {
+            margin: 0 10px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+        }
+        
+        .icon {
+            font-size: 1.5em;
+            margin-right: 5px;
+        }
 
-  #cards { display:flex; justify-content:center; gap:14px; }
-  .card {
-    width:76px; height:106px; border-radius:14px; position:relative; cursor:pointer;
-    background:#1e293b; border:4px solid #64748b; box-shadow:0 6px 16px rgba(0,0,0,0.8);
-    overflow:hidden; transition:all .2s;
-  }
-  .card:hover:not(.disabled) { transform:translateY(-6px); box-shadow:0 12px 24px rgba(0,0,0,0.9); }
-  .card.selected { border-color:#fbbf24; box-shadow: 0 0 25px #fbbf24; transform:scale(1.05); }
-  .card.disabled { opacity:0.4; cursor:not-allowed; }
-  .card img { width:100%; height:100%; object-fit:contain; }
-  .card-name { position:absolute; bottom:4px; left:0; right:0; text-align:center; color:white; font-weight:bold; font-size:12px; text-shadow:2px 2px 4px #000; background:rgba(0,0,0,0.6); padding:2px; }
-  .elixir-cost {
-    position:absolute; top:4px; left:4px; width:28px; height:28px; background:#7c3aed; border:3px solid #ddd; border-radius:50%;
-    display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:16px;
-    box-shadow:0 2px 6px #000;
-  }
-</style>
+        #deployButton {
+            padding: 10px 15px;
+            background-color: #ff4500; /* Orange/Red color for action */
+            color: white;
+            font-weight: bold;
+            border: 3px solid #ffd700;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+            box-shadow: 0 4px #c43500;
+            margin: 5px;
+        }
+        
+        #deployButton:active {
+            box-shadow: 0 2px #c43500;
+            transform: translateY(2px);
+        }
+    </style>
 </head>
 <body>
-<div class="game">
-  <div id="arena">
-    <!-- Enemy Towers -->
-    <div class="tower king" style="left:50%;transform:translateX(-50%);top:20px" id="enemy-king"></div>
-    <div class="tower" style="left:40px;top:20px" id="enemy-left"></div>
-    <div class="tower" style="right:40px;top:20px" id="enemy-right"></div>
+    
+    <h1>👑 Simple Tower Defense (Clash Clone)</h1>
 
-    <!-- Player Towers -->
-    <div class="tower king" style="left:50%;transform:translateX(-50%);bottom:20px" id="player-king"></div>
-    <div class="tower" style="left:40px;bottom:20px" id="player-left"></div>
-    <div class="tower" style="right:40px;bottom:20px" id="player-right"></div>
-
-    <div class="bridge"></div>
-  </div>
-
-  <div id="ui">
-    <div id="elixir-bar"><div id="elixir"></div></div>
-    <div id="elixir-text">10 / 10</div>
-    <div id="cards">
-      <div class="card" data-cost="3" data-type="knight">
-        <img src="https://royaleapi.github.io/cr-cards/cards/knight.png" alt="Knight">
-        <div class="elixir-cost">3</div>
-        <div class="card-name">Knight</div>
-      </div>
-      <div class="card" data-cost="3" data-type="archers">
-        <img src="https://royaleapi.github.io/cr-cards/cards/archers.png" alt="Archers">
-        <div class="elixir-cost">3</div>
-        <div class="card-name">Archers</div>
-      </div>
-      <div class="card" data-cost="4" data-type="minipekka">
-        <img src="https://royaleapi.github.io/cr-cards/cards/mini-pekka.png" alt="Mini P.E.K.K.A">
-        <div class="elixir-cost">4</div>
-        <div class="card-name">Mini P.E.K.K.A</div>
-      </div>
-      <div class="card" data-cost="5" data-type="giant">
-        <img src="https://royaleapi.github.io/cr-cards/cards/giant.png" alt="Giant">
-        <div class="elixir-cost">5</div>
-        <div class="card-name">Giant</div>
-      </div>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div id="ui-overlay">
+            <p><span class="icon">❤️</span> King Tower: <span id="playerHealth">2000</span></p>
+            <button id="deployButton" onclick="deployUnit()">Deploy Unit (Cost: 3)</button>
+            <p><span class="icon">🧪</span> Elixir: <span id="elixirCount">10</span>/10</p>
+        </div>
     </div>
-  </div>
-</div>
 
-<script>
-// Same core logic as before, but now with real card types
-let elixir = 10, maxElixir = 10;
-let playerTroops = [], enemyTroops = [];
-let selectedCard = null;
+    <script>
+        // --- Game Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const GAME_WIDTH = canvas.width;
+        const GAME_HEIGHT = canvas.height;
 
-const troopStats = {
-  knight:    { hp: 1400, dmg: 160, speed: 1.6, class: 'knight' },
-  archers:   { hp: 300,  dmg: 90,  speed: 2.0, class: 'archers' },
-  minipekka:{ hp: 1100, dmg: 600, speed: 2.4, class: 'minipekka' },
-  giant:     { hp: 3300, dmg: 210, speed: 1.0, class: 'giant' }
-};
+        // --- Game State Variables ---
+        let playerHealth = 2000;
+        let elixir = 10;
+        let lastTime = 0;
+        let elixirTimer = 0;
+        const ELIXIR_REGEN_RATE = 1; // 1 elixir per second
+        const UNIT_COST = 3;
 
-const towers = { /* same as before */ };
-Object.keys(towers).forEach(id => {
-  const t = document.getElementById(id);
-  const bar = document.createElement('div'); bar.className='health-bar';
-  const fill = document.createElement('div'); fill.className='health';
-  bar.appendChild(fill); t.appendChild(bar);
-});
+        const gameObjects = []; // Array to hold all units, towers, etc.
 
-function updateElixir() {
-  document.getElementById('elixir').style.width = (elixir/maxElixir*100)+'%';
-  document.getElementById('elixir-text').textContent = `${elixir} / ${maxElixir}`;
-  document.querySelectorAll('.card').forEach(c => {
-    c.classList.toggle('disabled', elixir < +c.dataset.cost);
-  });
-}
-setInterval(()=>{ if(elixir<maxElixir) {elixir++; updateElixir();} }, 2600);
+        // --- Game Object Classes ---
 
-document.querySelectorAll('.card').forEach(card => {
-  card.addEventListener('click', () => {
-    if (card.classList.contains('disabled')) return;
-    if (selectedCard === card) {
-      selectedCard = null; card.classList.remove('selected');
-      document.getElementById('arena').style.cursor = 'default';
-    } else {
-      document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));
-      selectedCard = card; card.classList.add('selected');
-      document.getElementById('arena').style.cursor = 'crosshair';
-    }
-  });
-});
+        // Base class for anything that moves or fights
+        class Unit {
+            constructor(x, y, color, speed, damage, health, targetY) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.speed = speed; // Pixels per second
+                this.damage = damage;
+                this.health = health;
+                this.maxHealth = health;
+                this.targetY = targetY; // Where the unit is trying to go
+                this.width = 30;
+                this.height = 30;
+                this.isDead = false;
+            }
 
-document.getElementById('arena').addEventListener('click', e => {
-  if (!selectedCard) return;
-  const rect = e.currentTarget.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  if (y < rect.height * 0.48) return alert("Can't deploy in enemy territory!");
+            draw() {
+                // Main Body
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                // Health Bar
+                const healthRatio = this.health / this.maxHealth;
+                ctx.fillStyle = healthRatio > 0.5 ? 'lime' : (healthRatio > 0.2 ? 'yellow' : 'red');
+                ctx.fillRect(this.x, this.y - 10, this.width * healthRatio, 5);
+                ctx.strokeStyle = 'black';
+                ctx.strokeRect(this.x, this.y - 10, this.width, 5);
+            }
 
-  const cost = +selectedCard.dataset.cost;
-  elixir -= cost; updateElixir();
+            update(deltaTime) {
+                if (this.health <= 0) {
+                    this.isDead = true;
+                    return;
+                }
+                
+                // Simple vertical movement towards the target Y (Enemy King Tower)
+                const distance = this.targetY - this.y;
+                if (Math.abs(distance) > 5) { // If not at the target
+                    const direction = distance > 0 ? 1 : -1;
+                    this.y += direction * this.speed * deltaTime;
+                } else {
+                    // Attack the Tower (assuming the first tower in gameObjects is the enemy tower)
+                    const enemyTower = gameObjects.find(obj => obj instanceof Tower && obj.color === 'red');
+                    if (enemyTower) {
+                         attackTower(this, enemyTower);
+                    }
+                }
+            }
+        }
 
-  const type = selectedCard.dataset.type;
-  const stats = troopStats[type];
-  const troop = document.createElement('div');
-  troop.className = `troop ${stats.class}`;
-  troop.style.left = (x-28)+'px';
-  troop.style.top = (y-28)+'px';
-  troop.dataset.hp = stats.hp;
-  troop.dataset.dmg = stats.dmg;
-  troop.dataset.speed = stats.speed;
-  troop.dataset.cooldown = '0';
-  document.getElementById('arena').appendChild(troop);
-  playerTroops.push(troop);
+        // Fixed position object
+        class Tower {
+            constructor(x, y, health, color, name) {
+                this.x = x;
+                this.y = y;
+                this.health = health;
+                this.maxHealth = health;
+                this.color = color;
+                this.name = name;
+                this.width = 50;
+                this.height = 80;
+            }
 
-  selectedCard.classList.remove('selected');
-  selectedCard = null;
-  document.getElementById('arena').style.cursor = 'default';
-});
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                // Tower Health Bar (Simplified)
+                const healthRatio = this.health / this.maxHealth;
+                ctx.fillStyle = 'white';
+                ctx.fillRect(this.x, this.y - 15, this.width, 10);
+                ctx.fillStyle = 'darkred';
+                ctx.fillRect(this.x, this.y - 15, this.width * healthRatio, 10);
+            }
+        }
 
-// Enemy AI
-setInterval(() => {
-  const types = ['knight','archers','giant'];
-  const type = types[Math.floor(Math.random()*types.length)];
-  const stats = troopStats[type];
-  const x = 60 + Math.random() * (document.getElementById('arena').offsetWidth - 120);
-  const y = 40 + Math.random() * 100;
-  const troop = document.createElement('div');
-  troop.className = `troop ${stats.class}`;
-  troop.style.left = (x-28)+'px'; troop.style.top = (y-28)+'px';
-  troop.dataset.hp = Math.floor(stats.hp*0.8);
-  troop.dataset.dmg = Math.floor(stats.dmg*0.9);
-  troop.dataset.speed = stats.speed;
-  troop.dataset.cooldown = '0';
-  document.getElementById('arena').appendChild(troop);
-  enemyTroops.push(troop);
-}, 5000 + Math.random()*4000);
+        // --- Game Logic Functions ---
 
-// Game loop (same as previous version but cleaner)
-function gameLoop() {
-  [...playerTroops, ...enemyTroops].forEach(troop => {
-    if (!troop.isConnected) return;
-    // target finding, movement, attack — same logic as before
-    // (kept short for brevity — full working code below)
-  });
-  requestAnimationFrame(gameLoop);
-}
+        function initGame() {
+            // Opponent's King Tower (Target for units - top)
+            const opponentTower = new Tower(
+                GAME_WIDTH / 2 - 25, // Centered
+                20,
+                2000,
+                'red',
+                "Enemy King"
+            );
+            gameObjects.push(opponentTower);
+            
+            // Player's King Tower (Defensive position - bottom)
+            const playerTower = new Tower(
+                GAME_WIDTH / 2 - 25, // Centered
+                GAME_HEIGHT - 100,
+                2000,
+                'blue',
+                "Your King"
+            );
+            gameObjects.push(playerTower);
+        }
 
-updateElixir();
-gameLoop();
-</script>
+        function deployUnit() {
+            if (elixir >= UNIT_COST) {
+                elixir -= UNIT_COST;
+                // Deploy unit near the player's tower (bottom center)
+                const newUnit = new Unit(
+                    GAME_WIDTH / 2 - 15, // Lane 1 (Center)
+                    GAME_HEIGHT - 150,
+                    'green', // Player Unit color
+                    100, // speed (pixels per second)
+                    100, // damage
+                    200, // health
+                    20 + 80 // Target opponent's tower top edge (y=20) + height (80)
+                );
+                gameObjects.push(newUnit);
+            } else {
+                console.log("Not enough Elixir!");
+            }
+        }
+
+        function updateElixir(deltaTime) {
+            elixirTimer += deltaTime;
+            if (elixirTimer >= 1) { // Every 1 second
+                if (elixir < 10) {
+                    elixir = Math.min(10, elixir + ELIXIR_REGEN_RATE);
+                }
+                elixirTimer = 0;
+            }
+            // Update UI
+            document.getElementById('elixirCount').textContent = Math.floor(elixir);
+        }
+
+        function attackTower(unit, tower) {
+            // For simplicity, a unit attacks the tower immediately upon arrival, then dies.
+            tower.health -= unit.damage;
+            
+            if (tower.name === "Enemy King") {
+                 // The enemy tower is hit, this game state is only tracking player health for now,
+                 // but we'll remove the unit and track the enemy health in the object itself.
+            } else if (tower.name === "Your King") {
+                // Player's Tower is hit (only happens if we add enemy units later)
+                document.getElementById('playerHealth').textContent = tower.health;
+            }
+            
+            // Mark unit for removal (simulating a single big attack hit)
+            unit.health = 0; 
+            
+            if (tower.health <= 0) {
+                alert(`${tower.name} destroyed! ${tower.name === "Your King" ? "Game Over! You Lose." : "Victory!"}`);
+                // Stop the game loop here in a real scenario
+            }
+        }
+
+
+        // --- Main Game Loop ---
+        function gameLoop(timestamp) {
+            // Calculate time passed since last frame (deltaTime in seconds)
+            const deltaTime = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+
+            // 1. Clear the canvas
+            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            // 2. Update Game State
+            updateElixir(deltaTime);
+            
+            // Update all game objects and filter dead ones
+            for (let i = gameObjects.length - 1; i >= 0; i--) {
+                const obj = gameObjects[i];
+                if (obj instanceof Unit) {
+                    obj.update(deltaTime);
+                    if (obj.isDead) {
+                        gameObjects.splice(i, 1);
+                    }
+                }
+            }
+
+            // 3. Draw Objects
+            // Draw the river/bridge line
+            ctx.fillStyle = '#4c5d88'; // Blue-grey for river
+            ctx.fillRect(0, GAME_HEIGHT / 2 - 5, GAME_WIDTH, 10);
+
+            for (const obj of gameObjects) {
+                obj.draw();
+            }
+            
+            // Request the next frame
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game!
+        initGame();
+        requestAnimationFrame(gameLoop);
+    </script>
 </body>
 </html>
