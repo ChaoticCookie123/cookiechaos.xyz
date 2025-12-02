@@ -3,27 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple JS Clash Clone (Full Combat & Cards)</title>
+    <title>Clash Clone - King Tower Win</title>
     
     <style>
-        /* --- CSS Styling --- */
+        /* --- General Styling --- */
         body {
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            background-color: #333;
+            background-color: #2c2c2c; /* Dark background */
             font-family: 'Arial', sans-serif;
             flex-direction: column;
         }
 
+        /* --- Game Container --- */
         #game-container {
-            border: 8px solid #a97e4b; 
+            border: 12px solid #5a3e2a; /* Thicker, dark wood border */
             position: relative;
-            background-color: #6a9c37; 
-            box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
-            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            overflow: hidden; /* Keep content contained */
         }
 
         #gameCanvas {
@@ -31,35 +32,37 @@
             cursor: pointer;
         }
 
+        /* --- UI Overlay --- */
         #ui-overlay {
             width: 100%;
             display: flex;
             justify-content: space-around;
             align-items: center;
             padding: 10px 0;
-            background: rgba(0, 0, 0, 0.85);
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.75));
             color: white;
             position: absolute;
             bottom: 0;
             left: 0;
             box-sizing: border-box;
-            border-top: 2px solid #555;
-            border-bottom-left-radius: 10px;
-            border-bottom-right-radius: 10px;
+            border-top: 3px solid #777;
+            text-shadow: 1px 1px 2px black;
         }
         
         #ui-overlay p {
             margin: 0 10px;
-            font-size: 1.1em;
+            font-size: 1.2em;
             display: flex;
             align-items: center;
         }
         
         .icon {
-            font-size: 1.5em;
+            font-size: 1.8em;
             margin-right: 5px;
+            text-shadow: none;
         }
 
+        /* --- Card Deck --- */
         #card-deck {
             display: flex;
             gap: 5px; 
@@ -72,9 +75,8 @@
             border: 3px solid #ffd700;
             cursor: pointer;
             border-radius: 8px;
-            transition: background-color 0.2s, box-shadow 0.1s;
+            transition: transform 0.1s, box-shadow 0.1s;
             box-shadow: 0 4px #c43500;
-            margin: 5px;
             min-width: 65px; 
             text-align: center;
             line-height: 1.1;
@@ -94,17 +96,61 @@
             transform: translateY(2px);
         }
         
-        /* Specific Card Styles */
-        #card0 { background-color: #007bff; } 
-        #card1 { background-color: #ff4500; } 
-        #card2 { background-color: #4CAF50; } 
-        #card3 { background-color: #800080; } 
-        #card4 { background-color: #00CED1; } 
+        /* Specific Card Styles (Vibrant Colors) */
+        #card0 { background-color: #007bff; } /* Knight */
+        #card1 { background-color: #ff4500; } /* Archer */
+        #card2 { background-color: #4CAF50; } /* Goblins */
+        #card3 { background-color: #800080; } /* Mini P.E.K.K.A. */
+        #card4 { background-color: #00CED1; } /* Giant */
         
         .selected-card {
             box-shadow: 0 0 15px 5px yellow !important;
             border-color: yellow !important;
             transform: scale(1.05);
+        }
+
+        /* --- Game Over Modal --- */
+        #gameOverModal {
+            display: none; /* Hidden by default */
+            position: absolute;
+            z-index: 10;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: linear-gradient(#4d1818, #333333); /* Reddish gradient for defeat */
+            margin: 15% auto;
+            padding: 40px;
+            border: 5px solid gold;
+            width: 70%;
+            text-align: center;
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 255, 0, 0.5);
+        }
+
+        .modal-content h2 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            color: yellow;
+            text-shadow: 2px 2px #000;
+        }
+
+        .modal-content button {
+            background-color: #c43500;
+            color: white;
+            padding: 10px 20px;
+            border: 2px solid #ffd700;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.2em;
+            margin-top: 20px;
         }
     </style>
 </head>
@@ -115,6 +161,13 @@
     <div id="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         
+        <div id="gameOverModal">
+            <div class="modal-content">
+                <h2 id="modalText"></h2>
+                <button onclick="window.location.reload()">Restart Game</button>
+            </div>
+        </div>
+
         <div id="ui-overlay">
             <p><span class="icon">❤️</span> King Tower: <span id="playerHealth">2000</span></p>
             
@@ -143,6 +196,7 @@
         let lastTime = 0;
         let elixirTimer = 0;
         let enemySpawnTimer = 0; 
+        let isGameOver = false; // NEW: Game state flag
         const ELIXIR_REGEN_RATE = 1; 
         const ENEMY_SPAWN_RATE = 5; 
         let selectedCardIndex = null; 
@@ -187,8 +241,6 @@
                 this.attackCooldown = 1.0; 
                 this.timeSinceLastAttack = 0;
                 this.targetLaneX = targetLaneX;
-                
-                // Target lock variable
                 this.targetUnit = null; 
             }
 
@@ -214,39 +266,32 @@
                 let currentTarget = this.targetUnit;
                 let targetTower = null;
 
-                // 1. Check if the locked target is still alive
                 if (currentTarget && currentTarget.isDead) {
                     this.targetUnit = null;
                     currentTarget = null;
                 }
 
-                // 2. If no target is locked, search for a new enemy unit
                 if (currentTarget === null) {
                     const newTarget = findTarget(this);
                     if (newTarget) {
-                        this.targetUnit = newTarget; // Lock onto the new target
+                        this.targetUnit = newTarget; 
                         currentTarget = newTarget;
                     }
                 }
-
-                // --- Combat/Movement Logic ---
 
                 if (currentTarget) {
                     const distance = calculateDistance(this, currentTarget);
                     
                     if (distance <= this.attackRange + (this.isMelee ? 10 : 0)) { 
-                        // ATTACKING UNIT
                         if (this.timeSinceLastAttack >= this.attackCooldown) {
                             attackTarget(this, currentTarget);
                             this.timeSinceLastAttack = 0;
                         }
                     } else {
-                        // MOVING TO UNIT
                         moveTowards(this, currentTarget.x + currentTarget.width / 2, currentTarget.y + currentTarget.height / 2, deltaTime);
                     }
 
                 } else {
-                    // NO UNIT TARGET: Target Tower
                     const towers = gameObjects.filter(obj => 
                         obj instanceof Tower && obj.isPlayerTower !== this.isPlayerUnit
                     );
@@ -257,13 +302,11 @@
                          const distance = calculateDistance(this, targetTower);
                          
                          if (distance <= this.attackRange + targetTower.height) { 
-                             // ATTACKING TOWER
                              if (this.timeSinceLastAttack >= this.attackCooldown) {
                                 attackTower(this, targetTower);
                                 this.timeSinceLastAttack = 0;
                             }
                          } else {
-                             // MOVING TO TOWER
                              moveTowards(this, targetTower.x + targetTower.width / 2, targetTower.y + targetTower.height / 2, deltaTime);
                          }
                     }
@@ -271,29 +314,6 @@
             }
         }
         
-        function calculateDistance(obj1, obj2) {
-            const dx = (obj1.x + obj1.width/2) - (obj2.x + obj2.width/2);
-            const dy = (obj1.y + obj1.height/2) - (obj2.y + obj2.height/2);
-            return Math.sqrt(dx * dx + dy * dy);
-        }
-
-        function moveTowards(unit, targetXCenter, targetYCenter, deltaTime) {
-            const targetX = targetXCenter - unit.width / 2;
-            const targetY = targetYCenter - unit.height / 2;
-
-            const dx = targetX - unit.x;
-            const dy = targetY - unit.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance > 5) {
-                const dirX = dx / distance;
-                const dirY = dy / distance;
-                unit.x += dirX * unit.speed * deltaTime;
-                unit.y += dirY * unit.speed * deltaTime;
-            }
-        }
-
-
         class Tower {
             constructor(x, y, health, color, name, isPlayerTower, lane) {
                 this.x = x;
@@ -326,8 +346,32 @@
             }
         }
 
-        // --- Game Logic Functions ---
+        // --- Utility Functions ---
         
+        function calculateDistance(obj1, obj2) {
+            const dx = (obj1.x + obj1.width/2) - (obj2.x + obj2.width/2);
+            const dy = (obj1.y + obj1.height/2) - (obj2.y + obj2.height/2);
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function moveTowards(unit, targetXCenter, targetYCenter, deltaTime) {
+            const targetX = targetXCenter - unit.width / 2;
+            const targetY = targetYCenter - unit.height / 2;
+
+            const dx = targetX - unit.x;
+            const dy = targetY - unit.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 5) {
+                const dirX = dx / distance;
+                const dirY = dy / distance;
+                unit.x += dirX * unit.speed * deltaTime;
+                unit.y += dirY * unit.speed * deltaTime;
+            }
+        }
+        
+        // --- Core Game Logic ---
+
         function findTarget(unit) {
             let potentialTargets = gameObjects.filter(obj => 
                 obj instanceof Unit && obj.isPlayerUnit !== unit.isPlayerUnit
@@ -338,7 +382,6 @@
 
             for (const target of potentialTargets) {
                  const distance = calculateDistance(unit, target);
-                 // Only consider targets near the unit's lane
                  if (distance < minDistance && Math.abs(target.x - unit.targetLaneX) < 150) { 
                      minDistance = distance;
                      closestTarget = target;
@@ -375,17 +418,40 @@
         function attackTower(attacker, tower) {
             tower.health -= attacker.damage;
             
-            if (tower.name.includes("Your")) {
+            if (tower.name.includes("Your King")) {
                 document.getElementById('playerHealth').textContent = Math.max(0, tower.health); 
+                
+                if (tower.health <= 0) {
+                    // NEW: Player King Tower destroyed -> Game Over (Loss)
+                    endGame("DEFEAT");
+                }
             }
             
-            if (tower.health <= 0) {
-                alert(`${tower.name} destroyed! ${tower.isPlayerTower ? "Game Over! You Lose." : "Tower Down!"}`);
+            if (tower.name.includes("Enemy King") && tower.health <= 0) {
+                // NEW: Enemy King Tower destroyed -> Game Over (Win)
+                endGame("VICTORY");
             }
+        }
+        
+        // NEW: Game End Handler
+        function endGame(result) {
+            isGameOver = true;
+            const modal = document.getElementById('gameOverModal');
+            const modalText = document.getElementById('modalText');
+            
+            if (result === "VICTORY") {
+                modalText.textContent = "VICTORY!";
+                modal.querySelector('.modal-content').style.background = 'linear-gradient(#1e88e5, #0d47a1)';
+                modal.querySelector('.modal-content').style.boxShadow = '0 0 20px rgba(0, 255, 0, 0.7)';
+            } else {
+                modalText.textContent = "DEFEAT!";
+                // Uses default red/gold styling for defeat
+            }
+            modal.style.display = 'flex';
         }
 
         function deployUnit(x, y) {
-            if (selectedCardIndex === null) return;
+            if (selectedCardIndex === null || isGameOver) return;
             
             const card = CARD_DECK[selectedCardIndex];
             if (elixir < card.cost || y < DEPLOY_LINE_Y) return;
@@ -394,7 +460,6 @@
             
             let targetLaneX = x < GAME_WIDTH / 2 ? LEFT_LANE_X : RIGHT_LANE_X;
             
-            // Fix applied here: Calculate unit dimensions correctly
             const unitWidth = card.isTank ? 40 : 30;
             const unitHeight = card.isTank ? 40 : 30;
 
@@ -424,6 +489,7 @@
         }
         
         function spawnEnemyUnit() {
+            if (isGameOver) return;
              const basicEnemyCard = CARD_DECK.find(c => c.name === "Goblins");
              
              const isLeft = Math.random() < 0.5;
@@ -439,6 +505,8 @@
             );
             gameObjects.push(newEnemy);
         }
+
+        // --- UI and Update Functions ---
 
         function updateElixir(deltaTime) {
             elixirTimer += deltaTime;
@@ -510,24 +578,35 @@
             });
         }
         
+        // VISUAL IMPROVEMENTS HERE
         function drawMap() {
-            ctx.fillStyle = '#6a9c37';
+            // Background Field (Grass texture effect)
+            ctx.fillStyle = '#4f7d3a'; 
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-            ctx.fillStyle = 'rgba(0, 0, 150, 0.1)';
-            ctx.fillRect(0, DEPLOY_LINE_Y, GAME_WIDTH, GAME_HEIGHT - DEPLOY_LINE_Y);
-            
-            ctx.fillStyle = '#4c5d88'; 
+            // Water (Deep blue)
+            ctx.fillStyle = '#1c4558'; 
             ctx.fillRect(0, MID_Y - 20, GAME_WIDTH, 40);
 
+            // Stone Path (Center line)
+            ctx.fillStyle = '#6a6a6a'; 
+            ctx.fillRect(LEFT_LANE_X - 60, 0, 120, GAME_HEIGHT);
+            ctx.fillRect(RIGHT_LANE_X - 60, 0, 120, GAME_HEIGHT);
+
+            // Bridges (Wood color, on top of water/path)
             ctx.fillStyle = '#a97e4b'; 
             const bridgeHeight = 40;
             const bridgeWidth = 100;
             ctx.fillRect(LEFT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
             ctx.fillRect(RIGHT_LANE_X - bridgeWidth / 2, MID_Y - bridgeHeight / 2, bridgeWidth, bridgeHeight);
 
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
+            // Deployment Zone (Player's side)
+            ctx.fillStyle = 'rgba(0, 0, 150, 0.15)'; // Slightly darker blue overlay
+            ctx.fillRect(0, DEPLOY_LINE_Y, GAME_WIDTH, GAME_HEIGHT - DEPLOY_LINE_Y);
+            
+            // Deployment Line (White stone)
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.moveTo(0, DEPLOY_LINE_Y);
             ctx.lineTo(GAME_WIDTH, DEPLOY_LINE_Y);
@@ -553,6 +632,11 @@
 
         // --- Main Game Loop ---
         function gameLoop(timestamp) {
+            if (isGameOver) {
+                // Stop processing game updates
+                return; 
+            }
+            
             const deltaTime = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
