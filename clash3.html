@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Polished</title>
+    <title>Clash Clone - Fixed Towers</title>
     <style>
         /* --- CSS STYLING --- */
         body {
@@ -78,7 +78,7 @@
             border-color: #ffd700; transform: translateY(-10px);
             background: #37474f; box-shadow: 0 0 10px #ffd700;
         }
-        .card img { font-size: 35px; margin-top: 15px; } /* Using emoji as img */
+        .card img { font-size: 35px; margin-top: 15px; } 
         
         .cost-badge {
             position: absolute; top: -8px; left: -8px;
@@ -91,7 +91,6 @@
             font-size: 10px; color: #ccc; margin-top: 5px; font-weight: bold; text-transform: uppercase;
         }
 
-        /* Grayscale when waiting for elixir */
         .card.disabled { filter: grayscale(1); opacity: 0.6; }
 
     </style>
@@ -119,19 +118,16 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     
-    // Virtual resolution for logic (keeps things consistent on all screens)
     const GAME_W = 420;
     const GAME_H = 720;
     
-    // Map Geography
-    const RIVER_Y = GAME_H / 2 - 40; // Shifted up slightly to make room for UI
+    const RIVER_Y = GAME_H / 2 - 40; 
     const BRIDGE_L_X = 90;
     const BRIDGE_R_X = GAME_W - 90;
     const BRIDGE_W = 50;
 
-    // Game Constants
     const ELIXIR_MAX = 10;
-    const MAX_UNITS = 80; // Performance Cap
+    const MAX_UNITS = 80;
 
     // --- CARD DATABASE ---
     const CARDS = {
@@ -149,7 +145,7 @@
     let gameObjects = [];
     let particles = [];
     let lastTime = 0;
-    let spawnTimer = 2.0; // Enemy spawn timer
+    let spawnTimer = 2.0; 
 
     // --- INITIALIZATION ---
     function init() {
@@ -171,11 +167,10 @@
         selectCard('knight');
 
         // Initial Towers
-        // Player
         addUnit(new Tower(90, 520, true, false));
         addUnit(new Tower(GAME_W-90, 520, true, false));
         addUnit(new Tower(GAME_W/2, 580, true, true)); // King
-        // Enemy
+        
         addUnit(new Tower(90, 120, false, false));
         addUnit(new Tower(GAME_W-90, 120, false, false));
         addUnit(new Tower(GAME_W/2, 60, false, true)); // King
@@ -195,14 +190,12 @@
 
     // --- INPUT HANDLING ---
     canvas.addEventListener('pointerdown', e => {
-        // Scaling logic for different screen sizes
         const rect = canvas.getBoundingClientRect();
         const scaleX = GAME_W / rect.width;
         const scaleY = GAME_H / rect.height;
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
 
-        // Logic
         if (y < RIVER_Y) {
             showToast("Enemy Territory!", "#ff4444");
             return;
@@ -211,13 +204,9 @@
         const card = CARDS[selectedCard];
         if (elixir >= card.cost) {
             elixir -= card.cost;
-            
-            // Spawn multiple units if count > 1
             for(let i=0; i<card.count; i++) {
-                // Random jitter so they don't stack perfectly
                 const ox = (Math.random() - 0.5) * 40;
                 const oy = (Math.random() - 0.5) * 40;
-                // Add Deployment Timer (1 sec delay)
                 addUnit(new DeployTimer(x + ox, y + oy, true, card));
             }
         } else {
@@ -235,7 +224,7 @@
 
     // --- GAME LOGIC ---
     function loop(now) {
-        const dt = Math.min((now - lastTime) / 1000, 0.1); // Cap dt at 0.1s
+        const dt = Math.min((now - lastTime) / 1000, 0.1); 
         lastTime = now;
 
         updateLogic(dt);
@@ -245,20 +234,17 @@
     }
 
     function updateLogic(dt) {
-        // 1. Elixir
-        if (elixir < ELIXIR_MAX) elixir += 0.5 * dt; // Regen rate
-        // Update UI
+        if (elixir < ELIXIR_MAX) elixir += 0.5 * dt; 
         document.getElementById('elixir-fill').style.width = (elixir / ELIXIR_MAX * 100) + '%';
         document.getElementById('elixir-text').innerText = Math.floor(elixir);
         
-        // Update Card Greyscale
         DECK.forEach(key => {
             const el = document.getElementById(`card-${key}`);
             if (CARDS[key].cost > elixir) el.classList.add('disabled');
             else el.classList.remove('disabled');
         });
 
-        // 2. Enemy AI (Simple spawner)
+        // AI
         spawnTimer -= dt;
         if (spawnTimer <= 0) {
             const lane = Math.random() > 0.5 ? BRIDGE_L_X : BRIDGE_R_X;
@@ -266,8 +252,6 @@
             spawnTimer = 4.0;
         }
 
-        // 3. Object Updates
-        // Sort by Y for depth (lower objects draw on top)
         gameObjects.sort((a,b) => a.y - b.y);
 
         for (let i = gameObjects.length - 1; i >= 0; i--) {
@@ -276,7 +260,6 @@
             if (obj.isDead) gameObjects.splice(i, 1);
         }
 
-        // 4. Particles
         for (let i = particles.length - 1; i >= 0; i--) {
             particles[i].life -= dt;
             particles[i].x += particles[i].vx * dt;
@@ -287,20 +270,17 @@
 
     // --- RENDERING ---
     function drawGame() {
-        // Clear
-        ctx.fillStyle = '#3b8c3b'; // Grass Color
+        ctx.fillStyle = '#3b8c3b'; 
         ctx.fillRect(0, 0, GAME_W, GAME_H);
 
-        // Draw River
         ctx.fillStyle = '#4fa3e3';
         ctx.fillRect(0, RIVER_Y, GAME_W, 30);
         
-        // Draw Bridges
         ctx.fillStyle = '#8d6e63';
         const bh = 54;
         ctx.fillRect(BRIDGE_L_X - BRIDGE_W/2, RIVER_Y - 12, BRIDGE_W, bh);
         ctx.fillRect(BRIDGE_R_X - BRIDGE_W/2, RIVER_Y - 12, BRIDGE_W, bh);
-        // Bridge planks
+        
         ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 2;
         for(let i=0; i<6; i++) {
             let y = RIVER_Y - 10 + (i*10);
@@ -308,13 +288,11 @@
             ctx.beginPath(); ctx.moveTo(BRIDGE_R_X-25, y); ctx.lineTo(BRIDGE_R_X+25, y); ctx.stroke();
         }
 
-        // Draw Valid Zone Line
         ctx.strokeStyle = 'rgba(255,255,255,0.2)';
         ctx.setLineDash([10, 10]);
         ctx.beginPath(); ctx.moveTo(0, RIVER_Y+40); ctx.lineTo(GAME_W, RIVER_Y+40); ctx.stroke();
         ctx.setLineDash([]);
 
-        // Draw Objects
         gameObjects.forEach(o => o.draw(ctx));
         particles.forEach(p => {
             ctx.fillStyle = p.color;
@@ -327,19 +305,17 @@
     class DeployTimer {
         constructor(x, y, isPlayer, card) {
             this.x = x; this.y = y; this.isPlayer = isPlayer; this.card = card;
-            this.timer = 1.0; // 1 second deploy time
+            this.timer = 1.0; 
             this.maxTime = 1.0;
         }
         update(dt) {
             this.timer -= dt;
             if (this.timer <= 0) {
                 this.isDead = true;
-                // Spawn the actual unit
                 addUnit(new Unit(this.x, this.y, this.isPlayer, this.card));
             }
         }
         draw(ctx) {
-            // Draw Clock
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
             ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2); ctx.fill();
             
@@ -356,8 +332,8 @@
             this.hp = stats.hp; this.maxHp = stats.hp;
             this.dmg = stats.dmg; this.speed = stats.speed;
             this.range = stats.range;
-            this.color = isPlayer ? '#4fc3f7' : '#e57373'; // Light Blue / Red
-            this.targetType = stats.type; // 'building' or 'ground'
+            this.color = isPlayer ? '#4fc3f7' : '#e57373'; 
+            this.targetType = stats.type; 
             this.jump = stats.jump || false;
             this.radius = 12;
             this.cooldown = 0;
@@ -367,28 +343,23 @@
         update(dt) {
             if (this.cooldown > 0) this.cooldown -= dt;
 
-            // 1. Find Target
             let target = this.findTarget();
 
-            // 2. Act
             if (target) {
                 const dist = Math.hypot(target.x - this.x, target.y - this.y);
                 const rangeNeed = this.range + target.radius + this.radius;
 
                 if (dist <= rangeNeed) {
-                    // Attack
                     if (this.cooldown <= 0) {
                         this.attack(target);
                         this.cooldown = this.rate;
                     }
                 } else {
-                    // Move towards target
                     this.moveTowards(target.x, target.y, dt);
                 }
             } else {
-                // No target? Move to enemy base
                 const goalY = this.isPlayer ? 50 : 650;
-                const goalX = (this.x < GAME_W/2) ? 90 : GAME_W - 90; // Stay in lane
+                const goalX = (this.x < GAME_W/2) ? 90 : GAME_W - 90; 
                 this.moveTowards(goalX, goalY, dt);
             }
         }
@@ -397,16 +368,13 @@
             let dx = tx - this.x;
             let dy = ty - this.y;
             
-            // Bridge Pathfinding (Simplified)
-            if (!this.jump) { // Jump units ignore river
+            if (!this.jump) { 
                 const toRiver = Math.abs(this.y - RIVER_Y);
-                // If near river and not aligned with bridge
                 if (toRiver < 60 && Math.abs(dy) > 10) {
-                    // Force alignment with nearest bridge
                     const bridgeX = (Math.abs(this.x - BRIDGE_L_X) < Math.abs(this.x - BRIDGE_R_X)) ? BRIDGE_L_X : BRIDGE_R_X;
                     if (Math.abs(this.x - bridgeX) > 10) {
-                        dx = bridgeX - this.x; // Move X only
-                        dy = 0; // Stop Y
+                        dx = bridgeX - this.x; 
+                        dy = 0; 
                     }
                 }
             }
@@ -420,14 +388,13 @@
 
         findTarget() {
             let closest = null;
-            let minDist = 300; // Aggro range
+            let minDist = 300; 
 
             for (const obj of gameObjects) {
                 if (obj === this) continue;
-                if (obj.isPlayer === this.isPlayer) continue; // Skip friends
+                if (obj.isPlayer === this.isPlayer) continue; 
                 if (obj instanceof DeployTimer || obj instanceof Projectile) continue;
                 
-                // Giant Logic: Ignore non-towers
                 if (this.targetType === 'building' && !(obj instanceof Tower)) continue;
 
                 const d = Math.hypot(obj.x - this.x, obj.y - this.y);
@@ -440,16 +407,16 @@
         }
 
         attack(target) {
-            // Visual bump
-            const angle = Math.atan2(target.y - this.y, target.x - this.x);
-            this.x += Math.cos(angle) * 5;
-            this.y += Math.sin(angle) * 5;
+            // FIX: Only bump logic if speed > 0 (Towers don't bump)
+            if (this.speed > 0) {
+                const angle = Math.atan2(target.y - this.y, target.x - this.x);
+                this.x += Math.cos(angle) * 5;
+                this.y += Math.sin(angle) * 5;
+            }
 
             if (this.range > 30) {
-                // Ranged Projectile
                 addUnit(new Projectile(this.x, this.y - 15, target, this.dmg));
             } else {
-                // Melee Damage
                 target.takeDamage(this.dmg);
             }
         }
@@ -458,7 +425,6 @@
             this.hp -= amt;
             if (this.hp <= 0) {
                 this.isDead = true;
-                // Death particles
                 for(let i=0; i<5; i++) {
                     particles.push({
                         x: this.x, y: this.y, 
@@ -470,16 +436,13 @@
         }
 
         draw(ctx) {
-            // Shadow
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.beginPath(); ctx.ellipse(this.x, this.y, this.radius, this.radius*0.6, 0, 0, Math.PI*2); ctx.fill();
 
-            // Body
             ctx.fillStyle = this.color;
             ctx.beginPath(); ctx.arc(this.x, this.y - 10, this.radius, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
 
-            // Health Bar
             const pct = this.hp / this.maxHp;
             ctx.fillStyle = '#333';
             ctx.fillRect(this.x - 12, this.y - 30, 24, 5);
@@ -495,7 +458,6 @@
             this.color = isPlayer ? '#2980b9' : '#c0392b';
             this.isKing = isKing;
         }
-        // Towers don't move
         moveTowards() {} 
         
         draw(ctx) {
@@ -504,7 +466,6 @@
             ctx.fillStyle = '#ccc';
             ctx.beginPath(); ctx.arc(this.x, this.y - 20, 15, 0, Math.PI*2); ctx.fill();
             
-            // Health Bar
             const pct = this.hp / this.maxHp;
             ctx.fillStyle = '#000'; ctx.fillRect(this.x - 20, this.y - 45, 40, 6);
             ctx.fillStyle = '#0f0'; ctx.fillRect(this.x - 20, this.y - 45, 40 * pct, 6);
