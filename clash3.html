@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <title>Clash Clone - Smooth Movement</title>
+    <title>Clash Clone - Pathfinding Fix</title>
     
     <style>
         body {
@@ -25,7 +25,6 @@
         }
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         
-        /* Elixir Bar */
         #elixir-bar-container {
             position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
             width: 90%; height: 25px; background: rgba(0,0,0,0.8);
@@ -37,7 +36,6 @@
             font-weight: 800; text-shadow: 1px 1px 2px black; font-size: 14px; z-index: 2;
         }
 
-        /* Card Selection */
         #card-selection {
             position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
             display: flex; gap: 6px; pointer-events: auto;
@@ -62,7 +60,6 @@
         .card-icon { font-size: 22px; }
         .card-name { font-size: 8px; color: #ccc; margin-top: 4px; text-transform: uppercase; text-align: center; }
 
-        /* Game Over */
         #game-over {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
@@ -82,7 +79,6 @@
 <div id="game-wrapper">
     <div id="game-container">
         <canvas id="gameCanvas" width="450" height="700"></canvas>
-        
         <div id="ui-layer">
             <div id="card-selection"></div>
             <div id="elixir-bar-container">
@@ -107,36 +103,38 @@
     const ELIXIR_MAX = 10;
     const ELIXIR_REGEN = 0.5;
 
-    // --- CARD DATA ---
     const CARDS = {
-        'knight': { name: 'Knight', icon: '⚔️', cost: 3, type: 'ground', count: 1, hp: 650, dmg: 75, speed: 45, range: 40, target: 'ground', color: '#3498db', radius: 14, hitAir: false },
-        'archers': { name: 'Archers', icon: '🏹', cost: 3, type: 'ground', count: 2, hp: 220, dmg: 45, speed: 50, range: 120, target: 'any', color: '#e056fd', radius: 12, hitAir: true },
-        'giant': { name: 'Giant', icon: '👹', cost: 5, type: 'ground', count: 1, hp: 2000, dmg: 120, speed: 30, range: 40, target: 'building', color: '#e67e22', radius: 24, hitAir: false },
-        'minions': { name: 'Minions', icon: '🦇', cost: 3, type: 'air', count: 3, hp: 150, dmg: 40, speed: 70, range: 30, target: 'any', color: '#8e44ad', radius: 10, hitAir: true, flying: true },
-        'hog': { name: 'Hog Rider', icon: '🔨', cost: 4, type: 'ground', count: 1, hp: 800, dmg: 150, speed: 85, range: 40, target: 'building', color: '#D2691E', radius: 15, hitAir: false, jump: true },
-        'valkyrie': { name: 'Valkyrie', icon: '🪓', cost: 4, type: 'ground', count: 1, hp: 900, dmg: 110, speed: 45, range: 50, target: 'ground', color: '#d35400', radius: 16, hitAir: false, area: true },
-        'wizard': { name: 'Wizard', icon: '🔥', cost: 5, type: 'ground', count: 1, hp: 350, dmg: 100, speed: 45, range: 130, target: 'any', color: '#2c3e50', radius: 14, hitAir: true, area: true, projectile: 'fire' },
-        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, type: 'ground', count: 10, hp: 50, dmg: 30, speed: 60, range: 30, target: 'ground', color: '#ecf0f1', radius: 6, hitAir: false },
+        'knight': { name: 'Knight', icon: '⚔️', cost: 3, type: 'ground', count: 1, hp: 650, dmg: 75, speed: 55, range: 5, target: 'ground', color: '#3498db', radius: 14, hitAir: false, mass: 10 },
+        'archers': { name: 'Archers', icon: '🏹', cost: 3, type: 'ground', count: 2, hp: 220, dmg: 45, speed: 60, range: 120, target: 'any', color: '#e056fd', radius: 12, hitAir: true, mass: 5 },
+        'giant': { name: 'Giant', icon: '👹', cost: 5, type: 'ground', count: 1, hp: 2000, dmg: 120, speed: 35, range: 5, target: 'building', color: '#e67e22', radius: 24, hitAir: false, mass: 50 },
+        'minions': { name: 'Minions', icon: '🦇', cost: 3, type: 'air', count: 3, hp: 150, dmg: 40, speed: 80, range: 30, target: 'any', color: '#8e44ad', radius: 10, hitAir: true, flying: true, mass: 1 },
+        'hog': { name: 'Hog Rider', icon: '🔨', cost: 4, type: 'ground', count: 1, hp: 800, dmg: 150, speed: 90, range: 5, target: 'building', color: '#D2691E', radius: 15, hitAir: false, jump: true, mass: 15 },
+        'valkyrie': { name: 'Valkyrie', icon: '🪓', cost: 4, type: 'ground', count: 1, hp: 900, dmg: 110, speed: 55, range: 5, target: 'ground', color: '#d35400', radius: 16, hitAir: false, area: true, mass: 12 },
+        'wizard': { name: 'Wizard', icon: '🔥', cost: 5, type: 'ground', count: 1, hp: 350, dmg: 100, speed: 55, range: 130, target: 'any', color: '#2c3e50', radius: 14, hitAir: true, area: true, projectile: 'fire', mass: 10 },
+        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, type: 'ground', count: 10, hp: 50, dmg: 30, speed: 70, range: 5, target: 'ground', color: '#ecf0f1', radius: 6, hitAir: false, mass: 2 },
         'fireball': { name: 'Fireball', icon: '☄️', cost: 4, type: 'spell', radius: 60, dmg: 350, effect: 'fire' },
         'zap': { name: 'Zap', icon: '⚡', cost: 2, type: 'spell', radius: 50, dmg: 80, effect: 'zap' }
     };
     const CARD_KEYS = Object.keys(CARDS);
 
-    let lastTime = performance.now(); // Correct initialization
+    let lastTime = 0;
     let elixir = 5; let enemyElixir = 5;
     let spawnTimer = 3.0;
     let gameObjects = [];
     let selectedType = 'knight';
     let gameOver = false;
 
-    // --- INIT ---
+    function safeDist(dx, dy) {
+        let d = Math.sqrt(dx*dx + dy*dy);
+        return d < 0.1 ? 0.1 : d;
+    }
+
     function initGame() {
         gameObjects = []; elixir = 5; enemyElixir = 5; gameOver = false;
-        lastTime = performance.now(); // Reset time on restart
+        lastTime = performance.now();
         document.getElementById('game-over').style.opacity = 0;
         document.getElementById('game-over').style.pointerEvents = 'none';
 
-        // Towers
         createTower(100, CH - 100, true, false); 
         createTower(CW - 100, CH - 100, true, false); 
         createTower(CW / 2, CH - 50, true, true); 
@@ -152,7 +150,6 @@
         gameObjects.push(new Tower(x, y, isPlayer, isKing, hp, dmg));
     }
 
-    // --- UI ---
     const cardContainer = document.getElementById('card-selection');
     cardContainer.innerHTML = '';
     CARD_KEYS.forEach(key => {
@@ -171,12 +168,10 @@
         element.classList.add('selected');
     }
 
-    // --- INPUT ---
     canvas.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         if (gameOver) return;
         
-        // Correct Coordinate Scaling
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
@@ -190,28 +185,20 @@
             if (elixir >= card.cost) {
                 castSpell(x, y, true, card);
                 elixir -= card.cost;
-            } else {
-                showFloatText(x, y, "Need " + card.cost + " Elixir!", "#ff4757");
-            }
-        } 
-        else {
+            } else showFloatText(x, y, "Need Elixir!", "#ff4757");
+        } else {
             if (y > RIVER_Y) {
                 if (elixir >= card.cost) {
                     spawnUnitBatch(x, y, true, card);
                     elixir -= card.cost;
-                } else {
-                    showFloatText(x, y, "Need " + card.cost + " Elixir!", "#ff4757");
-                }
-            } else {
-                showFloatText(x, y, "Enemy Side!", "#ff4757");
-            }
+                } else showFloatText(x, y, "Need Elixir!", "#ff4757");
+            } else showFloatText(x, y, "Enemy Side!", "#ff4757");
         }
     });
 
     function spawnUnitBatch(x, y, isPlayer, card) {
         spawnEffect(x, y, 'spawn_ring');
         for(let i=0; i<card.count; i++) {
-            // Random offset to prevent stacking on spawn
             let ox = (Math.random() - 0.5) * 40;
             let oy = (Math.random() - 0.5) * 40;
             gameObjects.push(new Unit(x + ox, y + oy, isPlayer, card));
@@ -222,10 +209,8 @@
         spawnEffect(x, y, card.effect, card.radius); 
         gameObjects.forEach(obj => {
             if (obj.isPlayer !== isPlayer && !obj.isDead) {
-                const dist = Math.hypot(obj.x - x, obj.y - y);
-                if (dist <= card.radius) {
-                    obj.takeDamage(card.dmg);
-                }
+                const dist = safeDist(obj.x - x, obj.y - y);
+                if (dist <= card.radius) obj.takeDamage(card.dmg);
             }
         });
     }
@@ -251,9 +236,8 @@
         draw() {
             ctx.globalAlpha = Math.max(0, this.life);
             ctx.fillStyle = this.color; ctx.font = "bold 20px Arial"; 
-            ctx.textAlign = "center"; ctx.shadowColor = "black"; ctx.shadowBlur = 4;
-            ctx.fillText(this.text, this.x, this.y);
-            ctx.shadowBlur = 0; ctx.textAlign = "start"; ctx.globalAlpha = 1;
+            ctx.textAlign = "center"; ctx.fillText(this.text, this.x, this.y);
+            ctx.globalAlpha = 1; ctx.textAlign = "start";
         }
     }
 
@@ -269,17 +253,20 @@
             this.isFlying = stats.flying || false;
             this.isArea = stats.area || false;
             this.isJump = stats.jump || false; 
+            this.mass = stats.mass || 5; 
             this.projectile = stats.projectile || null;
-
             this.attackTimer = 0; this.attackRate = 1.2;
             this.aggroRange = 250; 
         }
 
         update(dt) {
+            if (isNaN(this.x) || isNaN(this.y)) { this.isDead = true; return; }
+
             if (this.attackTimer > 0) this.attackTimer -= dt;
             const target = this.findTarget();
 
-            if (target && this.getDistance(target) <= this.range + target.radius) {
+            // Attack Logic
+            if (target && safeDist(target.x - this.x, target.y - this.y) <= this.range + target.radius + this.radius) {
                 if (this.attackTimer <= 0) {
                     this.attack(target);
                     this.attackTimer = this.attackRate;
@@ -292,7 +279,7 @@
         move(dt, target) {
             let destX, destY;
             
-            // Logic: Determine Destination
+            // 1. Determine Target or Fallback
             if (!target) {
                 destX = this.x < CW/2 ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
                 destY = this.isPlayer ? 0 : CH;
@@ -300,52 +287,58 @@
                 destX = target.x; destY = target.y;
             }
 
-            // Logic: Bridge Pathfinding
+            // 2. Strict Bridge Pathfinding
             if (!this.isFlying && !this.isJump) {
                 const mySide = this.y > RIVER_Y ? 'bottom' : 'top';
                 const destSide = destY > RIVER_Y ? 'bottom' : 'top';
-                
-                // If we need to cross the river
-                if (mySide !== destSide) {
-                    const inRiverZone = Math.abs(this.y - RIVER_Y) < 30; // Closer tolerance
-                    
-                    if (!inRiverZone) {
-                        const distLeft = Math.abs(this.x - BRIDGE_LEFT_X);
-                        const distRight = Math.abs(this.x - BRIDGE_RIGHT_X);
-                        const bridgeX = distLeft < distRight ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
-                        
-                        // If we aren't aligned with the bridge yet
-                        // Increased tolerance to 25px to prevent vibrating at bridge entry
-                        if (Math.abs(this.x - bridgeX) > 25) {
-                            destX = bridgeX; 
-                            destY = RIVER_Y;
-                        }
+                const riverDist = Math.abs(this.y - RIVER_Y);
+
+                // If on different sides, OR currently in the danger zone (crossing)
+                if (mySide !== destSide || riverDist < 50) {
+                    const distLeft = Math.abs(this.x - BRIDGE_LEFT_X);
+                    const distRight = Math.abs(this.x - BRIDGE_RIGHT_X);
+                    const bridgeX = distLeft < distRight ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
+
+                    // CHECK: Are we aligned with the bridge?
+                    const aligned = Math.abs(this.x - bridgeX) < 15;
+
+                    if (!aligned) {
+                        // PHASE 1: ALIGNMENT
+                        destX = bridgeX;
+                        // Don't move forward into river until aligned
+                        if (riverDist < 60) destY = this.y; 
+                        else destY = RIVER_Y; // Move closer if far away
+                    } else {
+                        // PHASE 2: CROSSING
+                        destX = bridgeX; // Lock X
+                        // Force movement to the OTHER side
+                        destY = this.isPlayer ? (RIVER_Y - 100) : (RIVER_Y + 100);
                     }
                 }
             }
 
-            // Execute Move
+            // 3. Move
             const dx = destX - this.x; const dy = destY - this.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
+            const dist = safeDist(dx, dy);
             
-            if (dist > 1) { // Only move if more than 1 pixel away
+            if (dist > 1) {
                 this.x += (dx / dist) * this.speed * dt;
                 this.y += (dy / dist) * this.speed * dt;
             }
         }
 
         findTarget() {
+            // If crossing the river (dist < 50), do not look for targets to avoid turning back
+            if (!this.isFlying && !this.isJump && Math.abs(this.y - RIVER_Y) < 50) return null;
+
             let closest = null; let closestDist = Infinity;
             for (const obj of gameObjects) {
                 if (obj.isPlayer !== this.isPlayer && !obj.isDead) {
                     if (this.targetType === 'building' && !(obj instanceof Tower)) continue;
                     if (obj.isFlying && !this.hitAir) continue;
-
-                    const d = this.getDistance(obj);
+                    const d = safeDist(obj.x - this.x, obj.y - this.y);
                     let range = (obj instanceof Tower) ? 2000 : this.aggroRange;
-                    if (d < range && d < closestDist) {
-                        closestDist = d; closest = obj;
-                    }
+                    if (d < range && d < closestDist) { closestDist = d; closest = obj; }
                 }
             }
             return closest;
@@ -356,19 +349,16 @@
                 spawnEffect(this.x, this.y, 'spin');
                 gameObjects.forEach(obj => {
                     if (obj.isPlayer !== this.isPlayer && !obj.isDead) {
-                        if (this.getDistance(obj) <= this.range + 15) {
+                        if (safeDist(obj.x - this.x, obj.y - this.y) <= this.range + obj.radius + this.radius) {
                              if(!obj.isFlying) obj.takeDamage(this.dmg);
                         }
                     }
                 });
                 return;
             }
-
             if (this.range > 50) {
                 gameObjects.push(new Projectile(this.x, this.y, target, this.dmg, this.isArea));
-            } else {
-                target.takeDamage(this.dmg);
-            }
+            } else target.takeDamage(this.dmg);
         }
 
         takeDamage(amt) {
@@ -380,27 +370,20 @@
             }
         }
 
-        getDistance(obj) { return Math.hypot(obj.x - this.x, obj.y - this.y); }
-
         draw() {
-            // Shadow
+            if (isNaN(this.x)) return;
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             const shadowY = this.isFlying ? this.y + 20 : this.y + 5;
-            ctx.beginPath(); 
-            ctx.save(); ctx.translate(this.x, shadowY); ctx.scale(1, 0.5); 
-            ctx.arc(0, 0, this.radius, 0, Math.PI*2); 
-            ctx.restore(); ctx.fill();
+            ctx.beginPath(); ctx.save(); ctx.translate(this.x, shadowY); ctx.scale(1, 0.5); 
+            ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.restore(); ctx.fill();
 
-            // HP Bar
             const pct = Math.max(0, this.hp / this.maxHp);
             ctx.fillStyle = 'red'; ctx.fillRect(this.x - 10, this.y - this.radius - 10, 20, 3);
             ctx.fillStyle = '#2ecc71'; ctx.fillRect(this.x - 10, this.y - this.radius - 10, 20 * pct, 3);
 
-            // Body
             ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
             ctx.fillStyle = this.color; ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
-            
             if(this.isFlying) { ctx.fillStyle='cyan'; ctx.fillRect(this.x-2, this.y-2, 4,4); }
         }
     }
@@ -410,7 +393,7 @@
             super(x, y, isPlayer);
             this.isKing = isKing; this.hp = hp; this.maxHp = hp;
             this.dmg = dmg; this.range = 160; this.active = !isKing;
-            this.radius = isKing ? 35 : 25; this.attackTimer = 0; this.isFlying = false;
+            this.radius = isKing ? 35 : 25; this.attackTimer = 0;
         }
 
         update(dt) {
@@ -424,7 +407,7 @@
 
             for (const obj of gameObjects) {
                 if (obj instanceof Unit && obj.isPlayer !== this.isPlayer && !obj.isDead) {
-                    if (Math.hypot(obj.x - this.x, obj.y - this.y) <= this.range) {
+                    if (safeDist(obj.x - this.x, obj.y - this.y) <= this.range) {
                         if (this.attackTimer <= 0) {
                             gameObjects.push(new Projectile(this.x, this.y - 20, obj, this.dmg, false, true));
                             this.attackTimer = 0.8;
@@ -449,10 +432,8 @@
             ctx.fillStyle = this.isPlayer ? '#2980b9' : '#c0392b';
             const s = this.radius * 2;
             ctx.fillRect(this.x - this.radius, this.y - this.radius, s, s);
-            
             ctx.fillStyle = 'black'; ctx.fillRect(this.x - 20, this.y - this.radius - 8, 40, 5);
             ctx.fillStyle = '#2ecc71'; ctx.fillRect(this.x - 20, this.y - this.radius - 8, 40 * pct, 5);
-
             ctx.fillStyle = this.active ? '#ecf0f1' : '#7f8c8d';
             ctx.beginPath();
             if(this.isKing) {
@@ -476,7 +457,7 @@
         update(dt) {
             if (this.target.isDead) { this.isDead = true; return; }
             const dx = this.target.x - this.x; const dy = this.target.y - this.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
+            const dist = safeDist(dx, dy);
 
             if (dist < 10) {
                 this.isDead = true;
@@ -484,12 +465,10 @@
                     spawnEffect(this.x, this.y, 'fire', 40);
                     gameObjects.forEach(obj => {
                         if(obj.isPlayer !== this.target.isPlayer && !obj.isDead) {
-                            if(Math.hypot(obj.x - this.x, obj.y - this.y) < 40) obj.takeDamage(this.dmg);
+                            if(safeDist(obj.x - this.x, obj.y - this.y) < 40) obj.takeDamage(this.dmg);
                         }
                     });
-                } else {
-                    this.target.takeDamage(this.dmg);
-                }
+                } else this.target.takeDamage(this.dmg);
             } else {
                 this.x += (dx/dist) * this.speed * dt;
                 this.y += (dy/dist) * this.speed * dt;
@@ -523,7 +502,6 @@
         }
     }
 
-    // --- GAME LOOP ---
     function spawnEffect(x, y, type, r) { gameObjects.push(new Effect(x, y, type, r)); }
 
     function endGame(playerWon) {
@@ -569,77 +547,75 @@
                 const u2 = units[j];
                 if(u1.isFlying !== u2.isFlying) continue;
 
-                const dist = Math.hypot(u1.x - u2.x, u1.y - u2.y);
+                const dist = safeDist(u1.x - u2.x, u1.y - u2.y);
                 const min = u1.radius + u2.radius;
                 
-                // Fixed: Check for Dist > 0 to avoid NaN errors
-                if(dist < min && dist > 0.1) {
+                if(dist < min) {
                     const overlap = min - dist;
                     const dx = (u1.x - u2.x)/dist; const dy = (u1.y - u2.y)/dist;
-                    // Reduced push force for smoother sliding
-                    u1.x += dx*overlap*0.1; u1.y += dy*overlap*0.1;
-                    u2.x -= dx*overlap*0.1; u2.y -= dy*overlap*0.1;
+                    
+                    // SLIDE LOGIC
+                    let slideFactor = (Math.abs(dx) < 0.1) ? 2 : 1; 
+
+                    u1.x += dx * overlap * 0.1 * slideFactor; 
+                    u1.y += dy * overlap * 0.1;
+                    u2.x -= dx * overlap * 0.1 * slideFactor; 
+                    u2.y -= dy * overlap * 0.1;
                 }
             }
 
             for(const t of towers) {
                 if(u1.isFlying) continue; 
-                
-                const dist = Math.hypot(u1.x - t.x, u1.y - t.y);
+                const dist = safeDist(u1.x - t.x, u1.y - t.y);
                 const min = u1.radius + t.radius;
-                if(dist < min && dist > 0.1) {
+                if(dist < min) {
                     const overlap = min - dist;
                     const dx = (u1.x - t.x)/dist; const dy = (u1.y - t.y)/dist;
-                    u1.x += dx * overlap * 0.5; 
-                    u1.y += dy * overlap * 0.5;
+                    u1.x += dx * overlap * 0.5; u1.y += dy * overlap * 0.5;
                 }
             }
         }
     }
 
     function loop(timestamp) {
-        try {
-            const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
-            lastTime = timestamp;
+        if (!lastTime) lastTime = timestamp;
+        let dt = (timestamp - lastTime) / 1000;
+        if (dt > 0.1) dt = 0.1; 
+        lastTime = timestamp;
 
-            if (!gameOver) {
-                if (elixir < ELIXIR_MAX) elixir += ELIXIR_REGEN * dt;
-                document.getElementById('elixir-fill').style.width = (elixir/ELIXIR_MAX*100)+'%';
-                document.getElementById('elixir-text').innerText = Math.floor(elixir);
+        if (!gameOver) {
+            if (elixir < ELIXIR_MAX) elixir += ELIXIR_REGEN * dt;
+            document.getElementById('elixir-fill').style.width = (elixir/ELIXIR_MAX*100)+'%';
+            document.getElementById('elixir-text').innerText = Math.floor(elixir);
 
-                const cardDivs = document.querySelectorAll('.card');
-                cardDivs.forEach((div, idx) => {
-                    const key = CARD_KEYS[idx];
-                    if(CARDS[key].cost > elixir) div.style.filter = "grayscale(1) opacity(0.5)";
-                    else div.style.filter = "none";
-                });
+            const cardDivs = document.querySelectorAll('.card');
+            cardDivs.forEach((div, idx) => {
+                const key = CARD_KEYS[idx];
+                if(CARDS[key].cost > elixir) div.style.filter = "grayscale(1) opacity(0.5)";
+                else div.style.filter = "none";
+            });
 
-                enemyAI(dt);
-                resolveCollisions();
-                gameObjects.sort((a,b) => a.y - b.y);
+            enemyAI(dt);
+            resolveCollisions();
+            gameObjects.sort((a,b) => a.y - b.y);
 
-                for(let i=gameObjects.length-1; i>=0; i--) {
-                    let obj = gameObjects[i];
-                    obj.update(dt);
-                    if(obj.life && obj.life<=0) gameObjects.splice(i,1);
-                    else if(obj.isDead) gameObjects.splice(i,1);
-                }
+            for(let i=gameObjects.length-1; i>=0; i--) {
+                let obj = gameObjects[i];
+                obj.update(dt);
+                if(obj.life && obj.life<=0) gameObjects.splice(i,1);
+                else if(obj.isDead) gameObjects.splice(i,1);
             }
-
-            ctx.clearRect(0, 0, CW, CH);
-            ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,CW,CH);
-            ctx.fillStyle = '#3498db'; ctx.fillRect(0, RIVER_Y - 20, CW, 40);
-            ctx.fillStyle = '#8e44ad'; 
-            ctx.fillRect(BRIDGE_LEFT_X-25, RIVER_Y-22, 50, 44);
-            ctx.fillRect(BRIDGE_RIGHT_X-25, RIVER_Y-22, 50, 44);
-
-            for(const obj of gameObjects) obj.draw();
-            requestAnimationFrame(loop);
-            
-        } catch (e) {
-            console.error(e);
-            requestAnimationFrame(loop);
         }
+
+        ctx.clearRect(0, 0, CW, CH);
+        ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,CW,CH);
+        ctx.fillStyle = '#3498db'; ctx.fillRect(0, RIVER_Y - 20, CW, 40);
+        ctx.fillStyle = '#8e44ad'; 
+        ctx.fillRect(BRIDGE_LEFT_X-25, RIVER_Y-22, 50, 44);
+        ctx.fillRect(BRIDGE_RIGHT_X-25, RIVER_Y-22, 50, 44);
+
+        for(const obj of gameObjects) obj.draw();
+        requestAnimationFrame(loop);
     }
 
     initGame();
