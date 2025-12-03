@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <title>Clash Clone - Final Fix</title>
+    <title>Clash Clone - No Crash</title>
     
     <style>
         body {
@@ -103,17 +103,15 @@
     const ELIXIR_MAX = 10;
     const ELIXIR_REGEN = 0.5;
 
-    // --- CARD DATA ---
-    // Ground units range increased slightly to 20 to ensure they "lock on" before stopping
     const CARDS = {
-        'knight': { name: 'Knight', icon: '⚔️', cost: 3, type: 'ground', count: 1, hp: 650, dmg: 75, speed: 50, range: 20, target: 'ground', color: '#3498db', radius: 14, hitAir: false },
+        'knight': { name: 'Knight', icon: '⚔️', cost: 3, type: 'ground', count: 1, hp: 650, dmg: 75, speed: 50, range: 30, target: 'ground', color: '#3498db', radius: 14, hitAir: false },
         'archers': { name: 'Archers', icon: '🏹', cost: 3, type: 'ground', count: 2, hp: 220, dmg: 45, speed: 55, range: 120, target: 'any', color: '#e056fd', radius: 12, hitAir: true },
-        'giant': { name: 'Giant', icon: '👹', cost: 5, type: 'ground', count: 1, hp: 2000, dmg: 120, speed: 30, range: 20, target: 'building', color: '#e67e22', radius: 24, hitAir: false },
+        'giant': { name: 'Giant', icon: '👹', cost: 5, type: 'ground', count: 1, hp: 2000, dmg: 120, speed: 30, range: 30, target: 'building', color: '#e67e22', radius: 24, hitAir: false },
         'minions': { name: 'Minions', icon: '🦇', cost: 3, type: 'air', count: 3, hp: 150, dmg: 40, speed: 75, range: 30, target: 'any', color: '#8e44ad', radius: 10, hitAir: true, flying: true },
-        'hog': { name: 'Hog Rider', icon: '🔨', cost: 4, type: 'ground', count: 1, hp: 800, dmg: 150, speed: 90, range: 20, target: 'building', color: '#D2691E', radius: 15, hitAir: false, jump: true },
-        'valkyrie': { name: 'Valkyrie', icon: '🪓', cost: 4, type: 'ground', count: 1, hp: 900, dmg: 110, speed: 50, range: 20, target: 'ground', color: '#d35400', radius: 16, hitAir: false, area: true },
+        'hog': { name: 'Hog Rider', icon: '🔨', cost: 4, type: 'ground', count: 1, hp: 800, dmg: 150, speed: 90, range: 30, target: 'building', color: '#D2691E', radius: 15, hitAir: false, jump: true },
+        'valkyrie': { name: 'Valkyrie', icon: '🪓', cost: 4, type: 'ground', count: 1, hp: 900, dmg: 110, speed: 50, range: 30, target: 'ground', color: '#d35400', radius: 16, hitAir: false, area: true },
         'wizard': { name: 'Wizard', icon: '🔥', cost: 5, type: 'ground', count: 1, hp: 350, dmg: 100, speed: 50, range: 130, target: 'any', color: '#2c3e50', radius: 14, hitAir: true, area: true, projectile: 'fire' },
-        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, type: 'ground', count: 10, hp: 50, dmg: 30, speed: 65, range: 20, target: 'ground', color: '#ecf0f1', radius: 6, hitAir: false },
+        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, type: 'ground', count: 10, hp: 50, dmg: 30, speed: 65, range: 25, target: 'ground', color: '#ecf0f1', radius: 6, hitAir: false },
         'fireball': { name: 'Fireball', icon: '☄️', cost: 4, type: 'spell', radius: 60, dmg: 350, effect: 'fire' },
         'zap': { name: 'Zap', icon: '⚡', cost: 2, type: 'spell', radius: 50, dmg: 80, effect: 'zap' }
     };
@@ -126,7 +124,6 @@
     let selectedType = 'knight';
     let gameOver = false;
 
-    // Safety Math
     function safeDist(dx, dy) {
         let d = Math.sqrt(dx*dx + dy*dy);
         return (isNaN(d) || d < 0.1) ? 0.1 : d;
@@ -138,7 +135,6 @@
         document.getElementById('game-over').style.opacity = 0;
         document.getElementById('game-over').style.pointerEvents = 'none';
 
-        // Towers
         createTower(100, CH - 100, true, false); 
         createTower(CW - 100, CH - 100, true, false); 
         createTower(CW / 2, CH - 50, true, true); 
@@ -202,7 +198,6 @@
     function spawnUnitBatch(x, y, isPlayer, card) {
         spawnEffect(x, y, 'spawn_ring');
         for(let i=0; i<card.count; i++) {
-            // SPREAD SPAWN: Prevents physics explosions
             let ox = (Math.random() - 0.5) * 60;
             let oy = (Math.random() - 0.5) * 60;
             gameObjects.push(new Unit(x + ox, y + oy, isPlayer, card));
@@ -222,8 +217,6 @@
     function showFloatText(x, y, text, color) {
         gameObjects.push(new FloatingText(x, y, text, color));
     }
-
-    // --- CLASSES ---
 
     class GameObject {
         constructor(x, y, isPlayer) {
@@ -259,7 +252,7 @@
             this.isJump = stats.jump || false; 
             this.projectile = stats.projectile || null;
             this.attackTimer = 0; this.attackRate = 1.2;
-            this.aggroRange = 300; // Increased to find enemies easier
+            this.aggroRange = 300; 
         }
 
         update(dt) {
@@ -268,7 +261,6 @@
             if (this.attackTimer > 0) this.attackTimer -= dt;
             const target = this.findTarget();
 
-            // Attack if close enough
             if (target && safeDist(target.x - this.x, target.y - this.y) <= this.range + target.radius + this.radius) {
                 if (this.attackTimer <= 0) {
                     this.attack(target);
@@ -282,46 +274,41 @@
         move(dt, target) {
             let destX, destY;
             
-            // --- WAYPOINT SYSTEM ---
             if (target) {
                 destX = target.x; 
                 destY = target.y;
             } else {
-                // If no unit target, aim for the Enemy King Tower (Center)
                 destX = CW / 2;
                 destY = this.isPlayer ? 50 : CH - 50; 
             }
 
-            // --- BRIDGE INTERCEPTION ---
-            // If we are ground unit, and our goal is across the river...
             if (!this.isFlying && !this.isJump) {
                 const mySide = this.y > RIVER_Y ? 'bottom' : 'top';
                 const destSide = destY > RIVER_Y ? 'bottom' : 'top';
                 const riverDist = Math.abs(this.y - RIVER_Y);
 
-                // Check if we need to use a bridge
-                if (mySide !== destSide || riverDist < 50) {
-                    
+                if (mySide !== destSide || riverDist < 55) {
                     const distLeft = Math.abs(this.x - BRIDGE_LEFT_X);
                     const distRight = Math.abs(this.x - BRIDGE_RIGHT_X);
                     const bridgeX = distLeft < distRight ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
-
-                    // Are we lined up with the bridge?
                     const aligned = Math.abs(this.x - bridgeX) < 15;
 
                     if (!aligned) {
-                        // Step 1: Align X with bridge, keep Y same (unless too close to river)
-                        destX = bridgeX;
-                        destY = (riverDist < 60) ? this.y : RIVER_Y;
+                        // MANHATTAN MOVE: Only adjust X if near river
+                        if (riverDist < 60) {
+                            destX = bridgeX;
+                            destY = this.y; // LOCK Y
+                        } else {
+                            destX = bridgeX; // Diagonal approach from far away is fine
+                        }
                     } else {
-                        // Step 2: Cross! Override target and walk straight to other side
+                        // CROSSING: LOCK X, Move Y
                         destX = bridgeX;
                         destY = this.isPlayer ? (RIVER_Y - 100) : (RIVER_Y + 100);
                     }
                 }
             }
 
-            // Apply Movement
             const dx = destX - this.x; 
             const dy = destY - this.y;
             const dist = safeDist(dx, dy);
@@ -333,13 +320,11 @@
         }
 
         findTarget() {
-            // 1. Look for Enemy Units/Buildings
             let closest = null; 
             let closestDist = Infinity;
             
             for (const obj of gameObjects) {
                 if (obj.isPlayer !== this.isPlayer && !obj.isDead) {
-                    // Filter Logic
                     if (this.targetType === 'building' && !(obj instanceof Tower)) continue;
                     if (obj.isFlying && !this.hitAir) continue;
 
@@ -353,10 +338,7 @@
                 }
             }
 
-            // 2. If no units found, return the Enemy King Tower as default target
-            // This ensures Knights/Archers always have a "Target" to walk towards
             if (!closest) {
-               // Find enemy King Tower
                const king = gameObjects.find(o => o instanceof Tower && o.isKing && o.isPlayer !== this.isPlayer);
                if(king) return king;
             }
@@ -566,9 +548,13 @@
         for(let i=0; i<units.length; i++) {
             const u1 = units[i];
             
+            // Bridge Phase: Disable Unit-Unit Collision when near river
+            if (Math.abs(u1.y - RIVER_Y) < 55) continue;
+
             for(let j=i+1; j<units.length; j++) {
                 const u2 = units[j];
                 if(u1.isFlying !== u2.isFlying) continue;
+                if (Math.abs(u2.y - RIVER_Y) < 55) continue;
 
                 const dist = safeDist(u1.x - u2.x, u1.y - u2.y);
                 const min = u1.radius + u2.radius;
@@ -576,13 +562,10 @@
                 if(dist < min) {
                     const overlap = min - dist;
                     const dx = (u1.x - u2.x)/dist; const dy = (u1.y - u2.y)/dist;
-                    
-                    let slideFactor = (Math.abs(dx) < 0.1) ? 2 : 1; 
+                    let slide = (Math.abs(dx) < 0.1) ? 2 : 1; 
 
-                    u1.x += dx * overlap * 0.1 * slideFactor; 
-                    u1.y += dy * overlap * 0.1;
-                    u2.x -= dx * overlap * 0.1 * slideFactor; 
-                    u2.y -= dy * overlap * 0.1;
+                    u1.x += dx * overlap * 0.1 * slide; u1.y += dy * overlap * 0.1;
+                    u2.x -= dx * overlap * 0.1 * slide; u2.y -= dy * overlap * 0.1;
                 }
             }
 
