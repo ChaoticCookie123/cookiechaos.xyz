@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Royale JS Clone - Combat Fixed</title>
+    <title>Clash Royale JS Clone - Spells Anywhere</title>
     
     <style>
         /* --- CSS STYLES --- */
@@ -83,7 +83,7 @@
         .health-fill {
             height: 100%;
             background-color: green;
-            transition: width 0.1s; /* Faster transition for responsive damage */
+            transition: width 0.1s; 
         }
 
         /* River and Bridges */
@@ -255,8 +255,8 @@
         ];
 
         const HAND_SIZE = 4;
-        const GAME_TICK_RATE = 50; // 50ms per tick (20 FPS) - CRUCIAL FOR PERFORMANCE
-        const TROOP_MOVEMENT_SPEED = 1.5; // Pixels per tick
+        const GAME_TICK_RATE = 50; 
+        const TROOP_MOVEMENT_SPEED = 1.5; 
 
         let playerElixir = 5;
         let playerHand = [];
@@ -271,7 +271,6 @@
 
         // --- 3. CORE UTILITIES ---
 
-        /** Updates the visual health bar for any game object (Tower or Troop). */
         function updateHealthBar(gameObject, currentHP, maxHP) {
             const percentage = (currentHP / maxHP) * 100;
             const fillElement = gameObject.element.querySelector(gameObject.isTower ? '.health-fill' : '.troop-health-fill');
@@ -280,12 +279,10 @@
             }
         }
         
-        /** Finds the closest enemy object (Troop or Tower) within a given range. */
         function findClosestTarget(sourceTroop) {
             const enemySide = sourceTroop.side === 'player' ? 'opponent' : 'player';
             const targets = activeTroops.filter(t => t.side === enemySide && t.hp > 0);
             
-            // Add alive towers to targets list
             Object.values(TOWERS).forEach(tower => {
                 if (tower.side === enemySide && tower.hp > 0) {
                     targets.push(tower);
@@ -301,17 +298,16 @@
                 const dy = target.y - sourceTroop.y;
                 const distanceSq = dx * dx + dy * dy;
 
-                if (distanceSq < minDistanceSq) { // Find closest, regardless of range first
+                if (distanceSq < minDistanceSq) { 
                     minDistanceSq = distanceSq;
                     closestTarget = target;
                 }
             });
             
-            // Only return the target if it is within attack range
             if (minDistanceSq <= rangeSq) {
                  return closestTarget;
             }
-            return null; // Return null if closest enemy is out of range
+            return null; 
         }
 
 
@@ -365,10 +361,8 @@
                 return;
             }
 
-            // Remove previous active state
             document.querySelectorAll('.card').forEach(c => c.classList.remove('active-to-place'));
             
-            // Set new active state
             cardToPlaceIndex = index;
             const cardElement = document.querySelector(`.card[data-card-index="${index}"]`);
             cardElement.classList.add('active-to-place');
@@ -378,16 +372,17 @@
         arena.addEventListener('click', (e) => {
             if (cardToPlaceIndex === -1) return; 
 
+            const card = playerHand[cardToPlaceIndex];
             const rect = arena.getBoundingClientRect();
-            // X and Y coordinates relative to the arena (0,0 is top-left of arena)
             const arenaX = e.clientX - rect.left;
             const arenaY = e.clientY - rect.top;
             
-            // --- Deployment Zone Check (Bottom Half) ---
-            const deploymentYThreshold = rect.height * 0.5; 
+            // --- Deployment Zone Check ---
+            const deploymentYThreshold = rect.height * 0.5;
+            const isSpell = card.type === 'spell'; // Check if it's a spell
 
-            if (arenaY < deploymentYThreshold) {
-                // Not a fatal error, just stop placement
+            // Block placement ONLY if it's a troop AND it's in the opponent's territory (above the river)
+            if (!isSpell && arenaY < deploymentYThreshold) {
                 return; 
             }
             
@@ -416,7 +411,6 @@
 
         // --- 6. TROOP & COMBAT LOGIC ---
 
-        /** Creates a new troop object and its DOM element. */
         function createTroop(side, card, x, y) {
             const troopElement = document.createElement('div');
             troopElement.className = `troop ${side}-troop`;
@@ -424,7 +418,6 @@
             troopElement.style.left = `${x - 15}px`;
             troopElement.style.top = `${y - 15}px`;
             
-            // Add health bar
             troopElement.innerHTML += '<div class="troop-health"><div class="troop-health-fill" style="width:100%"></div></div>';
             
             arena.appendChild(troopElement);
@@ -433,8 +426,8 @@
                 id: Math.random(),
                 side: side,
                 element: troopElement,
-                x: x, // Center X
-                y: y, // Center Y
+                x: x, 
+                y: y, 
                 hp: card.hp,
                 maxHp: card.hp,
                 dmg: card.dmg,
@@ -443,7 +436,7 @@
                 target: null, 
                 isAttacking: false,
                 attackCooldown: 0,
-                attackSpeed: card.attackSpeed, // Ticks between attacks
+                attackSpeed: card.attackSpeed, 
                 isTower: false,
             };
             
@@ -454,7 +447,6 @@
              const spellRadius = 150; 
              const radiusSq = spellRadius * spellRadius;
 
-            // Damage enemy troops
             activeTroops.forEach(troop => {
                 if (troop.side === 'opponent') {
                     const dx = troop.x - x;
@@ -466,7 +458,6 @@
                 }
             });
 
-            // Damage enemy towers 
             Object.values(TOWERS).forEach(tower => {
                 if (tower.side === 'opponent' && tower.hp > 0) {
                     const dx = tower.x - x;
@@ -498,31 +489,26 @@
         // --- 7. MAIN GAME LOOP ---
 
         function gameLoop() {
-            // --- 7.1 Troop Logic (Movement and Targeting) ---
             activeTroops.forEach(troop => {
                 if (troop.hp <= 0) return; 
 
                 // 1. Find Target
-                // If current target is dead or missing, find a new one
                 if (!troop.target || troop.target.hp <= 0) {
                     troop.target = findClosestTarget(troop);
                 }
 
                 if (troop.target && troop.target.hp > 0) {
-                    // Calculate distance to target
                     const dx = troop.target.x - troop.x;
                     const dy = troop.target.y - troop.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
                     // 2. Attack or Move
                     if (distance <= troop.range) {
-                        // Attack
                         troop.isAttacking = true;
                         if (troop.attackCooldown <= 0) {
                             troop.target.hp -= troop.dmg;
                             troop.attackCooldown = troop.attackSpeed; 
                             
-                            // Update target health bar
                             updateHealthBar(troop.target, troop.target.hp, troop.target.maxHp);
                         }
                     } else {
@@ -533,8 +519,8 @@
                         troop.y += dy * ratio;
                     }
                 } else {
-                    // No Target found, move towards the opponent's closest tower (simplified path)
-                    const targetTowerId = troop.side === 'player' ? 'O-L' : 'P-L'; // Always target left tower first
+                    // No Target found, move towards the opponent's closest tower 
+                    const targetTowerId = troop.side === 'player' ? 'O-L' : 'P-L'; 
                     const targetTower = TOWERS[targetTowerId];
 
                     if (targetTower && targetTower.hp > 0) {
@@ -542,7 +528,7 @@
                         const dy = targetTower.y - troop.y;
                         const distance = Math.sqrt(dx * dx + dy * dy);
 
-                        if (distance > 5) { // Keep moving until very close
+                        if (distance > 5) { 
                             const ratio = troop.speed / distance;
                             troop.x += dx * ratio;
                             troop.y += dy * ratio;
@@ -572,12 +558,10 @@
             Object.keys(TOWERS).forEach(id => {
                  const tower = TOWERS[id];
                  if (tower.hp <= 0 && tower.element.textContent !== '💥') {
-                    // Visually mark as destroyed
                     tower.element.textContent = '💥';
                     tower.element.style.opacity = '0.4';
                     tower.element.querySelector('.health-bar').style.display = 'none';
-                    // Re-calculate tower coordinates on the map after tower is gone.
-                    tower.x = -1000; 
+                    tower.x = -1000; // Move off-map so troops can't target it
                     tower.y = -1000;
                  }
             });
@@ -593,7 +577,6 @@
                 const maxHp = parseInt(el.getAttribute('data-max-hp'));
                 const side = id.startsWith('P') ? 'player' : 'opponent';
                 
-                // Get tower center coordinates relative to the arena
                 const elRect = el.getBoundingClientRect();
                 const x = elRect.left + (elRect.width / 2) - arenaRect.left;
                 const y = elRect.top + (elRect.height / 2) - arenaRect.top;
@@ -616,26 +599,31 @@
         }
 
 
-        /** Simple Opponent AI (Spawns consistently) */
         function opponentAiLoop() {
             setInterval(() => {
-                // Find only the cheapest troop card to ensure easy deployment
                 const troopCards = CARD_DEFINITIONS.filter(c => c.type === 'troop').sort((a,b) => a.cost - b.cost);
                 
-                // Prioritize lanes where towers are still standing
-                const targetLane = (TOWERS['P-L'].hp > 0) ? 200 : 400; // Left lane X or Right lane X
+                const targetLane = (TOWERS['P-L'].hp > 0) ? 200 : 400; 
                 const spawnX = targetLane;
-                const spawnY = arena.offsetHeight * 0.2; // Opponent's territory
+                const spawnY = arena.offsetHeight * 0.2; 
 
                 if (troopCards.length > 0) {
-                    const cardToPlay = troopCards[0]; // Always play the cheapest one
+                    const cardToPlay = troopCards[0]; 
 
-                    // 80% chance to "afford" and play the card every 3 seconds
                     if (Math.random() > 0.2) { 
                         createTroop('opponent', cardToPlay, spawnX, spawnY);
                     }
                 }
             }, 3000); 
+        }
+
+        function elixirLoop() {
+            setInterval(() => {
+                if (playerElixir < 10) {
+                    playerElixir = Math.min(10, playerElixir + 1);
+                    updateElixirUI();
+                }
+            }, 1000); 
         }
 
         function initGame() {
@@ -645,21 +633,11 @@
                 drawCard();
             }
 
-            setInterval(gameLoop, GAME_TICK_RATE); // Start the main game loop (20 times per second)
+            setInterval(gameLoop, GAME_TICK_RATE); 
             elixirLoop();
             opponentAiLoop(); 
             
-            console.log("Clash Clone Initialized! Performance and Combat should now be stable.");
-        }
-
-        // Elixir generation loop (from previous version)
-        function elixirLoop() {
-            setInterval(() => {
-                if (playerElixir < 10) {
-                    playerElixir = Math.min(10, playerElixir + 1);
-                    updateElixirUI();
-                }
-            }, 1000); 
+            console.log("Clash Clone Initialized! Fireball can now be cast anywhere.");
         }
 
 
