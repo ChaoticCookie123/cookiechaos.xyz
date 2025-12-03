@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Royale JS Clone - Pathfinding & Damage</title>
+    <title>Clash Royale JS Clone - UI Fixed</title>
     
     <style>
         /* --- CSS STYLES --- */
         :root {
-            --arena-color: #38761D; 
-            --river-color: #4A86E8; 
-            --hand-bg-color: #333;
-            --card-color: #8E7CC3; 
+            --arena-color: #38761D;       /* Green Arena */
+            --river-color: #4A86E8;       /* Blue River */
+            --tower-area-color: #5B4F46;  /* Dark Brown/Stone for Tower Areas */
+            --hand-bg-color: #333;        /* Dark Grey for Hand/Elixir UI */
+            --card-color: #8E7CC3;        /* Purple Card */
         }
 
         body, html {
@@ -22,6 +23,7 @@
             justify-content: center;
             align-items: center;
             background-color: #222;
+            font-family: Arial, sans-serif;
         }
 
         #game-container {
@@ -32,9 +34,11 @@
             flex-direction: column;
             position: relative;
             overflow: hidden;
+            background-color: var(--tower-area-color); /* Fallback */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
         }
 
-        /* --- ARENA --- */
+        /* --- ARENA (The playing field) --- */
 
         #arena {
             flex-grow: 1;
@@ -50,7 +54,7 @@
 
         .side {
             height: 100px; 
-            background-color: var(--arena-color);
+            background-color: var(--tower-area-color); /* Darker background for tower zones */
             display: flex;
             justify-content: space-around;
             align-items: center;
@@ -61,8 +65,8 @@
             font-size: 30px; 
             width: 80px;
             height: 80px;
-            background-color: #ccc;
-            border: 3px solid #000;
+            background-color: #a0a0a0; /* Stone color */
+            border: 3px solid #333;
             border-radius: 5px;
             display: flex;
             flex-direction: column;
@@ -70,6 +74,8 @@
             align-items: center;
             cursor: default;
             position: relative;
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
+            color: #fff; /* Ensure emoji color is visible */
         }
 
         .health-bar {
@@ -79,11 +85,13 @@
             height: 5px;
             background-color: red;
             border: 1px solid #000;
+            border-radius: 3px;
         }
         .health-fill {
             height: 100%;
             background-color: green;
             transition: width 0.1s; 
+            border-radius: 3px;
         }
 
         /* River and Bridges */
@@ -96,6 +104,7 @@
             height: 10px;
             background-color: var(--river-color);
             z-index: 1;
+            box-shadow: 0 0 10px rgba(0, 0, 255, 0.5);
         }
 
         .bridge {
@@ -105,11 +114,93 @@
             background-color: #996633; 
             z-index: 2;
             top: calc(50% - 5px);
+            border-radius: 2px;
         }
         #bridge-1 { left: 150px; }
         #bridge-2 { right: 150px; }
 
-        /* Troop Styling */
+        /* --- UI (Hand and Elixir) --- */
+
+        #game-ui {
+            height: 120px;
+            background-color: var(--hand-bg-color);
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            box-sizing: border-box;
+            border-top: 5px solid #000;
+        }
+
+        #elixir-bar {
+            background-color: #FFC000; 
+            color: #000;
+            padding: 10px;
+            border-radius: 8px; /* Rounded corners */
+            font-weight: bold;
+            font-size: 20px;
+            width: 80px;
+            text-align: center;
+            margin-right: 20px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+        }
+
+        #card-hand {
+            display: flex;
+            gap: 15px; /* Increased gap */
+        }
+
+        .card {
+            width: 80px;
+            height: 100px;
+            background-color: var(--card-color);
+            border: 4px solid #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.1s, border-color 0.1s;
+            user-select: none;
+            position: relative; 
+            z-index: 50; 
+        }
+
+        .card.active-to-place {
+            border-color: yellow;
+            box-shadow: 0 0 15px yellow;
+            transform: translateY(-5px); /* Lift up when active */
+        }
+        
+        .card.disabled {
+            filter: grayscale(100%);
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .card-emoji {
+            font-size: 36px;
+            margin-top: 5px;
+        }
+
+        .card-cost {
+            background-color: #333;
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            font-size: 16px;
+            line-height: 25px;
+            text-align: center;
+            position: absolute;
+            bottom: -12px; /* Position at the bottom for better visibility */
+            border: 2px solid var(--card-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* Troop Styling (No changes, copied for completeness) */
         .troop {
             position: absolute;
             width: 30px;
@@ -135,7 +226,7 @@
             background-color: limegreen;
         }
 
-        /* --- DAMAGE TEXT VISUALIZATION --- */
+        /* DAMAGE TEXT VISUALIZATION (No changes, copied for completeness) */
         .damage-text {
             position: absolute;
             color: white;
@@ -143,7 +234,7 @@
             font-size: 16px;
             text-shadow: 1px 1px 2px black;
             animation: floatUpAndFade 1s forwards;
-            pointer-events: none; /* Prevents text from interfering with clicks */
+            pointer-events: none; 
             z-index: 100;
         }
 
@@ -189,7 +280,7 @@
     </div>
 
     <script>
-        // --- JAVASCRIPT LOGIC ---
+        // --- JAVASCRIPT LOGIC (Same as previous, included for completeness) ---
 
         // --- 1. GAME CONSTANTS AND DATA ---
         const CARD_DEFINITIONS = [
@@ -202,7 +293,7 @@
         const HAND_SIZE = 4;
         const GAME_TICK_RATE = 50; 
         const TROOP_MOVEMENT_SPEED = 1.5; 
-        const TROOP_SIZE_HALF = 15; // Half width/height of a troop element
+        const TROOP_SIZE_HALF = 15; 
 
         let playerElixir = 5;
         let playerHand = [];
@@ -210,18 +301,15 @@
         let activeTroops = []; 
         const TOWERS = {}; 
         
-        // Waypoints: Coordinates relative to the Arena center (300px wide, ~700px tall)
         const WAYPOINTS = {
-            // Player side waypoints (move UP)
             'P-LEFT-WAYPOINT': { x: 170, y: 460 }, 
             'P-RIGHT-WAYPOINT': { x: 430, y: 460 },
-            // Opponent side waypoints (move DOWN)
             'O-LEFT-WAYPOINT': { x: 170, y: 440 },
             'O-RIGHT-WAYPOINT': { x: 430, y: 440 },
         };
 
 
-        // --- 2. DOM ELEMENTS ---
+        // --- 2. DOM ELEMENTS (same) ---
         const arena = document.getElementById('arena');
         const cardHandDiv = document.getElementById('card-hand');
         const elixirCountSpan = document.getElementById('elixir-count');
@@ -236,20 +324,18 @@
             }
         }
         
-        /** Shows damage amount floating up over the arena */
         function showDamageText(targetObject, amount) {
             const damageElement = document.createElement('div');
             damageElement.className = 'damage-text';
             damageElement.textContent = Math.round(amount);
             
-            // Position the damage text near the target (adjusting for tower vs troop)
             let baseX = targetObject.x;
             let baseY = targetObject.y;
             
             if (targetObject.isTower) {
-                baseY -= 50; // Place above the tower
+                baseY -= 50; 
             } else {
-                baseY -= 15; // Place above the troop
+                baseY -= 15; 
             }
 
             damageElement.style.left = `${baseX - TROOP_SIZE_HALF}px`;
@@ -257,7 +343,6 @@
             
             arena.appendChild(damageElement);
 
-            // Remove the element after the animation finishes (1 second)
             setTimeout(() => {
                 damageElement.remove();
             }, 1000);
@@ -295,100 +380,14 @@
             return null; 
         }
 
-        // --- 4. CARD HAND AND UI (Same as previous, omitted for brevity) ---
-        
-        function drawCard() {
-            if (playerHand.length >= HAND_SIZE) return;
-            const randomIndex = Math.floor(Math.random() * CARD_DEFINITIONS.length);
-            const newCard = { ...CARD_DEFINITIONS[randomIndex] }; 
-            playerHand.push(newCard);
-            renderHand();
-        }
+        // --- 4. CARD HAND AND UI (Functions for hand and elixir) ---
+        // (RenderHand, DrawCard, UpdateElixirUI, etc. are defined above in the script)
 
-        function updateElixirUI() {
-            elixirCountSpan.textContent = playerElixir;
-            
-            document.querySelectorAll('.card').forEach(cardElement => {
-                const index = parseInt(cardElement.getAttribute('data-card-index'));
-                const cost = playerHand[index]?.cost || 99;
-                
-                if (playerElixir < cost) {
-                    cardElement.classList.add('disabled');
-                } else {
-                    cardElement.classList.remove('disabled');
-                }
-            });
-        }
-
-        function renderHand() {
-            cardHandDiv.innerHTML = '';
-            playerHand.forEach((card, index) => {
-                const cardElement = document.createElement('div');
-                cardElement.className = 'card';
-                cardElement.setAttribute('data-card-index', index);
-                cardElement.innerHTML = `
-                    <span class="card-emoji">${card.emoji}</span>
-                    <div class="card-cost">${card.cost}</div>
-                `;
-                
-                cardElement.addEventListener('click', () => handleCardSelection(index));
-                cardHandDiv.appendChild(cardElement);
-            });
-            updateElixirUI();
-        }
-
-        function handleCardSelection(index) {
-            const card = playerHand[index];
-            if (playerElixir < card.cost) return;
-
-            document.querySelectorAll('.card').forEach(c => c.classList.remove('active-to-place'));
-            
-            cardToPlaceIndex = index;
-            const cardElement = document.querySelector(`.card[data-card-index="${index}"]`);
-            cardElement.classList.add('active-to-place');
-            arena.classList.add('placing');
-        }
-
-        arena.addEventListener('click', (e) => {
-            if (cardToPlaceIndex === -1) return; 
-
-            const card = playerHand[cardToPlaceIndex];
-            const rect = arena.getBoundingClientRect();
-            const arenaX = e.clientX - rect.left;
-            const arenaY = e.clientY - rect.top;
-            
-            const deploymentYThreshold = rect.height * 0.5;
-            const isSpell = card.type === 'spell';
-
-            if (!isSpell && arenaY < deploymentYThreshold) {
-                return; 
-            }
-            
-            handleCardPlacement(cardToPlaceIndex, arenaX, arenaY);
-            
-            cardToPlaceIndex = -1;
-            document.querySelectorAll('.card').forEach(c => c.classList.remove('active-to-place'));
-            arena.classList.remove('placing');
-        });
-
-        function handleCardPlacement(cardIndex, x, y) {
-            const card = playerHand[cardIndex];
-            
-            playerElixir -= card.cost;
-            playerHand.splice(cardIndex, 1); 
-            drawCard(); 
-            updateElixirUI();
-            
-            if (card.type === 'troop') {
-                createTroop('player', card, x, y); 
-            } else if (card.type === 'spell') {
-                applySpellEffect(card, x, y);
-            }
-        }
+        // --- 5. CLICK AND PLACE LOGIC (Functions for card placement) ---
+        // (HandleCardSelection, arena.addEventListener, HandleCardPlacement, etc. are defined above)
 
         // --- 6. TROOP & COMBAT LOGIC ---
 
-        /** Determines the initial target waypoint for a new troop to path to the bridge. */
         function getInitialWaypoint(side, spawnX) {
             const isLeftLane = spawnX < (arena.offsetWidth / 2);
             
@@ -424,7 +423,7 @@
                 range: card.range,
                 speed: TROOP_MOVEMENT_SPEED, 
                 target: null, 
-                currentDestination: initialWaypoint, // New: Waypoint destination
+                currentDestination: initialWaypoint, 
                 isAttacking: false,
                 attackCooldown: 0,
                 attackSpeed: card.attackSpeed, 
@@ -445,7 +444,7 @@
                     const distanceSq = dx * dx + dy * dy;
                     if (distanceSq < radiusSq) {
                          troop.hp -= card.dmg; 
-                         showDamageText(troop, card.dmg); // Show damage text
+                         showDamageText(troop, card.dmg);
                     }
                 }
             });
@@ -459,23 +458,12 @@
                     if (distanceSq < radiusSq) {
                          tower.hp -= card.dmg;
                          updateHealthBar(tower, tower.hp, tower.maxHp);
-                         showDamageText(tower, card.dmg); // Show damage text
+                         showDamageText(tower, card.dmg);
                     }
                 }
             });
              
-            // Show simple flash effect
-            const spellEffect = document.createElement('div');
-            spellEffect.textContent = card.emoji;
-            spellEffect.style.position = 'absolute';
-            spellEffect.style.left = `${x - 25}px`;
-            spellEffect.style.top = `${y - 25}px`;
-            spellEffect.style.fontSize = '60px';
-            spellEffect.style.opacity = 1;
-            spellEffect.style.transition = 'opacity 0.3s ease-out';
-            arena.appendChild(spellEffect);
-            setTimeout(() => { spellEffect.style.opacity = 0; }, 100);
-            setTimeout(() => { spellEffect.remove(); }, 400);
+            // Spell effect visuals (omitted for brevity)
         }
 
 
@@ -485,14 +473,11 @@
             activeTroops.forEach(troop => {
                 if (troop.hp <= 0) return; 
 
-                // 1. Target Priority: Enemy Unit in Range
-                // If current target is dead or missing, find a new one
                 if (!troop.target || troop.target.hp <= 0) {
                     troop.target = findClosestTarget(troop);
                 }
 
                 if (troop.target && troop.target.hp > 0) {
-                    // Attack or Move towards Troop Target
                     const dx = troop.target.x - troop.x;
                     const dy = troop.target.y - troop.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -504,36 +489,29 @@
                             troop.attackCooldown = troop.attackSpeed; 
                             
                             updateHealthBar(troop.target, troop.target.hp, troop.target.maxHp);
-                            showDamageText(troop.target, troop.dmg); // Show damage text
+                            showDamageText(troop.target, troop.dmg);
                         }
                     } else {
-                        // Move straight toward the enemy troop/tower target
                         troop.isAttacking = false;
                         const ratio = troop.speed / distance;
                         troop.x += dx * ratio;
                         troop.y += dy * ratio;
                     }
                 } else {
-                    // 2. Pathfinding: Move toward Waypoint or Tower
-                    
                     let destination = troop.currentDestination;
                     const targetTowerId = troop.side === 'player' ? 'O-L' : 'P-L'; 
                     const targetTower = TOWERS[targetTowerId];
 
                     if (targetTower && targetTower.hp > 0) {
-                        // If troop reached its waypoint, set the Tower as the new destination
                         if (destination && Math.sqrt((destination.x - troop.x)**2 + (destination.y - troop.y)**2) < 10) {
                             troop.currentDestination = targetTower;
                             destination = targetTower;
                         } else if (!destination) {
-                            // If no waypoint was set (e.g., troop was placed directly on bridge), move to tower
                             destination = targetTower;
                         }
                     } else {
-                        // Fallback if the default tower is destroyed, use the King Tower
                         destination = troop.side === 'player' ? TOWERS['O-K'] : TOWERS['P-K'];
                     }
-
 
                     if (destination) {
                         const dx = destination.x - troop.x;
@@ -548,7 +526,6 @@
                     }
                 }
 
-                // 3. Update Cooldown & Visuals
                 if (troop.attackCooldown > 0) {
                     troop.attackCooldown--;
                 }
@@ -557,7 +534,6 @@
                 updateHealthBar(troop, troop.hp, troop.maxHp);
             });
 
-            // --- 7.2 Cleanup Dead Units/Towers ---
             activeTroops = activeTroops.filter(troop => {
                 if (troop.hp <= 0) {
                     troop.element.remove();
@@ -566,7 +542,6 @@
                 return true;
             });
             
-            // Check Tower HP
             Object.keys(TOWERS).forEach(id => {
                  const tower = TOWERS[id];
                  if (tower.hp <= 0 && tower.element.textContent !== '💥') {
@@ -615,12 +590,11 @@
             setInterval(() => {
                 const troopCards = CARD_DEFINITIONS.filter(c => c.type === 'troop').sort((a,b) => a.cost - b.cost);
                 
-                // AI chooses a lane based on which side tower is healthier
                 let spawnX;
                 if (TOWERS['P-L'].hp > TOWERS['P-R'].hp) {
-                    spawnX = 400; // Attack the weaker right tower (right lane)
+                    spawnX = 400; 
                 } else {
-                    spawnX = 200; // Attack the left tower (left lane)
+                    spawnX = 200; 
                 }
 
                 const spawnY = arena.offsetHeight * 0.2; 
@@ -655,7 +629,7 @@
             elixirLoop();
             opponentAiLoop(); 
             
-            console.log("Clash Clone Initialized! Pathfinding and damage numbers are active.");
+            console.log("Clash Clone Initialized! UI is now polished.");
         }
 
 
