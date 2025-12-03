@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Fixed Towers</title>
+    <title>Clash Clone - Spells & New Cards</title>
     <style>
         /* --- CSS STYLING --- */
         body {
@@ -36,14 +36,14 @@
         /* Message Toast */
         #toast {
             position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.7); color: #fff; padding: 8px 16px;
+            background: rgba(0,0,0,0.8); color: #fff; padding: 10px 20px;
             border-radius: 20px; font-weight: bold; opacity: 0; transition: opacity 0.2s;
-            text-align: center; white-space: nowrap;
+            text-align: center; white-space: nowrap; font-size: 18px; z-index: 100;
         }
 
-        /* Elixir Bar */
+        /* Dashboard */
         #dashboard {
-            position: absolute; bottom: 0; width: 100%; height: 140px;
+            position: absolute; bottom: 0; width: 100%; height: 150px;
             background: linear-gradient(to top, #2c2c2c, #3e3e3e);
             border-top: 4px solid #111;
             pointer-events: auto;
@@ -62,23 +62,28 @@
             color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 0 #000;
         }
 
-        /* Card Deck */
+        /* Card Deck (Scrollable) */
         #deck {
-            display: flex; justify-content: center; align-items: center;
-            height: 100%; padding-top: 10px; gap: 12px;
+            display: flex; align-items: center;
+            height: 100%; padding: 10px; gap: 10px;
+            overflow-x: auto; /* Enable scrolling */
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
         }
+        /* Hide Scrollbar */
+        #deck::-webkit-scrollbar { display: none; }
 
         .card {
-            width: 70px; height: 90px;
+            flex: 0 0 auto; /* Stop shrinking */
+            width: 75px; height: 95px;
             background: #2b3a42; border: 3px solid #555; border-radius: 8px;
             position: relative; cursor: pointer; transition: transform 0.1s;
             display: flex; flex-direction: column; align-items: center;
         }
         .card.selected {
             border-color: #ffd700; transform: translateY(-10px);
-            background: #37474f; box-shadow: 0 0 10px #ffd700;
+            background: #37474f; box-shadow: 0 0 15px #ffd700;
         }
-        .card img { font-size: 35px; margin-top: 15px; } 
         
         .cost-badge {
             position: absolute; top: -8px; left: -8px;
@@ -87,11 +92,12 @@
             color: white; font-weight: bold; display: flex;
             justify-content: center; align-items: center; font-size: 14px;
         }
+        .card-icon { font-size: 32px; margin-top: 15px; }
         .card-name {
             font-size: 10px; color: #ccc; margin-top: 5px; font-weight: bold; text-transform: uppercase;
         }
 
-        .card.disabled { filter: grayscale(1); opacity: 0.6; }
+        .card.disabled { filter: grayscale(1); opacity: 0.5; }
 
     </style>
 </head>
@@ -131,13 +137,20 @@
 
     // --- CARD DATABASE ---
     const CARDS = {
-        'knight': { name: 'Knight', icon: '⚔️', cost: 3, hp: 700, dmg: 90, speed: 50, range: 5, type: 'ground', count: 1, color: '#3498db' },
-        'archer': { name: 'Archers', icon: '🏹', cost: 3, hp: 250, dmg: 60, speed: 55, range: 140, type: 'ground', count: 2, color: '#9b59b6' },
-        'giant':  { name: 'Giant', icon: '👹', cost: 5, hp: 2400, dmg: 160, speed: 35, range: 5, type: 'building', count: 1, color: '#e67e22' },
-        'hog':    { name: 'Hog', icon: '🔨', cost: 4, hp: 1000, dmg: 180, speed: 95, range: 5, type: 'building', count: 1, jump: true, color: '#d35400' },
-        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, hp: 60, dmg: 40, speed: 65, range: 5, type: 'ground', count: 8, color: '#bdc3c7' }
+        'knight': { name: 'Knight', icon: '⚔️', cost: 3, hp: 700, dmg: 90, speed: 50, range: 5, type: 'unit', target: 'ground', count: 1, color: '#3498db' },
+        'archer': { name: 'Archers', icon: '🏹', cost: 3, hp: 250, dmg: 60, speed: 55, range: 140, type: 'unit', target: 'any', count: 2, color: '#9b59b6' },
+        'giant':  { name: 'Giant', icon: '👹', cost: 5, hp: 2400, dmg: 160, speed: 35, range: 5, type: 'unit', target: 'building', count: 1, color: '#e67e22' },
+        'hog':    { name: 'Hog', icon: '🔨', cost: 4, hp: 1000, dmg: 180, speed: 95, range: 5, type: 'unit', target: 'building', count: 1, jump: true, color: '#d35400' },
+        'musk':   { name: 'Musketeer', icon: '👒', cost: 4, hp: 600, dmg: 160, speed: 50, range: 180, type: 'unit', target: 'any', count: 1, color: '#8e44ad' },
+        'baby':   { name: 'Baby Drag', icon: '🐲', cost: 4, hp: 900, dmg: 120, speed: 60, range: 100, type: 'unit', target: 'any', count: 1, flying: true, area: true, color: '#2ecc71' },
+        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, hp: 60, dmg: 40, speed: 65, range: 5, type: 'unit', target: 'ground', count: 10, color: '#bdc3c7' },
+        'cannon': { name: 'Cannon', icon: '💣', cost: 3, hp: 800, dmg: 100, speed: 0, range: 150, type: 'building', target: 'ground', count: 1, color: '#555' },
+        'fireball':{ name: 'Fireball', icon: '☄️', cost: 4, type: 'spell', dmg: 400, radius: 80, color: '#e67e22' },
+        'zap':    { name: 'Zap', icon: '⚡', cost: 2, type: 'spell', dmg: 120, radius: 60, color: '#00e5ff' }
     };
-    const DECK = ['knight', 'archer', 'giant', 'hog', 'skarmy'];
+    
+    // The Deck order
+    const DECK = ['knight', 'archer', 'giant', 'hog', 'musk', 'baby', 'skarmy', 'cannon', 'fireball', 'zap'];
 
     // --- STATE ---
     let elixir = 5;
@@ -145,11 +158,10 @@
     let gameObjects = [];
     let particles = [];
     let lastTime = 0;
-    let spawnTimer = 2.0; 
+    let spawnTimer = 3.0; 
 
     // --- INITIALIZATION ---
     function init() {
-        // Build Deck UI
         const deckDiv = document.getElementById('deck');
         DECK.forEach(key => {
             const c = CARDS[key];
@@ -159,7 +171,7 @@
             div.onclick = () => selectCard(key);
             div.innerHTML = `
                 <div class="cost-badge">${c.cost}</div>
-                <div style="font-size:30px; margin-top:10px">${c.icon}</div>
+                <div class="card-icon">${c.icon}</div>
                 <div class="card-name">${c.name}</div>
             `;
             deckDiv.appendChild(div);
@@ -188,7 +200,7 @@
         if(gameObjects.length < MAX_UNITS) gameObjects.push(obj);
     }
 
-    // --- INPUT HANDLING ---
+    // --- INPUT ---
     canvas.addEventListener('pointerdown', e => {
         const rect = canvas.getBoundingClientRect();
         const scaleX = GAME_W / rect.width;
@@ -196,13 +208,23 @@
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
 
-        if (y < RIVER_Y) {
-            showToast("Enemy Territory!", "#ff4444");
-            return;
-        }
-
         const card = CARDS[selectedCard];
+
         if (elixir >= card.cost) {
+            
+            // SPELL LOGIC: Can be placed anywhere
+            if (card.type === 'spell') {
+                elixir -= card.cost;
+                castSpell(x, y, true, card);
+                return;
+            }
+
+            // UNIT LOGIC: Must be on player side
+            if (y < RIVER_Y) {
+                showToast("Enemy Territory!", "#ff4444");
+                return;
+            }
+
             elixir -= card.cost;
             for(let i=0; i<card.count; i++) {
                 const ox = (Math.random() - 0.5) * 40;
@@ -214,6 +236,28 @@
         }
     });
 
+    function castSpell(x, y, isPlayer, card) {
+        // Visuals
+        for(let i=0; i<20; i++) {
+            particles.push({
+                x: x, y: y, 
+                vx: (Math.random()-0.5)*400, vy: (Math.random()-0.5)*400,
+                life: 0.5, size: Math.random()*5+2, color: card.color
+            });
+        }
+        
+        // Damage Logic
+        gameObjects.forEach(obj => {
+            if (obj.isPlayer !== isPlayer && !obj.isDead) {
+                const dist = Math.hypot(obj.x - x, obj.y - y);
+                // Radius check
+                if (dist < card.radius) {
+                    obj.takeDamage(card.dmg);
+                }
+            }
+        });
+    }
+
     function showToast(msg, color) {
         const t = document.getElementById('toast');
         t.innerText = msg;
@@ -222,18 +266,12 @@
         setTimeout(() => t.style.opacity = 0, 1000);
     }
 
-    // --- GAME LOGIC ---
+    // --- LOOP ---
     function loop(now) {
         const dt = Math.min((now - lastTime) / 1000, 0.1); 
         lastTime = now;
 
-        updateLogic(dt);
-        drawGame();
-        
-        requestAnimationFrame(loop);
-    }
-
-    function updateLogic(dt) {
+        // Elixir
         if (elixir < ELIXIR_MAX) elixir += 0.5 * dt; 
         document.getElementById('elixir-fill').style.width = (elixir / ELIXIR_MAX * 100) + '%';
         document.getElementById('elixir-text').innerText = Math.floor(elixir);
@@ -248,7 +286,17 @@
         spawnTimer -= dt;
         if (spawnTimer <= 0) {
             const lane = Math.random() > 0.5 ? BRIDGE_L_X : BRIDGE_R_X;
-            addUnit(new DeployTimer(lane + (Math.random()-0.5)*20, 20, false, CARDS.knight));
+            // AI picks random card
+            const keys = ['knight','giant','hog','archer','baby'];
+            const rk = keys[Math.floor(Math.random()*keys.length)];
+            const c = CARDS[rk];
+            
+            // AI Spell Logic (Rare)
+            if(Math.random() < 0.1) {
+                castSpell(GAME_W/2, 580, false, CARDS.fireball);
+            } else {
+                addUnit(new DeployTimer(lane + (Math.random()-0.5)*20, 20, false, c));
+            }
             spawnTimer = 4.0;
         }
 
@@ -266,16 +314,17 @@
             particles[i].y += particles[i].vy * dt;
             if (particles[i].life <= 0) particles.splice(i, 1);
         }
+
+        drawGame();
+        requestAnimationFrame(loop);
     }
 
-    // --- RENDERING ---
     function drawGame() {
-        ctx.fillStyle = '#3b8c3b'; 
-        ctx.fillRect(0, 0, GAME_W, GAME_H);
-
-        ctx.fillStyle = '#4fa3e3';
-        ctx.fillRect(0, RIVER_Y, GAME_W, 30);
+        // Map
+        ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+        ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, GAME_W, 30);
         
+        // Bridges
         ctx.fillStyle = '#8d6e63';
         const bh = 54;
         ctx.fillRect(BRIDGE_L_X - BRIDGE_W/2, RIVER_Y - 12, BRIDGE_W, bh);
@@ -300,7 +349,7 @@
         });
     }
 
-    // --- CLASSES ---
+    /* --- GAME CLASSES --- */
 
     class DeployTimer {
         constructor(x, y, isPlayer, card) {
@@ -312,13 +361,17 @@
             this.timer -= dt;
             if (this.timer <= 0) {
                 this.isDead = true;
-                addUnit(new Unit(this.x, this.y, this.isPlayer, this.card));
+                // Check if building or unit
+                if(this.card.type === 'building') {
+                    addUnit(new Tower(this.x, this.y, this.isPlayer, false, this.card));
+                } else {
+                    addUnit(new Unit(this.x, this.y, this.isPlayer, this.card));
+                }
             }
         }
         draw(ctx) {
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
             ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2); ctx.fill();
-            
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
             ctx.beginPath(); 
             ctx.arc(this.x, this.y, 10, -Math.PI/2, (Math.PI*2 * (this.timer/this.maxTime)) - Math.PI/2, true);
@@ -333,8 +386,10 @@
             this.dmg = stats.dmg; this.speed = stats.speed;
             this.range = stats.range;
             this.color = isPlayer ? '#4fc3f7' : '#e57373'; 
-            this.targetType = stats.type; 
+            this.targetPreference = stats.target; // 'building', 'ground', 'any'
             this.jump = stats.jump || false;
+            this.flying = stats.flying || false;
+            this.isArea = stats.area || false;
             this.radius = 12;
             this.cooldown = 0;
             this.rate = 1.2;
@@ -368,7 +423,7 @@
             let dx = tx - this.x;
             let dy = ty - this.y;
             
-            if (!this.jump) { 
+            if (!this.jump && !this.flying) { 
                 const toRiver = Math.abs(this.y - RIVER_Y);
                 if (toRiver < 60 && Math.abs(dy) > 10) {
                     const bridgeX = (Math.abs(this.x - BRIDGE_L_X) < Math.abs(this.x - BRIDGE_R_X)) ? BRIDGE_L_X : BRIDGE_R_X;
@@ -395,7 +450,9 @@
                 if (obj.isPlayer === this.isPlayer) continue; 
                 if (obj instanceof DeployTimer || obj instanceof Projectile) continue;
                 
-                if (this.targetType === 'building' && !(obj instanceof Tower)) continue;
+                // Targeting Logic
+                if (this.targetPreference === 'building' && !(obj instanceof Tower)) continue;
+                if (this.targetPreference === 'ground' && obj.flying) continue; // Ground melee can't hit air
 
                 const d = Math.hypot(obj.x - this.x, obj.y - this.y);
                 if (d < minDist) {
@@ -407,7 +464,7 @@
         }
 
         attack(target) {
-            // FIX: Only bump logic if speed > 0 (Towers don't bump)
+            // Bump Animation
             if (this.speed > 0) {
                 const angle = Math.atan2(target.y - this.y, target.x - this.x);
                 this.x += Math.cos(angle) * 5;
@@ -415,7 +472,7 @@
             }
 
             if (this.range > 30) {
-                addUnit(new Projectile(this.x, this.y - 15, target, this.dmg));
+                addUnit(new Projectile(this.x, this.y - 15, target, this.dmg, this.isArea));
             } else {
                 target.takeDamage(this.dmg);
             }
@@ -436,26 +493,31 @@
         }
 
         draw(ctx) {
+            // Shadow
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.beginPath(); ctx.ellipse(this.x, this.y, this.radius, this.radius*0.6, 0, 0, Math.PI*2); ctx.fill();
+            const sy = this.flying ? this.y + 25 : this.y;
+            ctx.beginPath(); ctx.ellipse(this.x, sy, this.radius, this.radius*0.6, 0, 0, Math.PI*2); ctx.fill();
 
+            // Body
             ctx.fillStyle = this.color;
             ctx.beginPath(); ctx.arc(this.x, this.y - 10, this.radius, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
 
+            // Health Bar
             const pct = this.hp / this.maxHp;
-            ctx.fillStyle = '#333';
-            ctx.fillRect(this.x - 12, this.y - 30, 24, 5);
-            ctx.fillStyle = '#0f0';
-            ctx.fillRect(this.x - 12, this.y - 30, 24 * pct, 5);
+            ctx.fillStyle = '#333'; ctx.fillRect(this.x - 12, this.y - 30, 24, 5);
+            ctx.fillStyle = '#0f0'; ctx.fillRect(this.x - 12, this.y - 30, 24 * pct, 5);
         }
     }
 
     class Tower extends Unit {
-        constructor(x, y, isPlayer, isKing) {
-            super(x, y, isPlayer, { hp: isKing?3000:1800, dmg: 70, speed: 0, range: 150 });
+        constructor(x, y, isPlayer, isKing, statsOverride) {
+            // Use passed stats (for Cannon) or defaults
+            let stats = statsOverride || { hp: isKing?3000:1800, dmg: 70, speed: 0, range: 150, type: 'building' };
+            super(x, y, isPlayer, stats);
             this.radius = 25;
             this.color = isPlayer ? '#2980b9' : '#c0392b';
+            if(statsOverride) this.color = '#555'; // Cannon color
             this.isKing = isKing;
         }
         moveTowards() {} 
@@ -477,8 +539,9 @@
     }
 
     class Projectile {
-        constructor(x, y, target, dmg) {
+        constructor(x, y, target, dmg, isArea) {
             this.x = x; this.y = y; this.target = target; this.dmg = dmg;
+            this.isArea = isArea;
             this.speed = 300;
             this.radius = 5;
         }
@@ -490,20 +553,34 @@
             const dist = Math.hypot(dx, dy);
 
             if (dist < 10) {
-                this.target.takeDamage(this.dmg);
                 this.isDead = true;
+                
+                if (this.isArea) {
+                    // Splash
+                    gameObjects.forEach(u => {
+                        if (u.isPlayer !== this.target.isPlayer && !u.isDead) { // Friendly fire protection
+                             if (Math.hypot(u.x - this.x, u.y - this.y) < 50) {
+                                 u.takeDamage(this.dmg);
+                             }
+                        }
+                    });
+                    // Explosion Effect
+                    for(let i=0;i<5;i++) particles.push({x:this.x, y:this.y, vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200, life:0.3, size:4, color:'orange'});
+                } else {
+                    this.target.takeDamage(this.dmg);
+                }
+                
             } else {
                 this.x += (dx/dist) * this.speed * dt;
                 this.y += (dy/dist) * this.speed * dt;
             }
         }
         draw(ctx) {
-            ctx.fillStyle = 'yellow';
+            ctx.fillStyle = 'orange';
             ctx.beginPath(); ctx.arc(this.x, this.y, 5, 0, Math.PI*2); ctx.fill();
         }
     }
 
-    // Start
     init();
 
 </script>
