@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Royale JS Clone</title>
+    <title>Clash Royale JS Clone - Drag & Drop</title>
     
     <style>
         /* --- CSS STYLES --- */
@@ -26,8 +26,8 @@
         }
 
         #game-container {
-            width: 600px; /* Standard game width */
-            height: 900px; /* Tall aspect ratio for vertical gameplay */
+            width: 600px; 
+            height: 900px; 
             border: 5px solid #000;
             display: flex;
             flex-direction: column;
@@ -46,7 +46,7 @@
         }
 
         .side {
-            height: 100px; /* Space for the towers */
+            height: 100px; 
             background-color: var(--arena-color);
             display: flex;
             justify-content: space-around;
@@ -74,18 +74,19 @@
         #arena::before {
             content: '';
             position: absolute;
-            top: calc(50% - 5px); /* River line in the middle */
+            top: calc(50% - 5px); 
             left: 0;
             right: 0;
             height: 10px;
             background-color: var(--river-color);
+            z-index: 1;
         }
 
         .bridge {
             position: absolute;
             width: 40px;
             height: 10px;
-            background-color: #996633; /* Wood color */
+            background-color: #996633; 
             z-index: 2;
             top: calc(50% - 5px);
         }
@@ -105,7 +106,7 @@
         }
 
         #elixir-bar {
-            background-color: #FFC000; /* Yellow */
+            background-color: #FFC000; 
             color: #000;
             padding: 10px;
             border-radius: 5px;
@@ -132,15 +133,27 @@
             flex-direction: column;
             justify-content: space-around;
             align-items: center;
-            cursor: pointer;
+            cursor: grab; /* Changed to grab */
             transition: transform 0.1s;
             font-family: sans-serif;
             user-select: none;
-            position: relative; /* Needed for cost overlay */
+            position: relative; 
+            z-index: 50; /* Ensure card is above arena elements */
+        }
+
+        .card.dragging {
+            opacity: 0.7;
+            border: 4px solid yellow; /* Visual feedback for dragging */
         }
 
         .card:hover {
             transform: translateY(-5px);
+        }
+        /* Style for cards that cannot be played (not enough elixir) */
+        .card.disabled {
+            filter: grayscale(100%);
+            opacity: 0.5;
+            cursor: default;
         }
 
         .card-emoji {
@@ -172,7 +185,7 @@
             justify-content: center;
             align-items: center;
             font-size: 20px;
-            transition: all 5s linear; /* Movement duration */
+            transition: all 5s linear; 
             z-index: 10;
         }
         .player-troop { background-color: #008000; border: 2px solid #000; }
@@ -226,11 +239,14 @@
         const HAND_SIZE = 4;
         let playerElixir = 5;
         let playerHand = [];
+        let currentlyDraggedCardIndex = -1;
 
         // --- 2. DOM ELEMENTS ---
         const arena = document.getElementById('arena');
+        const gameContainer = document.getElementById('game-container');
         const cardHandDiv = document.getElementById('card-hand');
         const elixirCountSpan = document.getElementById('elixir-count');
+        const arenaRect = arena.getBoundingClientRect();
 
         // --- 3. HELPER FUNCTIONS ---
 
@@ -238,50 +254,124 @@
         function drawCard() {
             if (playerHand.length >= HAND_SIZE) return;
             const randomIndex = Math.floor(Math.random() * CARD_DEFINITIONS.length);
-            const newCard = { ...CARD_DEFINITIONS[randomIndex] }; // Clone the object
+            const newCard = { ...CARD_DEFINITIONS[randomIndex] }; 
             playerHand.push(newCard);
             renderHand();
         }
 
-        /** Updates the Elixir count on the UI. */
+        /** Updates the Elixir count on the UI and checks which cards can be played. */
         function updateElixirUI() {
             elixirCountSpan.textContent = playerElixir;
+            
+            // Check card playability
+            document.querySelectorAll('.card').forEach(cardElement => {
+                const index = parseInt(cardElement.getAttribute('data-card-index'));
+                const cost = playerHand[index]?.cost || 99; // Get cost, default high if error
+                
+                if (playerElixir < cost) {
+                    cardElement.classList.add('disabled');
+                    cardElement.setAttribute('draggable', 'false');
+                } else {
+                    cardElement.classList.remove('disabled');
+                    cardElement.setAttribute('draggable', 'true');
+                }
+            });
         }
 
-        /** Renders the player's current hand. */
+        /** Renders the player's current hand and attaches event listeners. */
         function renderHand() {
             cardHandDiv.innerHTML = '';
             playerHand.forEach((card, index) => {
                 const cardElement = document.createElement('div');
                 cardElement.className = 'card';
                 cardElement.setAttribute('data-card-index', index);
+                cardElement.setAttribute('draggable', 'true');
                 cardElement.innerHTML = `
                     <span class="card-emoji">${card.emoji}</span>
                     <div class="card-cost">${card.cost}</div>
                 `;
                 
-                // --- Simple Click-to-Play Handler ---
-                // NOTE: This version plays the card at a fixed location instead of using drag/drop.
-                cardElement.addEventListener('click', () => handleCardPlay(index));
+                // --- DRAG AND DROP LISTENERS ---
+                cardElement.addEventListener('dragstart', handleDragStart);
+                cardElement.addEventListener('dragend', handleDragEnd);
+
                 cardHandDiv.appendChild(cardElement);
             });
+            updateElixirUI(); // Apply the disabled class immediately
         }
 
-        // --- 4. GAME MECHANICS ---
+        // --- 4. DRAG AND DROP HANDLERS ---
+        
+        function handleDragStart(e) {
+            const cardElement = e.target.closest('.card');
+            if (!cardElement || cardElement.classList.contains('disabled')) {
+                e.preventDefault(); // Prevent drag if disabled
+                return;
+            }
 
-        /** Handles the action of a player attempting to play a card. */
-        function handleCardPlay(cardIndex) {
+            currentlyDraggedCardIndex = parseInt(cardElement.getAttribute('data-card-index'));
+            cardElement.classList.add('dragging');
+            // DataTransfer: Only used for drag visualization and to allow the drag event to fire
+            e.dataTransfer.setData('text/plain', currentlyDraggedCardIndex); 
+            e.dataTransfer.effectAllowed = 'copy';
+        }
+
+        function handleDragEnd(e) {
+            const cardElement = e.target.closest('.card');
+            if (cardElement) {
+                 cardElement.classList.remove('dragging');
+            }
+            
+            // If drop was successful, the card has already been removed from the hand
+            currentlyDraggedCardIndex = -1;
+        }
+        
+        // This is the main target area for the dropped card
+        arena.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Necessary to allow dropping
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        arena.addEventListener('drop', (e) => {
+            e.preventDefault();
+            
+            if (currentlyDraggedCardIndex === -1) return; // Should not happen if dragstart worked
+            
+            // Get coordinates relative to the ARENA (the drop target)
+            const rect = arena.getBoundingClientRect();
+            const arenaX = e.clientX - rect.left;
+            const arenaY = e.clientY - rect.top;
+            
+            // --- Enforcement of Player's Territory (Bottom Half) ---
+            const arenaHeight = rect.height;
+            // Player's deployment zone is the bottom half (Y > 50% of arena height)
+            const deploymentYThreshold = arenaHeight * 0.5; 
+
+            if (arenaY < deploymentYThreshold) {
+                console.log("Cannot deploy card that high! Must be in your territory (bottom half).");
+                return; // Prevent play if dropped too high
+            }
+            
+            // Play the card at the calculated coordinates
+            handleCardPlay(currentlyDraggedCardIndex, arenaX, arenaY);
+        });
+
+
+        // --- 5. GAME MECHANICS ---
+
+        /** * Handles the action of a player attempting to play a card. 
+         * @param {number} cardIndex - Index of the card in the playerHand array.
+         * @param {number} x - X coordinate relative to the arena.
+         * @param {number} y - Y coordinate relative to the arena.
+         */
+        function handleCardPlay(cardIndex, x, y) {
             const card = playerHand[cardIndex];
+            
             if (playerElixir >= card.cost) {
-                // Fixed spawn location for simplicity (near the player's towers)
-                const spawnX = arena.offsetWidth / 2;
-                const spawnY = arena.offsetHeight * 0.8; // 80% down the arena
-
                 if (card.type === 'troop') {
-                    spawnTroop('player', card, spawnX, spawnY);
+                    spawnTroop('player', card, x, y); 
                 } else if (card.type === 'spell') {
-                    // For spells, just visually show the effect and proceed
-                    showSpellEffect(card, spawnX, spawnY - 300); // Target higher up the map
+                    showSpellEffect(card, x, y);
                 }
                 
                 playerElixir -= card.cost;
@@ -289,7 +379,9 @@
                 drawCard(); // Draw a replacement card
                 updateElixirUI();
             } else {
-                console.log(`Not enough elixir (${playerElixir}) to play ${card.name} (${card.cost})`);
+                // This message should technically be suppressed by the 'disabled' class logic, 
+                // but included here for safety/debugging.
+                console.log("Not enough elixir to play " + card.name); 
             }
         }
         
@@ -299,11 +391,11 @@
             spellEffect.className = 'spell-effect';
             spellEffect.textContent = card.emoji;
             spellEffect.style.position = 'absolute';
-            spellEffect.style.left = `${x - 20}px`;
-            spellEffect.style.top = `${y - 20}px`;
-            spellEffect.style.fontSize = '50px';
+            spellEffect.style.left = `${x - 25}px`;
+            spellEffect.style.top = `${y - 25}px`;
+            spellEffect.style.fontSize = '60px';
             spellEffect.style.opacity = 1;
-            spellEffect.style.transition = 'opacity 0.5s ease-out';
+            spellEffect.style.transition = 'opacity 0.3s ease-out';
             arena.appendChild(spellEffect);
 
             // Quick fade out
@@ -314,7 +406,7 @@
             // Remove after fade
             setTimeout(() => {
                 spellEffect.remove();
-            }, 600);
+            }, 400);
         }
 
         /** Creates and places a troop on the arena. */
@@ -323,29 +415,29 @@
             troop.className = `troop ${side}-troop`;
             troop.textContent = card.emoji;
             
-            // Position the troop
+            // Position the troop (x, y are relative to arena top-left)
             troop.style.left = `${x - 15}px`; // Center X
             troop.style.top = `${y - 15}px`; // Center Y
             
             arena.appendChild(troop);
 
-            // Determine target location for the troop
-            const targetY = (side === 'player' ? 100 : arena.offsetHeight * 0.8); // Player moves up (low Y), Opponent moves down (high Y)
-            const targetX = (side === 'player' ? 250 : 350); // Move toward a bridge/lane
+            // Determine target location (simplified: move straight to the opposite side)
+            const targetY = (side === 'player' ? 100 : arena.offsetHeight * 0.8); 
+            const targetX = x; // Troop maintains its current lane/X position (simple movement)
 
             // Apply movement after a tiny delay for visual placement
             setTimeout(() => {
                 troop.style.top = `${targetY}px`;
-                troop.style.left = `${targetX}px`;
+                troop.style.left = `${targetX - 15}px`; // Adjust target X for centering
             }, 50);
 
-            // Remove the troop after movement duration (simulating being destroyed/reaching target)
+            // Remove the troop after movement duration
             setTimeout(() => {
                 troop.remove();
             }, 5000); 
         }
 
-        // --- 5. GAME LOOPS (Elixir and AI) ---
+        // --- 6. GAME LOOPS (Elixir and AI) ---
 
         /** Elixir Generation Loop */
         function elixirLoop() {
@@ -360,7 +452,6 @@
         /** Simple Opponent AI */
         function opponentAiLoop() {
             setInterval(() => {
-                // Filter for available troop cards
                 const troopCards = CARD_DEFINITIONS.filter(c => c.type === 'troop' && c.cost <= 5);
                 
                 // Randomly choose one lane to attack (left or right)
@@ -373,15 +464,14 @@
                     
                     // 40% chance to play a card every 3 seconds
                     if (Math.random() > 0.6) { 
-                        console.log(`Opponent played ${cardToPlay.name} in the ${isLeftLane ? 'Left' : 'Right'} Lane.`);
                         spawnTroop('opponent', cardToPlay, spawnX, spawnY);
                     }
                 }
-            }, 3000); // Check and play every 3 seconds
+            }, 3000); 
         }
 
 
-        // --- 6. INITIALIZATION ---
+        // --- 7. INITIALIZATION ---
 
         function initGame() {
             // Start with a full hand
@@ -389,11 +479,10 @@
                 drawCard();
             }
 
-            updateElixirUI();
             elixirLoop();
-            opponentAiLoop(); // Start the AI
+            opponentAiLoop(); 
             
-            console.log("Clash Clone Initialized! Elixir is generating, and the opponent is active. Click a card to play it!");
+            console.log("Clash Clone Initialized! Drag and drop cards onto the bottom half of the arena to play them.");
         }
 
         window.onload = initGame;
