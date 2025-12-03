@@ -3,324 +3,548 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Clean</title>
+    <title>Clash Clone - Polished</title>
     <style>
+        /* --- CSS STYLING --- */
         body {
-            background-color: #222; display: flex; justify-content: center; 
-            align-items: center; height: 100vh; margin: 0; overflow: hidden; font-family: sans-serif;
-            color: white; user-select: none; -webkit-user-select: none;
-        }
-        #game-container {
-            position: relative; border: 4px solid #444; border-radius: 8px; 
-            overflow: hidden; background: #4caf50; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        }
-        canvas { display: block; touch-action: none; }
-        
-        /* UI Overlay */
-        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        
-        /* Elixir Bar */
-        #elixir-wrap {
-            position: absolute; bottom: 15px; left: 10%; width: 80%; height: 20px;
-            background: rgba(0,0,0,0.7); border: 2px solid #fff; border-radius: 10px;
-        }
-        #elixir-bar { height: 100%; background: #d0f; width: 0%; transition: width 0.1s; }
-        #elixir-num {
-            position: absolute; width: 100%; text-align: center; top: -2px; 
-            font-weight: bold; text-shadow: 1px 1px 2px black; font-size: 14px;
+            background-color: #121212;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; margin: 0; overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none; -webkit-user-select: none;
+            touch-action: none;
         }
 
-        /* Cards */
-        #cards {
-            position: absolute; bottom: 50px; width: 100%; display: flex; 
-            justify-content: center; gap: 10px; pointer-events: auto;
+        #game-frame {
+            position: relative;
+            width: 420px; height: 720px;
+            background: #333;
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            overflow: hidden;
+            border: 4px solid #5d4037;
         }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* UI Layer */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        /* Message Toast */
+        #toast {
+            position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); color: #fff; padding: 8px 16px;
+            border-radius: 20px; font-weight: bold; opacity: 0; transition: opacity 0.2s;
+            text-align: center; white-space: nowrap;
+        }
+
+        /* Elixir Bar */
+        #dashboard {
+            position: absolute; bottom: 0; width: 100%; height: 140px;
+            background: linear-gradient(to top, #2c2c2c, #3e3e3e);
+            border-top: 4px solid #111;
+            pointer-events: auto;
+        }
+
+        #elixir-container {
+            position: absolute; top: -15px; left: 10%; width: 80%; height: 24px;
+            background: #000; border: 2px solid #777; border-radius: 12px; overflow: hidden;
+        }
+        #elixir-fill {
+            height: 100%; width: 50%; background: linear-gradient(to bottom, #d0f, #a0d);
+            transition: width 0.1s linear;
+        }
+        #elixir-text {
+            position: absolute; top: 2px; width: 100%; text-align: center;
+            color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 0 #000;
+        }
+
+        /* Card Deck */
+        #deck {
+            display: flex; justify-content: center; align-items: center;
+            height: 100%; padding-top: 10px; gap: 12px;
+        }
+
         .card {
-            width: 50px; height: 70px; background: #333; border: 2px solid #888; 
-            border-radius: 6px; display: flex; flex-direction: column; align-items: center; 
-            justify-content: center; cursor: pointer; position: relative;
+            width: 70px; height: 90px;
+            background: #2b3a42; border: 3px solid #555; border-radius: 8px;
+            position: relative; cursor: pointer; transition: transform 0.1s;
+            display: flex; flex-direction: column; align-items: center;
         }
-        .card.selected { border-color: gold; background: #444; transform: translateY(-5px); }
-        .cost {
-            position: absolute; top: -5px; left: -5px; background: #d0f; 
-            width: 18px; height: 18px; border-radius: 50%; font-size: 11px; 
-            display: flex; align-items: center; justify-content: center; border: 1px solid #fff;
+        .card.selected {
+            border-color: #ffd700; transform: translateY(-10px);
+            background: #37474f; box-shadow: 0 0 10px #ffd700;
         }
-        .icon { font-size: 24px; }
+        .card img { font-size: 35px; margin-top: 15px; } /* Using emoji as img */
+        
+        .cost-badge {
+            position: absolute; top: -8px; left: -8px;
+            width: 24px; height: 24px; border-radius: 50%;
+            background: #d0f; border: 2px solid #fff;
+            color: white; font-weight: bold; display: flex;
+            justify-content: center; align-items: center; font-size: 14px;
+        }
+        .card-name {
+            font-size: 10px; color: #ccc; margin-top: 5px; font-weight: bold; text-transform: uppercase;
+        }
+
+        /* Grayscale when waiting for elixir */
+        .card.disabled { filter: grayscale(1); opacity: 0.6; }
+
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <canvas id="cvs" width="400" height="650"></canvas>
-    <div id="ui">
-        <div id="cards"></div>
-        <div id="elixir-wrap">
-            <div id="elixir-bar"></div>
-            <div id="elixir-num">5</div>
+<div id="game-frame">
+    <canvas id="gameCanvas" width="420" height="720"></canvas>
+    
+    <div id="ui-layer">
+        <div id="toast">Not Enough Elixir!</div>
+        
+        <div id="dashboard">
+            <div id="elixir-container">
+                <div id="elixir-fill"></div>
+                <div id="elixir-text">5</div>
+            </div>
+            <div id="deck"></div>
         </div>
     </div>
 </div>
 
 <script>
-    const cvs = document.getElementById('cvs');
-    const ctx = cvs.getContext('2d');
+    /* --- ENGINE CONFIG --- */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
     
-    // Config
-    const W = cvs.width, H = cvs.height;
-    const RIVER_Y = H / 2;
-    const BRIDGE_L = 80, BRIDGE_R = W - 80;
+    // Virtual resolution for logic (keeps things consistent on all screens)
+    const GAME_W = 420;
+    const GAME_H = 720;
     
-    // Game State
+    // Map Geography
+    const RIVER_Y = GAME_H / 2 - 40; // Shifted up slightly to make room for UI
+    const BRIDGE_L_X = 90;
+    const BRIDGE_R_X = GAME_W - 90;
+    const BRIDGE_W = 50;
+
+    // Game Constants
+    const ELIXIR_MAX = 10;
+    const MAX_UNITS = 80; // Performance Cap
+
+    // --- CARD DATABASE ---
+    const CARDS = {
+        'knight': { name: 'Knight', icon: '⚔️', cost: 3, hp: 700, dmg: 90, speed: 50, range: 5, type: 'ground', count: 1, color: '#3498db' },
+        'archer': { name: 'Archers', icon: '🏹', cost: 3, hp: 250, dmg: 60, speed: 55, range: 140, type: 'ground', count: 2, color: '#9b59b6' },
+        'giant':  { name: 'Giant', icon: '👹', cost: 5, hp: 2400, dmg: 160, speed: 35, range: 5, type: 'building', count: 1, color: '#e67e22' },
+        'hog':    { name: 'Hog', icon: '🔨', cost: 4, hp: 1000, dmg: 180, speed: 95, range: 5, type: 'building', count: 1, jump: true, color: '#d35400' },
+        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, hp: 60, dmg: 40, speed: 65, range: 5, type: 'ground', count: 8, color: '#bdc3c7' }
+    };
+    const DECK = ['knight', 'archer', 'giant', 'hog', 'skarmy'];
+
+    // --- STATE ---
     let elixir = 5;
-    let units = [];
-    let bullets = [];
+    let selectedCard = 'knight';
+    let gameObjects = [];
     let particles = [];
     let lastTime = 0;
-    let selectedType = 'knight';
     let spawnTimer = 2.0; // Enemy spawn timer
 
-    const CARDS = {
-        'knight': { icon: '⚔️', cost: 3, hp: 600, dmg: 80, spd: 50, range: 20, type: 'ground' },
-        'archer': { icon: '🏹', cost: 3, hp: 250, dmg: 60, spd: 55, range: 120, type: 'ground' },
-        'giant':  { icon: '👹', cost: 5, hp: 2200, dmg: 150, spd: 30, range: 20, type: 'building' },
-        'hog':    { icon: '🔨', cost: 4, hp: 900, dmg: 180, spd: 90, range: 20, type: 'building', jump: true },
-        'air':    { icon: '🦇', cost: 3, hp: 180, dmg: 45, spd: 80, range: 40, type: 'air', flying: true },
-    };
-
-    // --- SETUP ---
+    // --- INITIALIZATION ---
     function init() {
-        // UI
-        const cardBox = document.getElementById('cards');
-        for (let k in CARDS) {
-            let c = CARDS[k];
-            let d = document.createElement('div');
-            d.className = 'card' + (k==='knight' ? ' selected' : '');
-            d.innerHTML = `<div class="cost">${c.cost}</div><div class="icon">${c.icon}</div>`;
-            d.onclick = () => {
-                selectedType = k;
-                document.querySelectorAll('.card').forEach(x => x.classList.remove('selected'));
-                d.classList.add('selected');
-            };
-            cardBox.appendChild(d);
-        }
+        // Build Deck UI
+        const deckDiv = document.getElementById('deck');
+        DECK.forEach(key => {
+            const c = CARDS[key];
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.id = `card-${key}`;
+            div.onclick = () => selectCard(key);
+            div.innerHTML = `
+                <div class="cost-badge">${c.cost}</div>
+                <div style="font-size:30px; margin-top:10px">${c.icon}</div>
+                <div class="card-name">${c.name}</div>
+            `;
+            deckDiv.appendChild(div);
+        });
+        selectCard('knight');
 
-        // Towers
-        addTower(80, H-80, true, false);  // Player Left
-        addTower(W-80, H-80, true, false); // Player Right
-        addTower(W/2, H-40, true, true);   // Player King
-        
-        addTower(80, 80, false, false);   // Enemy Left
-        addTower(W-80, 80, false, false);  // Enemy Right
-        addTower(W/2, 40, false, true);    // Enemy King
-        
+        // Initial Towers
+        // Player
+        addUnit(new Tower(90, 520, true, false));
+        addUnit(new Tower(GAME_W-90, 520, true, false));
+        addUnit(new Tower(GAME_W/2, 580, true, true)); // King
+        // Enemy
+        addUnit(new Tower(90, 120, false, false));
+        addUnit(new Tower(GAME_W-90, 120, false, false));
+        addUnit(new Tower(GAME_W/2, 60, false, true)); // King
+
         requestAnimationFrame(loop);
     }
 
-    function addTower(x, y, isPlayer, isKing) {
-        units.push({
-            x: x, y: y, isPlayer: isPlayer, isTower: true, isKing: isKing,
-            hp: isKing ? 3000 : 1800, maxHp: isKing ? 3000 : 1800,
-            range: 150, dmg: 50, reload: 0, rate: 0.8, radius: 25,
-            targetMode: 'any'
-        });
+    function selectCard(key) {
+        selectedCard = key;
+        document.querySelectorAll('.card').forEach(el => el.classList.remove('selected'));
+        document.getElementById(`card-${key}`).classList.add('selected');
     }
 
-    // --- INPUT ---
-    cvs.addEventListener('pointerdown', e => {
-        const rect = cvs.getBoundingClientRect();
-        const x = (e.clientX - rect.left) * (W / rect.width);
-        const y = (e.clientY - rect.top) * (H / rect.height);
+    function addUnit(obj) {
+        if(gameObjects.length < MAX_UNITS) gameObjects.push(obj);
+    }
 
-        // Only allow placement on player side (bottom half)
-        if (y < RIVER_Y) return;
+    // --- INPUT HANDLING ---
+    canvas.addEventListener('pointerdown', e => {
+        // Scaling logic for different screen sizes
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = GAME_W / rect.width;
+        const scaleY = GAME_H / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
 
-        const data = CARDS[selectedType];
-        if (elixir >= data.cost) {
-            elixir -= data.cost;
-            spawnUnit(x, y, true, data);
+        // Logic
+        if (y < RIVER_Y) {
+            showToast("Enemy Territory!", "#ff4444");
+            return;
+        }
+
+        const card = CARDS[selectedCard];
+        if (elixir >= card.cost) {
+            elixir -= card.cost;
+            
+            // Spawn multiple units if count > 1
+            for(let i=0; i<card.count; i++) {
+                // Random jitter so they don't stack perfectly
+                const ox = (Math.random() - 0.5) * 40;
+                const oy = (Math.random() - 0.5) * 40;
+                // Add Deployment Timer (1 sec delay)
+                addUnit(new DeployTimer(x + ox, y + oy, true, card));
+            }
+        } else {
+            showToast("Not Enough Elixir!", "#ff4444");
         }
     });
 
-    function spawnUnit(x, y, isPlayer, data) {
-        units.push({
-            x: x, y: y, isPlayer: isPlayer,
-            hp: data.hp, maxHp: data.hp,
-            dmg: data.dmg, range: data.range, speed: data.spd,
-            type: data.type, flying: data.flying || false, jump: data.jump || false,
-            radius: 12, reload: 0, rate: 1.0,
-            icon: data.icon
-        });
-        // Sparkle
-        for(let i=0; i<5; i++) particles.push({x:x, y:y, life:0.5, vx:(Math.random()-0.5)*100, vy:(Math.random()-0.5)*100});
+    function showToast(msg, color) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.style.color = color || '#fff';
+        t.style.opacity = 1;
+        setTimeout(() => t.style.opacity = 0, 1000);
     }
 
-    // --- LOGIC ---
+    // --- GAME LOGIC ---
     function loop(now) {
-        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        const dt = Math.min((now - lastTime) / 1000, 0.1); // Cap dt at 0.1s
         lastTime = now;
 
-        // 1. Resources
-        if (elixir < 10) elixir += dt * 0.5;
-        document.getElementById('elixir-bar').style.width = (elixir*10) + '%';
-        document.getElementById('elixir-num').innerText = Math.floor(elixir);
-
-        // 2. Enemy AI (Simple)
-        spawnTimer -= dt;
-        if (spawnTimer <= 0) {
-            spawnUnit(50 + Math.random()*(W-100), 50, false, CARDS.knight);
-            spawnTimer = 3;
-        }
-
-        // 3. Units Update
-        units.sort((a,b) => a.y - b.y); // Draw order
+        updateLogic(dt);
+        drawGame();
         
-        for (let i = units.length - 1; i >= 0; i--) {
-            let u = units[i];
-            
-            // Reload
-            if (u.reload > 0) u.reload -= dt;
-
-            // Find Target
-            let target = null;
-            let minD = Infinity;
-            
-            // If building targeter, only look for towers
-            let lookForBuildings = (u.type === 'building');
-
-            for (let other of units) {
-                if (u.isPlayer === other.isPlayer) continue; // Skip friends
-                if (lookForBuildings && !other.isTower) continue; // Skip units if giant
-                if (!u.isTower && other.flying && !['air','archer'].includes(u.type)) continue; // Melee can't hit air
-
-                let d = Math.hypot(other.x - u.x, other.y - u.y);
-                let aggro = u.isTower ? 150 : 250;
-                
-                if (d < aggro && d < minD) {
-                    minD = d;
-                    target = other;
-                }
-            }
-
-            // Attack or Move
-            if (target && minD <= u.range + target.radius + u.radius) {
-                if (u.reload <= 0) {
-                    bullets.push({x: u.x, y: u.y - 10, tx: target.x, ty: target.y - 10, dmg: u.dmg, isPlayer: u.isPlayer});
-                    u.reload = u.rate;
-                }
-            } else if (!u.isTower) {
-                // Determine Goal
-                let gx, gy;
-                if (target) {
-                    gx = target.x; gy = target.y;
-                } else {
-                    // Default goal: Enemy King Tower
-                    gx = W/2; gy = u.isPlayer ? 50 : H-50;
-                }
-
-                // Bridge Logic
-                if (!u.flying && !u.jump) {
-                    let toRiver = Math.abs(u.y - RIVER_Y);
-                    let crossSide = (u.isPlayer && u.y < RIVER_Y) || (!u.isPlayer && u.y > RIVER_Y); // Already crossed?
-                    
-                    if (!crossSide && toRiver < 60) {
-                        // We are near river, must align with bridge
-                        let bridge = (Math.abs(u.x - BRIDGE_L) < Math.abs(u.x - BRIDGE_R)) ? BRIDGE_L : BRIDGE_R;
-                        if (Math.abs(u.x - bridge) > 10) {
-                            gx = bridge; gy = u.y; // Walk sideways
-                        } else {
-                            gx = bridge; gy = u.isPlayer ? RIVER_Y - 100 : RIVER_Y + 100; // Walk across
-                        }
-                    }
-                }
-
-                // Move
-                let angle = Math.atan2(gy - u.y, gx - u.x);
-                u.x += Math.cos(angle) * u.speed * dt;
-                u.y += Math.sin(angle) * u.speed * dt;
-            }
-        }
-
-        // 4. Projectiles
-        for (let i = bullets.length - 1; i >= 0; i--) {
-            let b = bullets[i];
-            let dx = b.tx - b.x;
-            let dy = b.ty - b.y;
-            let d = Math.hypot(dx, dy);
-            
-            if (d < 10) {
-                // Hit logic
-                // Find nearest enemy to bullet impact
-                let hit = units.find(u => u.isPlayer !== b.isPlayer && Math.hypot(u.x - b.x, u.y - b.y) < u.radius + 15);
-                if (hit) {
-                    hit.hp -= b.dmg;
-                    // Blood particle
-                    particles.push({x:hit.x, y:hit.y, life:0.2, vx:0, vy:0, color:'red'});
-                }
-                bullets.splice(i, 1);
-            } else {
-                b.x += (dx/d) * 400 * dt;
-                b.y += (dy/d) * 400 * dt;
-            }
-        }
-
-        // 5. Cleanup Dead
-        for (let i = units.length - 1; i >= 0; i--) {
-            if (units[i].hp <= 0) units.splice(i, 1);
-        }
-
-        // 6. Draw
-        ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,H); // Grass
-        ctx.fillStyle = '#3498db'; ctx.fillRect(0, RIVER_Y - 20, W, 40); // River
-        ctx.fillStyle = '#8d6e63'; // Bridges
-        ctx.fillRect(BRIDGE_L-20, RIVER_Y-22, 40, 44);
-        ctx.fillRect(BRIDGE_R-20, RIVER_Y-22, 40, 44);
-        
-        // Spawn Line
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.beginPath(); ctx.moveTo(0, RIVER_Y); ctx.lineTo(W, RIVER_Y); ctx.stroke();
-
-        // Draw Units
-        units.forEach(u => {
-            // HP Bar
-            let pct = u.hp / u.maxHp;
-            ctx.fillStyle = 'red'; ctx.fillRect(u.x-10, u.y-u.radius-8, 20, 4);
-            ctx.fillStyle = '#0f0'; ctx.fillRect(u.x-10, u.y-u.radius-8, 20*pct, 4);
-            
-            // Body
-            ctx.beginPath(); ctx.arc(u.x, u.y, u.radius, 0, Math.PI*2);
-            ctx.fillStyle = u.isPlayer ? '#42a5f5' : '#ef5350';
-            ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
-            
-            if(u.icon) {
-                ctx.fillStyle = 'white'; ctx.font='16px Arial'; 
-                ctx.textAlign='center'; ctx.textBaseline='middle';
-                ctx.fillText(u.icon, u.x, u.y);
-            }
-        });
-
-        // Draw Bullets
-        ctx.fillStyle = 'yellow';
-        bullets.forEach(b => {
-            ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        });
-
-        // Particles
-        for(let i=particles.length-1; i>=0; i--) {
-            let p = particles[i];
-            p.life -= dt;
-            p.x += p.vx * dt; p.y += p.vy * dt;
-            ctx.globalAlpha = p.life;
-            ctx.fillStyle = p.color || 'white';
-            ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
-            if(p.life<=0) particles.splice(i,1);
-        }
-        ctx.globalAlpha = 1;
-
         requestAnimationFrame(loop);
     }
 
+    function updateLogic(dt) {
+        // 1. Elixir
+        if (elixir < ELIXIR_MAX) elixir += 0.5 * dt; // Regen rate
+        // Update UI
+        document.getElementById('elixir-fill').style.width = (elixir / ELIXIR_MAX * 100) + '%';
+        document.getElementById('elixir-text').innerText = Math.floor(elixir);
+        
+        // Update Card Greyscale
+        DECK.forEach(key => {
+            const el = document.getElementById(`card-${key}`);
+            if (CARDS[key].cost > elixir) el.classList.add('disabled');
+            else el.classList.remove('disabled');
+        });
+
+        // 2. Enemy AI (Simple spawner)
+        spawnTimer -= dt;
+        if (spawnTimer <= 0) {
+            const lane = Math.random() > 0.5 ? BRIDGE_L_X : BRIDGE_R_X;
+            addUnit(new DeployTimer(lane + (Math.random()-0.5)*20, 20, false, CARDS.knight));
+            spawnTimer = 4.0;
+        }
+
+        // 3. Object Updates
+        // Sort by Y for depth (lower objects draw on top)
+        gameObjects.sort((a,b) => a.y - b.y);
+
+        for (let i = gameObjects.length - 1; i >= 0; i--) {
+            const obj = gameObjects[i];
+            obj.update(dt);
+            if (obj.isDead) gameObjects.splice(i, 1);
+        }
+
+        // 4. Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].life -= dt;
+            particles[i].x += particles[i].vx * dt;
+            particles[i].y += particles[i].vy * dt;
+            if (particles[i].life <= 0) particles.splice(i, 1);
+        }
+    }
+
+    // --- RENDERING ---
+    function drawGame() {
+        // Clear
+        ctx.fillStyle = '#3b8c3b'; // Grass Color
+        ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+        // Draw River
+        ctx.fillStyle = '#4fa3e3';
+        ctx.fillRect(0, RIVER_Y, GAME_W, 30);
+        
+        // Draw Bridges
+        ctx.fillStyle = '#8d6e63';
+        const bh = 54;
+        ctx.fillRect(BRIDGE_L_X - BRIDGE_W/2, RIVER_Y - 12, BRIDGE_W, bh);
+        ctx.fillRect(BRIDGE_R_X - BRIDGE_W/2, RIVER_Y - 12, BRIDGE_W, bh);
+        // Bridge planks
+        ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 2;
+        for(let i=0; i<6; i++) {
+            let y = RIVER_Y - 10 + (i*10);
+            ctx.beginPath(); ctx.moveTo(BRIDGE_L_X-25, y); ctx.lineTo(BRIDGE_L_X+25, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(BRIDGE_R_X-25, y); ctx.lineTo(BRIDGE_R_X+25, y); ctx.stroke();
+        }
+
+        // Draw Valid Zone Line
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath(); ctx.moveTo(0, RIVER_Y+40); ctx.lineTo(GAME_W, RIVER_Y+40); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw Objects
+        gameObjects.forEach(o => o.draw(ctx));
+        particles.forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+        });
+    }
+
+    // --- CLASSES ---
+
+    class DeployTimer {
+        constructor(x, y, isPlayer, card) {
+            this.x = x; this.y = y; this.isPlayer = isPlayer; this.card = card;
+            this.timer = 1.0; // 1 second deploy time
+            this.maxTime = 1.0;
+        }
+        update(dt) {
+            this.timer -= dt;
+            if (this.timer <= 0) {
+                this.isDead = true;
+                // Spawn the actual unit
+                addUnit(new Unit(this.x, this.y, this.isPlayer, this.card));
+            }
+        }
+        draw(ctx) {
+            // Draw Clock
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2); ctx.fill();
+            
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.beginPath(); 
+            ctx.arc(this.x, this.y, 10, -Math.PI/2, (Math.PI*2 * (this.timer/this.maxTime)) - Math.PI/2, true);
+            ctx.stroke();
+        }
+    }
+
+    class Unit {
+        constructor(x, y, isPlayer, stats) {
+            this.x = x; this.y = y; this.isPlayer = isPlayer;
+            this.hp = stats.hp; this.maxHp = stats.hp;
+            this.dmg = stats.dmg; this.speed = stats.speed;
+            this.range = stats.range;
+            this.color = isPlayer ? '#4fc3f7' : '#e57373'; // Light Blue / Red
+            this.targetType = stats.type; // 'building' or 'ground'
+            this.jump = stats.jump || false;
+            this.radius = 12;
+            this.cooldown = 0;
+            this.rate = 1.2;
+        }
+
+        update(dt) {
+            if (this.cooldown > 0) this.cooldown -= dt;
+
+            // 1. Find Target
+            let target = this.findTarget();
+
+            // 2. Act
+            if (target) {
+                const dist = Math.hypot(target.x - this.x, target.y - this.y);
+                const rangeNeed = this.range + target.radius + this.radius;
+
+                if (dist <= rangeNeed) {
+                    // Attack
+                    if (this.cooldown <= 0) {
+                        this.attack(target);
+                        this.cooldown = this.rate;
+                    }
+                } else {
+                    // Move towards target
+                    this.moveTowards(target.x, target.y, dt);
+                }
+            } else {
+                // No target? Move to enemy base
+                const goalY = this.isPlayer ? 50 : 650;
+                const goalX = (this.x < GAME_W/2) ? 90 : GAME_W - 90; // Stay in lane
+                this.moveTowards(goalX, goalY, dt);
+            }
+        }
+
+        moveTowards(tx, ty, dt) {
+            let dx = tx - this.x;
+            let dy = ty - this.y;
+            
+            // Bridge Pathfinding (Simplified)
+            if (!this.jump) { // Jump units ignore river
+                const toRiver = Math.abs(this.y - RIVER_Y);
+                // If near river and not aligned with bridge
+                if (toRiver < 60 && Math.abs(dy) > 10) {
+                    // Force alignment with nearest bridge
+                    const bridgeX = (Math.abs(this.x - BRIDGE_L_X) < Math.abs(this.x - BRIDGE_R_X)) ? BRIDGE_L_X : BRIDGE_R_X;
+                    if (Math.abs(this.x - bridgeX) > 10) {
+                        dx = bridgeX - this.x; // Move X only
+                        dy = 0; // Stop Y
+                    }
+                }
+            }
+
+            const dist = Math.hypot(dx, dy);
+            if (dist > 1) {
+                this.x += (dx/dist) * this.speed * dt;
+                this.y += (dy/dist) * this.speed * dt;
+            }
+        }
+
+        findTarget() {
+            let closest = null;
+            let minDist = 300; // Aggro range
+
+            for (const obj of gameObjects) {
+                if (obj === this) continue;
+                if (obj.isPlayer === this.isPlayer) continue; // Skip friends
+                if (obj instanceof DeployTimer || obj instanceof Projectile) continue;
+                
+                // Giant Logic: Ignore non-towers
+                if (this.targetType === 'building' && !(obj instanceof Tower)) continue;
+
+                const d = Math.hypot(obj.x - this.x, obj.y - this.y);
+                if (d < minDist) {
+                    minDist = d;
+                    closest = obj;
+                }
+            }
+            return closest;
+        }
+
+        attack(target) {
+            // Visual bump
+            const angle = Math.atan2(target.y - this.y, target.x - this.x);
+            this.x += Math.cos(angle) * 5;
+            this.y += Math.sin(angle) * 5;
+
+            if (this.range > 30) {
+                // Ranged Projectile
+                addUnit(new Projectile(this.x, this.y - 15, target, this.dmg));
+            } else {
+                // Melee Damage
+                target.takeDamage(this.dmg);
+            }
+        }
+
+        takeDamage(amt) {
+            this.hp -= amt;
+            if (this.hp <= 0) {
+                this.isDead = true;
+                // Death particles
+                for(let i=0; i<5; i++) {
+                    particles.push({
+                        x: this.x, y: this.y, 
+                        vx: (Math.random()-0.5)*100, vy: (Math.random()-0.5)*100,
+                        life: 0.5, size: 3, color: this.color
+                    });
+                }
+            }
+        }
+
+        draw(ctx) {
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath(); ctx.ellipse(this.x, this.y, this.radius, this.radius*0.6, 0, 0, Math.PI*2); ctx.fill();
+
+            // Body
+            ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.arc(this.x, this.y - 10, this.radius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+            // Health Bar
+            const pct = this.hp / this.maxHp;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(this.x - 12, this.y - 30, 24, 5);
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(this.x - 12, this.y - 30, 24 * pct, 5);
+        }
+    }
+
+    class Tower extends Unit {
+        constructor(x, y, isPlayer, isKing) {
+            super(x, y, isPlayer, { hp: isKing?3000:1800, dmg: 70, speed: 0, range: 150 });
+            this.radius = 25;
+            this.color = isPlayer ? '#2980b9' : '#c0392b';
+            this.isKing = isKing;
+        }
+        // Towers don't move
+        moveTowards() {} 
+        
+        draw(ctx) {
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.x - 20, this.y - 20, 40, 40);
+            ctx.fillStyle = '#ccc';
+            ctx.beginPath(); ctx.arc(this.x, this.y - 20, 15, 0, Math.PI*2); ctx.fill();
+            
+            // Health Bar
+            const pct = this.hp / this.maxHp;
+            ctx.fillStyle = '#000'; ctx.fillRect(this.x - 20, this.y - 45, 40, 6);
+            ctx.fillStyle = '#0f0'; ctx.fillRect(this.x - 20, this.y - 45, 40 * pct, 6);
+            
+            if(this.isKing) {
+                ctx.font = '20px Arial'; ctx.fillStyle='gold'; ctx.fillText('👑', this.x-10, this.y);
+            }
+        }
+    }
+
+    class Projectile {
+        constructor(x, y, target, dmg) {
+            this.x = x; this.y = y; this.target = target; this.dmg = dmg;
+            this.speed = 300;
+            this.radius = 5;
+        }
+        update(dt) {
+            if (this.target.isDead) { this.isDead = true; return; }
+            
+            const dx = this.target.x - this.x;
+            const dy = (this.target.y - 10) - this.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist < 10) {
+                this.target.takeDamage(this.dmg);
+                this.isDead = true;
+            } else {
+                this.x += (dx/dist) * this.speed * dt;
+                this.y += (dy/dist) * this.speed * dt;
+            }
+        }
+        draw(ctx) {
+            ctx.fillStyle = 'yellow';
+            ctx.beginPath(); ctx.arc(this.x, this.y, 5, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    // Start
     init();
+
 </script>
 </body>
 </html>
