@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <title>Clash Clone - No Crash</title>
+    <title>Clash Clone - Final Stable</title>
     
     <style>
         body {
@@ -102,16 +102,17 @@
 
     const ELIXIR_MAX = 10;
     const ELIXIR_REGEN = 0.5;
+    const MAX_UNITS = 100;
 
     const CARDS = {
         'knight': { name: 'Knight', icon: '⚔️', cost: 3, type: 'ground', count: 1, hp: 650, dmg: 75, speed: 50, range: 30, target: 'ground', color: '#3498db', radius: 14, hitAir: false },
-        'archers': { name: 'Archers', icon: '🏹', cost: 3, type: 'ground', count: 2, hp: 220, dmg: 45, speed: 55, range: 120, target: 'any', color: '#e056fd', radius: 12, hitAir: true },
+        'archers': { name: 'Archers', icon: '🏹', cost: 3, type: 'ground', count: 2, hp: 220, dmg: 45, speed: 60, range: 120, target: 'any', color: '#e056fd', radius: 12, hitAir: true },
         'giant': { name: 'Giant', icon: '👹', cost: 5, type: 'ground', count: 1, hp: 2000, dmg: 120, speed: 30, range: 30, target: 'building', color: '#e67e22', radius: 24, hitAir: false },
-        'minions': { name: 'Minions', icon: '🦇', cost: 3, type: 'air', count: 3, hp: 150, dmg: 40, speed: 75, range: 30, target: 'any', color: '#8e44ad', radius: 10, hitAir: true, flying: true },
+        'minions': { name: 'Minions', icon: '🦇', cost: 3, type: 'air', count: 3, hp: 150, dmg: 40, speed: 80, range: 30, target: 'any', color: '#8e44ad', radius: 10, hitAir: true, flying: true },
         'hog': { name: 'Hog Rider', icon: '🔨', cost: 4, type: 'ground', count: 1, hp: 800, dmg: 150, speed: 90, range: 30, target: 'building', color: '#D2691E', radius: 15, hitAir: false, jump: true },
         'valkyrie': { name: 'Valkyrie', icon: '🪓', cost: 4, type: 'ground', count: 1, hp: 900, dmg: 110, speed: 50, range: 30, target: 'ground', color: '#d35400', radius: 16, hitAir: false, area: true },
         'wizard': { name: 'Wizard', icon: '🔥', cost: 5, type: 'ground', count: 1, hp: 350, dmg: 100, speed: 50, range: 130, target: 'any', color: '#2c3e50', radius: 14, hitAir: true, area: true, projectile: 'fire' },
-        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, type: 'ground', count: 10, hp: 50, dmg: 30, speed: 65, range: 25, target: 'ground', color: '#ecf0f1', radius: 6, hitAir: false },
+        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, type: 'ground', count: 10, hp: 50, dmg: 30, speed: 70, range: 30, target: 'ground', color: '#ecf0f1', radius: 6, hitAir: false },
         'fireball': { name: 'Fireball', icon: '☄️', cost: 4, type: 'spell', radius: 60, dmg: 350, effect: 'fire' },
         'zap': { name: 'Zap', icon: '⚡', cost: 2, type: 'spell', radius: 50, dmg: 80, effect: 'zap' }
     };
@@ -124,6 +125,7 @@
     let selectedType = 'knight';
     let gameOver = false;
 
+    // Safety Distance
     function safeDist(dx, dy) {
         let d = Math.sqrt(dx*dx + dy*dy);
         return (isNaN(d) || d < 0.1) ? 0.1 : d;
@@ -188,8 +190,10 @@
         } else {
             if (y > RIVER_Y) {
                 if (elixir >= card.cost) {
-                    spawnUnitBatch(x, y, true, card);
-                    elixir -= card.cost;
+                    if (gameObjects.length < MAX_UNITS) {
+                        spawnUnitBatch(x, y, true, card);
+                        elixir -= card.cost;
+                    } else showFloatText(x, y, "Too Many Units!", "#ff4757");
                 } else showFloatText(x, y, "Need Elixir!", "#ff4757");
             } else showFloatText(x, y, "Enemy Side!", "#ff4757");
         }
@@ -198,6 +202,7 @@
     function spawnUnitBatch(x, y, isPlayer, card) {
         spawnEffect(x, y, 'spawn_ring');
         for(let i=0; i<card.count; i++) {
+            if(gameObjects.length >= MAX_UNITS) break;
             let ox = (Math.random() - 0.5) * 60;
             let oy = (Math.random() - 0.5) * 60;
             gameObjects.push(new Unit(x + ox, y + oy, isPlayer, card));
@@ -252,7 +257,7 @@
             this.isJump = stats.jump || false; 
             this.projectile = stats.projectile || null;
             this.attackTimer = 0; this.attackRate = 1.2;
-            this.aggroRange = 300; 
+            this.aggroRange = 350; 
         }
 
         update(dt) {
@@ -273,15 +278,13 @@
 
         move(dt, target) {
             let destX, destY;
-            
             if (target) {
-                destX = target.x; 
-                destY = target.y;
+                destX = target.x; destY = target.y;
             } else {
-                destX = CW / 2;
-                destY = this.isPlayer ? 50 : CH - 50; 
+                destX = CW / 2; destY = this.isPlayer ? 50 : CH - 50; 
             }
 
+            // Bridge Pathfinding
             if (!this.isFlying && !this.isJump) {
                 const mySide = this.y > RIVER_Y ? 'bottom' : 'top';
                 const destSide = destY > RIVER_Y ? 'bottom' : 'top';
@@ -294,23 +297,16 @@
                     const aligned = Math.abs(this.x - bridgeX) < 15;
 
                     if (!aligned) {
-                        // MANHATTAN MOVE: Only adjust X if near river
-                        if (riverDist < 60) {
-                            destX = bridgeX;
-                            destY = this.y; // LOCK Y
-                        } else {
-                            destX = bridgeX; // Diagonal approach from far away is fine
-                        }
+                        destX = bridgeX; 
+                        destY = (riverDist < 60) ? this.y : RIVER_Y;
                     } else {
-                        // CROSSING: LOCK X, Move Y
-                        destX = bridgeX;
+                        destX = bridgeX; 
                         destY = this.isPlayer ? (RIVER_Y - 100) : (RIVER_Y + 100);
                     }
                 }
             }
 
-            const dx = destX - this.x; 
-            const dy = destY - this.y;
+            const dx = destX - this.x; const dy = destY - this.y;
             const dist = safeDist(dx, dy);
             
             if (dist > 1) {
@@ -320,35 +316,27 @@
         }
 
         findTarget() {
-            let closest = null; 
-            let closestDist = Infinity;
-            
+            if (!this.isFlying && !this.isJump && Math.abs(this.y - RIVER_Y) < 50) return null;
+
+            let closest = null; let closestDist = Infinity;
             for (const obj of gameObjects) {
                 if (obj.isPlayer !== this.isPlayer && !obj.isDead) {
                     if (this.targetType === 'building' && !(obj instanceof Tower)) continue;
                     if (obj.isFlying && !this.hitAir) continue;
-
                     const d = safeDist(obj.x - this.x, obj.y - this.y);
                     let validRange = (obj instanceof Tower) ? 2000 : this.aggroRange;
-                    
-                    if (d < validRange && d < closestDist) { 
-                        closestDist = d; 
-                        closest = obj; 
-                    }
+                    if (d < validRange && d < closestDist) { closestDist = d; closest = obj; }
                 }
             }
-
             if (!closest) {
                const king = gameObjects.find(o => o instanceof Tower && o.isKing && o.isPlayer !== this.isPlayer);
                if(king) return king;
             }
-
             return closest;
         }
 
         attack(target) {
             if(!target || target.isDead) return;
-
             if (this.isArea && !this.projectile) {
                 spawnEffect(this.x, this.y, 'spin');
                 gameObjects.forEach(obj => {
@@ -528,6 +516,12 @@
             const card = CARDS[randKey];
             
             if (enemyElixir >= card.cost) {
+                // If max units, just wait and retry later, don't stall
+                if (gameObjects.length >= MAX_UNITS) {
+                    spawnTimer = 1.0; 
+                    return;
+                }
+
                 if(card.type === 'spell') {
                     castSpell(CW/2, CH-50, false, card);
                 } else {
@@ -548,7 +542,7 @@
         for(let i=0; i<units.length; i++) {
             const u1 = units[i];
             
-            // Bridge Phase: Disable Unit-Unit Collision when near river
+            // PHYSICS OPTIMIZATION: Disable unit collision on bridge to prevent jams
             if (Math.abs(u1.y - RIVER_Y) < 55) continue;
 
             for(let j=i+1; j<units.length; j++) {
@@ -583,16 +577,20 @@
     }
 
     function loop(timestamp) {
-        try {
-            if (!lastTime) lastTime = timestamp;
-            let dt = (timestamp - lastTime) / 1000;
-            if (dt > 0.1) dt = 0.1;
-            lastTime = timestamp;
+        requestAnimationFrame(loop); // Ensure loop continues
 
-            // NAN PURGE
+        if (!lastTime) lastTime = timestamp;
+        let dt = (timestamp - lastTime) / 1000;
+        if (dt > 0.1) dt = 0.1;
+        lastTime = timestamp;
+
+        try {
+            // CLEANUP PHASE
             for(let i=gameObjects.length-1; i>=0; i--) {
                 let o = gameObjects[i];
-                if(isNaN(o.x) || isNaN(o.y)) gameObjects.splice(i,1);
+                if(isNaN(o.x) || isNaN(o.y) || o.isDead || (o.life && o.life <= 0)) {
+                    gameObjects.splice(i,1);
+                }
             }
 
             if (!gameOver) {
@@ -612,10 +610,7 @@
                 gameObjects.sort((a,b) => a.y - b.y);
 
                 for(let i=gameObjects.length-1; i>=0; i--) {
-                    let obj = gameObjects[i];
-                    obj.update(dt);
-                    if(obj.life && obj.life<=0) gameObjects.splice(i,1);
-                    else if(obj.isDead) gameObjects.splice(i,1);
+                    gameObjects[i].update(dt);
                 }
             }
 
@@ -627,9 +622,10 @@
             ctx.fillRect(BRIDGE_RIGHT_X-25, RIVER_Y-22, 50, 44);
 
             for(const obj of gameObjects) obj.draw();
-        } catch(e) { console.error("Recovering...", e); }
-        
-        requestAnimationFrame(loop);
+        } catch(e) { 
+            console.error("Frame skipped", e); 
+            // Just skip this frame, don't kill the loop
+        }
     }
 
     initGame();
