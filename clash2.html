@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Royale JS Clone - Fixed Towers & Bridges</title>
+    <title>Clash Royale JS Clone - Final Fixes</title>
     
     <style>
         /* --- CSS STYLES --- */
@@ -55,20 +55,11 @@
         .side {
             height: 100px; 
             background-color: var(--tower-area-color);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            padding: 0 10px;
-            position: relative; 
-            /* Hide the original tower placeholder divs */
-            visibility: hidden; 
+            visibility: hidden; /* Hide placeholders */
         }
-        #player-side { visibility: hidden; }
-        #opponent-side { visibility: hidden; }
 
 
         .tower, .king-tower {
-            /* Now positioned ABSOLUTE within the arena */
             position: absolute; 
             width: 80px;
             height: 80px;
@@ -83,7 +74,12 @@
             cursor: default;
             box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
             color: #fff;
-            z-index: 20; /* Higher than troops */
+            z-index: 20; 
+        }
+        .king-tower {
+            width: 90px;
+            height: 90px;
+            font-size: 40px;
         }
 
         .health-bar {
@@ -94,6 +90,9 @@
             background-color: red;
             border: 1px solid #000;
             border-radius: 3px;
+        }
+        .king-tower .health-bar {
+            width: 80px;
         }
         .health-fill {
             height: 100%;
@@ -126,9 +125,27 @@
             transition: opacity 0.3s;
         }
         #bridge-1 { left: 150px; }
-        #bridge-2 { left: 410px; } /* Corrected placement */
+        #bridge-2 { left: 410px; }
 
-        /* --- UI (Hand and Elixir) --- */
+        /* --- Projectile Visual --- */
+        .ranged-attack-line {
+            position: absolute;
+            background-color: yellow; /* Projectile color */
+            height: 3px;
+            border-radius: 2px;
+            transform-origin: left;
+            z-index: 100;
+            animation: shoot 0.1s forwards;
+            pointer-events: none;
+        }
+
+        /* Ranged attack animation (instant visual feedback) */
+        @keyframes shoot {
+            0% { transform: scaleX(0); }
+            100% { transform: scaleX(1); }
+        }
+
+        /* --- UI and Game Over --- */
 
         #game-ui {
             height: 120px;
@@ -140,6 +157,28 @@
             border-top: 5px solid #000;
         }
 
+        #game-over-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 48px;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            text-align: center;
+            font-weight: bold;
+        }
+        #game-over-overlay.win { color: limegreen; }
+        #game-over-overlay.loss { color: red; }
+
+        /* Existing styles for elixir, cards, troops, damage text... (omitted for brevity) */
+        
         #elixir-bar {
             background-color: #FFC000; 
             color: #000;
@@ -208,8 +247,6 @@
             border: 2px solid var(--card-color);
             box-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
-
-        /* Troop Styling */
         .troop {
             position: absolute;
             width: 30px;
@@ -235,7 +272,6 @@
             background-color: limegreen;
         }
 
-        /* DAMAGE TEXT VISUALIZATION */
         .damage-text {
             position: absolute;
             color: white;
@@ -246,32 +282,21 @@
             pointer-events: none; 
             z-index: 100;
         }
-
         @keyframes floatUpAndFade {
-            0% {
-                transform: translateY(0);
-                opacity: 1;
-            }
-            100% {
-                transform: translateY(-50px);
-                opacity: 0;
-            }
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-50px); opacity: 0; }
         }
     </style>
 </head>
 <body>
 
     <div id="game-container">
-        <div id="opponent-side" class="side">
-            </div>
-
+        <div id="opponent-side" class="side"></div>
         <div id="arena">
             <div id="bridge-1" class="bridge" data-lane="left"></div>
             <div id="bridge-2" class="bridge" data-lane="right"></div>
-            </div>
-
-        <div id="player-side" class="side">
-            </div>
+        </div>
+        <div id="player-side" class="side"></div>
 
         <div id="game-ui">
             <div id="elixir-bar">
@@ -280,11 +305,13 @@
             <div id="card-hand">
                 </div>
         </div>
+
+        <div id="game-over-overlay">
+            <span id="game-over-message"></span>
+        </div>
     </div>
 
     <script>
-        // --- JAVASCRIPT LOGIC ---
-
         // --- 1. GAME CONSTANTS AND DATA ---
         const CARD_DEFINITIONS = [
             { name: "Knight", cost: 3, emoji: "🛡️", type: "troop", hp: 600, dmg: 50, range: 40, attackSpeed: 10 },
@@ -297,20 +324,22 @@
         const GAME_TICK_RATE = 50; 
         const TROOP_MOVEMENT_SPEED = 1.5; 
         const TROOP_SIZE_HALF = 15; 
-        const TOWER_SIZE_HALF = 40; // Tower size is 80px
+        const TOWER_SIZE_HALF = 40; 
+        const KING_TOWER_SIZE_HALF = 45;
 
         let playerElixir = 5;
         let playerHand = [];
         let cardToPlaceIndex = -1; 
         let activeTroops = []; 
         const TOWERS = {}; 
+        let gameRunning = true; 
         
-        // Waypoint Y-coordinates slightly adjusted for better pathing towards the bridges
+        // Waypoints are closer to the bridges
         const WAYPOINTS = {
-            'P-LEFT-WAYPOINT': { x: 170, y: 450, bridge: 'left' }, // Player side (bottom half)
-            'P-RIGHT-WAYPOINT': { x: 430, y: 450, bridge: 'right' },
-            'O-LEFT-WAYPOINT': { x: 170, y: 250, bridge: 'left' }, // Opponent side (top half)
-            'O-RIGHT-WAYPOINT': { x: 430, y: 250, bridge: 'right' },
+            'P-LEFT-WAYPOINT': { x: 170, y: 470, lane: 'left' }, 
+            'P-RIGHT-WAYPOINT': { x: 430, y: 470, lane: 'right' },
+            'O-LEFT-WAYPOINT': { x: 170, y: 230, lane: 'left' }, 
+            'O-RIGHT-WAYPOINT': { x: 430, y: 230, lane: 'right' },
         };
         
         const BRIDGE_STATE = {
@@ -323,6 +352,8 @@
         const arena = document.getElementById('arena');
         const cardHandDiv = document.getElementById('card-hand');
         const elixirCountSpan = document.getElementById('elixir-count');
+        const gameOverOverlay = document.getElementById('game-over-overlay');
+        const gameOverMessage = document.getElementById('game-over-message');
 
         // --- 3. CORE UTILITIES ---
 
@@ -342,7 +373,6 @@
             let baseX = targetObject.x;
             let baseY = targetObject.y;
             
-            // Towers and Troops are now positioned directly in the Arena, making this simpler.
             if (targetObject.isTower) {
                 baseY -= TOWER_SIZE_HALF; 
             } else {
@@ -358,14 +388,45 @@
                 damageElement.remove();
             }, 1000);
         }
+        
+        function createRangedAttackVisual(attacker, target) {
+            const dx = target.x - attacker.x;
+            const dy = target.y - attacker.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+            const visual = document.createElement('div');
+            visual.className = 'ranged-attack-line';
+            visual.style.width = `${distance}px`;
+            visual.style.left = `${attacker.x}px`;
+            visual.style.top = `${attacker.y}px`;
+            visual.style.transform = `rotate(${angle}deg)`;
+            
+            arena.appendChild(visual);
+
+            // Remove the visual quickly after the damage is dealt
+            setTimeout(() => {
+                visual.remove();
+            }, 100); 
+        }
 
 
         function findClosestTarget(sourceTroop) {
             const enemySide = sourceTroop.side === 'player' ? 'opponent' : 'player';
             const targets = activeTroops.filter(t => t.side === enemySide && t.hp > 0);
             
+            // Only non-King towers are considered primary targets initially
             Object.values(TOWERS).forEach(tower => {
                 if (tower.side === enemySide && tower.hp > 0) {
+                    // King Tower is only targetable if both Princess Towers are down
+                    if (tower.id.endsWith('-K')) {
+                        const otherPT1_ID = tower.side === 'opponent' ? 'O-L' : 'P-L';
+                        const otherPT2_ID = tower.side === 'opponent' ? 'O-R' : 'P-R';
+                        
+                        if (TOWERS[otherPT1_ID].hp > 0 || TOWERS[otherPT2_ID].hp > 0) {
+                            return; // Skip King Tower if a Princess Tower is alive
+                        }
+                    }
                     targets.push(tower);
                 }
             });
@@ -385,14 +446,14 @@
                 }
             });
             
-            if (minDistanceSq <= rangeSq) {
+            // Check if the closest target is within the troop's attack range
+            if (closestTarget && Math.sqrt(minDistanceSq) <= sourceTroop.range) {
                  return closestTarget;
             }
             return null; 
         }
 
-        // --- 4. CARD HAND AND UI ---
-        
+        // --- 4. CARD HAND AND UI (Same as previous) ---
         function drawCard() {
             if (playerHand.length >= HAND_SIZE) return;
             const randomIndex = Math.floor(Math.random() * CARD_DEFINITIONS.length);
@@ -432,10 +493,8 @@
             });
             updateElixirUI();
         }
-
-        // --- 5. CLICK AND PLACE LOGIC ---
-
         function handleCardSelection(index) {
+            if (!gameRunning) return;
             const card = playerHand[index];
             if (playerElixir < card.cost) return;
 
@@ -448,7 +507,7 @@
         }
 
         arena.addEventListener('click', (e) => {
-            if (cardToPlaceIndex === -1) return; 
+            if (cardToPlaceIndex === -1 || !gameRunning) return; 
 
             const card = playerHand[cardToPlaceIndex];
             const rect = arena.getBoundingClientRect();
@@ -484,28 +543,36 @@
             }
         }
 
+
         // --- 6. TROOP & COMBAT LOGIC ---
 
-        /** * Determines the pathing destination, factoring in destroyed bridges.
-         * If a target bridge is destroyed, the troop is redirected to the active bridge's waypoint.
+        /** * Determines the troop's initial destination (Waypoint or Tower), 
+         * forcing redirection to the active lane if the intended lane is blocked.
          */
-        function getInitialWaypoint(side, spawnX) {
+        function getInitialDestination(side, spawnX, spawnY) {
             const isLeftLane = spawnX < (arena.offsetWidth / 2);
             let lane = isLeftLane ? 'left' : 'right';
             
-            let waypointKey = `${side === 'player' ? 'P' : 'O'}-${lane.toUpperCase()}-WAYPOINT`;
-
-            // Check if the primary bridge for this lane is destroyed
-            if (BRIDGE_STATE[lane].isDestroyed) {
-                // Switch to the other lane
+            // 1. Check if the primary lane's bridge is destroyed (Opponent's side only)
+            if (side === 'player' && BRIDGE_STATE[lane].isDestroyed) {
+                // If lane is destroyed, force switch to the opposite lane
                 lane = isLeftLane ? 'right' : 'left';
-                waypointKey = `${side === 'player' ? 'P' : 'O'}-${lane.toUpperCase()}-WAYPOINT`;
-
-                // If the troop was placed too far to successfully path to the other lane,
-                // we might need a more complex pathfinder, but for now, we force the path.
             }
             
-            return WAYPOINTS[waypointKey];
+            // 2. Determine initial pathing target
+            const targetPT_ID = `${side === 'player' ? 'O' : 'P'}-${lane === 'left' ? 'L' : 'R'}`;
+            const waypointKey = `${side === 'player' ? 'P' : 'O'}-${lane.toUpperCase()}-WAYPOINT`;
+
+            const arenaHeight = arena.offsetHeight;
+            const riverCenterY = arenaHeight / 2;
+            const deployDistanceToRiver = Math.abs(spawnY - riverCenterY);
+
+            // If close to river, target tower directly; otherwise, path to waypoint first.
+            if (deployDistanceToRiver < 100) { 
+                 return TOWERS[targetPT_ID];
+            } else {
+                 return WAYPOINTS[waypointKey];
+            }
         }
 
         function createTroop(side, card, x, y) {
@@ -519,19 +586,7 @@
             
             arena.appendChild(troopElement);
 
-            const arenaHeight = arena.offsetHeight;
-            const riverCenterY = arenaHeight / 2;
-            const deployDistanceToRiver = Math.abs(y - riverCenterY);
-            
-            let initialDestination = null;
-            if (deployDistanceToRiver > 100) { 
-                 initialDestination = getInitialWaypoint(side, x);
-            } else {
-                 // If close to the river/bridge, target the primary tower directly
-                 const targetTowerId = side === 'player' ? 'O-L' : 'P-L'; 
-                 initialDestination = TOWERS[targetTowerId];
-            }
-
+            const initialDestination = getInitialDestination(side, x, y);
 
             const newTroop = {
                 id: Math.random(),
@@ -554,40 +609,7 @@
             
             activeTroops.push(newTroop);
         }
-
-        function applySpellEffect(card, x, y) {
-             const spellRadius = 150; 
-             const radiusSq = spellRadius * spellRadius;
-
-            activeTroops.forEach(troop => {
-                if (troop.side === 'opponent') {
-                    const dx = troop.x - x;
-                    const dy = troop.y - y;
-                    const distanceSq = dx * dx + dy * dy;
-                    if (distanceSq < radiusSq) {
-                         troop.hp -= card.dmg; 
-                         showDamageText(troop, card.dmg);
-                    }
-                }
-            });
-
-            Object.values(TOWERS).forEach(tower => {
-                if (tower.side === 'opponent' && tower.hp > 0) {
-                    const dx = tower.x - x;
-                    const dy = tower.y - y;
-                    const distanceSq = dx * dx + dy * dy;
-
-                    if (distanceSq < radiusSq) {
-                         tower.hp -= card.dmg;
-                         updateHealthBar(tower, tower.hp, tower.maxHp);
-                         showDamageText(tower, card.dmg);
-                    }
-                }
-            });
-             
-            // Simple flash effect (omitted for brevity)
-        }
-
+        
         function checkBridgeHealth(towerId) {
             let lane = null;
             if (towerId === 'O-L') lane = 'left';
@@ -595,7 +617,8 @@
 
             if (lane && !BRIDGE_STATE[lane].isDestroyed && TOWERS[towerId].hp <= 0) {
                 BRIDGE_STATE[lane].isDestroyed = true;
-                BRIDGE_STATE[lane].element.style.opacity = 0; // Visual removal
+                BRIDGE_STATE[lane].element.style.opacity = 0.2; // Visual destruction (faded)
+                BRIDGE_STATE[lane].element.style.backgroundColor = '#6e5e48'; // Color change
                 console.log(`${lane.toUpperCase()} bridge is destroyed!`);
             }
         }
@@ -604,6 +627,8 @@
         // --- 7. MAIN GAME LOOP (Movement/Combat logic) ---
 
         function gameLoop() {
+            if (!gameRunning) return;
+
             activeTroops.forEach(troop => {
                 if (troop.hp <= 0) return; 
 
@@ -621,6 +646,9 @@
                     if (distance <= troop.range) {
                         troop.isAttacking = true;
                         if (troop.attackCooldown <= 0) {
+                            if (troop.range > 50) { // Check if ranged unit
+                                createRangedAttackVisual(troop, troop.target);
+                            }
                             troop.target.hp -= troop.dmg;
                             troop.attackCooldown = troop.attackSpeed; 
                             
@@ -638,33 +666,37 @@
                     // 2. Pathfinding (Lower Priority - only if no enemy in range)
                     
                     let destination = troop.currentDestination;
-                    let targetTowerId = troop.side === 'player' ? 'O-L' : 'P-L'; // Default target 
-
-                    // --- Dynamic Path Re-evaluation ---
-                    if (!destination || (destination.isTower && destination.hp <= 0)) {
-                         // Find the best tower target
-                        if (TOWERS['O-L'].hp > 0) targetTowerId = 'O-L';
-                        else if (TOWERS['O-R'].hp > 0) targetTowerId = 'O-R';
-                        else targetTowerId = 'O-K';
+                    
+                    // Re-evaluate path if current path target is dead or if destination is a waypoint that has been reached
+                    if (!destination || (destination.isTower && destination.hp <= 0) || (destination.lane && Math.sqrt((destination.x - troop.x)**2 + (destination.y - troop.y)**2) < 10)) {
                         
-                        // Set the new destination (either primary tower or king)
-                        destination = TOWERS[targetTowerId];
+                        // Determine target lane based on current X position
+                        const isLeftLane = troop.x < (arena.offsetWidth / 2);
+                        let lane = isLeftLane ? 'left' : 'right';
+
+                        // Permanent Path Redirect: Check if the original lane's bridge is destroyed
+                        if (troop.side === 'player' && BRIDGE_STATE[lane].isDestroyed) {
+                            lane = isLeftLane ? 'right' : 'left'; // Force opposite lane
+                        }
+                        
+                        // Determine next target: Princess Tower, or King Tower if PT is dead
+                        let targetPT_ID = `${troop.side === 'player' ? 'O' : 'P'}-${lane === 'left' ? 'L' : 'R'}`;
+                        
+                        if (TOWERS[targetPT_ID].hp <= 0) {
+                             // Princess Tower is down, move to King Tower
+                             destination = TOWERS[troop.side === 'player' ? 'O-K' : 'P-K'];
+                        } else {
+                             // Move toward the active Princess Tower
+                             destination = TOWERS[targetPT_ID];
+                        }
                         troop.currentDestination = destination;
                     }
-
 
                     // Move toward the current path destination
                     if (destination) {
                         const dx = destination.x - troop.x;
                         const dy = destination.y - troop.y;
                         const distance = Math.sqrt(dx * dx + dy * dy);
-                        
-                        // Check if waypoint reached (only relevant if destination is a waypoint, not a tower)
-                        if (destination.bridge && distance < 10) {
-                            // Reached Waypoint, now set target to nearest active tower
-                            troop.currentDestination = TOWERS[targetTowerId]; 
-                            destination = troop.currentDestination;
-                        }
 
                         if (distance > 5) { 
                             const ratio = troop.speed / distance;
@@ -682,7 +714,7 @@
                 updateHealthBar(troop, troop.hp, troop.maxHp);
             });
 
-            // --- 7.2 Cleanup Dead Units/Towers ---
+            // --- 7.2 Cleanup Dead Units/Towers & Check Win Condition ---
             activeTroops = activeTroops.filter(troop => {
                 if (troop.hp <= 0) {
                     troop.element.remove();
@@ -691,39 +723,66 @@
                 return true;
             });
             
+            let playerKingDestroyed = false;
+            let opponentKingDestroyed = false;
+
             Object.keys(TOWERS).forEach(id => {
                  const tower = TOWERS[id];
                  if (tower.hp <= 0) {
+                    if (id === 'O-K') opponentKingDestroyed = true;
+                    if (id === 'P-K') playerKingDestroyed = true;
+
                     if (tower.element.textContent !== '💥') {
                         tower.element.textContent = '💥';
                         tower.element.style.opacity = '0.4';
                         tower.element.querySelector('.health-bar').style.display = 'none';
-                        // Check if a bridge should be destroyed
                         checkBridgeHealth(id); 
                     }
-                    // Keep tower in TOWERS list but make it untargetable by adjusting coordinates
-                    // We only do this if it's NOT the King Tower, so King Tower remains visible for final win condition
-                    if (id !== 'O-K' && id !== 'P-K') {
+                    if (!tower.id.endsWith('-K')) {
                         tower.x = -1000; 
                         tower.y = -1000;
                     }
                  }
             });
+
+            // --- 7.3 Win/Loss Condition Check ---
+            if (playerKingDestroyed) {
+                endGame('LOSS');
+            } else if (opponentKingDestroyed) {
+                endGame('WIN');
+            }
         }
+        
+        function endGame(result) {
+            gameRunning = false;
+            gameOverOverlay.style.display = 'flex';
+            
+            if (result === 'WIN') {
+                gameOverMessage.textContent = "VICTORY!";
+                gameOverOverlay.classList.add('win');
+            } else {
+                gameOverMessage.textContent = "DEFEAT!";
+                gameOverOverlay.classList.add('loss');
+            }
+        }
+
 
         // --- 8. INITIALIZATION ---
 
         function initTowers() {
             const arenaHeight = arena.offsetHeight;
             
-            // Define all tower properties here
+            // Tower data with correct positions (King Tower centered and further back)
             const towerData = [
-                { id: 'O-L', isKing: false, maxHp: 1000, x: 170 + TOWER_SIZE_HALF, y: 50 + TOWER_SIZE_HALF, side: 'opponent' },
-                { id: 'O-K', isKing: true, maxHp: 1500, x: 300, y: 50 + TOWER_SIZE_HALF, side: 'opponent' },
-                { id: 'O-R', isKing: false, maxHp: 1000, x: 430 + TOWER_SIZE_HALF, y: 50 + TOWER_SIZE_HALF, side: 'opponent' },
-                { id: 'P-L', isKing: false, maxHp: 1000, x: 170 + TOWER_SIZE_HALF, y: arenaHeight - 50 - TOWER_SIZE_HALF, side: 'player' },
-                { id: 'P-K', isKing: true, maxHp: 1500, x: 300, y: arenaHeight - 50 - TOWER_SIZE_HALF, side: 'player' },
-                { id: 'P-R', isKing: false, maxHp: 1000, x: 430 + TOWER_SIZE_HALF, y: arenaHeight - 50 - TOWER_SIZE_HALF, side: 'player' },
+                // Opponent Towers (Y-coords close to the top edge)
+                { id: 'O-L', isKing: false, maxHp: 1000, x: 170 + TOWER_SIZE_HALF, y: 150, sizeHalf: TOWER_SIZE_HALF, side: 'opponent' },
+                { id: 'O-R', isKing: false, maxHp: 1000, x: 430 + TOWER_SIZE_HALF, y: 150, sizeHalf: TOWER_SIZE_HALF, side: 'opponent' },
+                { id: 'O-K', isKing: true, maxHp: 1500, x: 300, y: 70, sizeHalf: KING_TOWER_SIZE_HALF, side: 'opponent' },
+                
+                // Player Towers (Y-coords close to the bottom edge)
+                { id: 'P-L', isKing: false, maxHp: 1000, x: 170 + TOWER_SIZE_HALF, y: arenaHeight - 150, sizeHalf: TOWER_SIZE_HALF, side: 'player' },
+                { id: 'P-R', isKing: false, maxHp: 1000, x: 430 + TOWER_SIZE_HALF, y: arenaHeight - 150, sizeHalf: TOWER_SIZE_HALF, side: 'player' },
+                { id: 'P-K', isKing: true, maxHp: 1500, x: 300, y: arenaHeight - 70, sizeHalf: KING_TOWER_SIZE_HALF, side: 'player' },
             ];
 
             towerData.forEach(data => {
@@ -732,8 +791,8 @@
                 el.id = data.id;
                 el.innerHTML = `${data.isKing ? '👑' : '🏰'}<div class="health-bar"><div class="health-fill"></div></div>`;
                 
-                el.style.left = `${data.x - TOWER_SIZE_HALF}px`;
-                el.style.top = `${data.y - TOWER_SIZE_HALF}px`;
+                el.style.left = `${data.x - data.sizeHalf}px`;
+                el.style.top = `${data.y - data.sizeHalf}px`;
                 
                 arena.appendChild(el);
 
@@ -756,43 +815,49 @@
 
 
         function opponentAiLoop() {
-            setInterval(() => {
-                const troopCards = CARD_DEFINITIONS.filter(c => c.type === 'troop').sort((a,b) => a.cost - b.cost);
-                
-                // --- Simple AI Lane Selection ---
-                let spawnX;
-                let targetLane;
+            if (!gameRunning) return;
+            
+            const troopCards = CARD_DEFINITIONS.filter(c => c.type === 'troop').sort((a,b) => a.cost - b.cost);
+            
+            let spawnX;
+            let targetLane;
 
-                if (TOWERS['P-L'].hp > TOWERS['P-R'].hp && TOWERS['P-R'].hp > 0) {
-                    targetLane = 'right'; // Attack the weaker right tower
-                } else if (TOWERS['P-L'].hp > 0) {
-                    targetLane = 'left';
-                } else {
-                    targetLane = 'right'; 
+            // Simple AI decision: attack the weakest Princess Tower, or a random active lane
+            if (TOWERS['P-L'].hp > TOWERS['P-R'].hp && TOWERS['P-R'].hp > 0) {
+                targetLane = 'right'; 
+            } else if (TOWERS['P-L'].hp > 0) {
+                targetLane = 'left';
+            } else if (TOWERS['P-R'].hp > 0) {
+                 targetLane = 'right';
+            } else {
+                 // King Tower is the only target left, send to the lane with fewer friendly troops
+                 targetLane = activeTroops.filter(t => t.side === 'opponent' && t.x < 300).length < activeTroops.filter(t => t.side === 'opponent' && t.x >= 300).length ? 'left' : 'right';
+            }
+            
+            spawnX = (targetLane === 'left') ? 200 : 400;
+
+            const spawnY = arena.offsetHeight * 0.2; 
+
+            if (troopCards.length > 0) {
+                const cardToPlay = troopCards[0]; 
+
+                if (Math.random() > 0.2) { 
+                    createTroop('opponent', cardToPlay, spawnX, spawnY);
                 }
-                
-                spawnX = (targetLane === 'left') ? 200 : 400;
-
-                const spawnY = arena.offsetHeight * 0.2; // Spawn high up
-
-                if (troopCards.length > 0) {
-                    const cardToPlay = troopCards[0]; 
-
-                    if (Math.random() > 0.2) { 
-                        createTroop('opponent', cardToPlay, spawnX, spawnY);
-                    }
-                }
-            }, 3000); 
+            }
         }
 
         function elixirLoop() {
-            setInterval(() => {
-                if (playerElixir < 10) {
-                    playerElixir = Math.min(10, playerElixir + 1);
-                    updateElixirUI();
-                }
-            }, 1000); 
+            if (!gameRunning) return;
+            if (playerElixir < 10) {
+                playerElixir = Math.min(10, playerElixir + 1);
+                updateElixirUI();
+            }
         }
+
+        let gameLoopInterval;
+        let elixirInterval;
+        let aiInterval;
 
         function initGame() {
             initTowers();
@@ -801,11 +866,11 @@
                 drawCard();
             }
 
-            setInterval(gameLoop, GAME_TICK_RATE); 
-            elixirLoop();
-            opponentAiLoop(); 
+            gameLoopInterval = setInterval(gameLoop, GAME_TICK_RATE); 
+            elixirInterval = setInterval(elixirLoop, 1000);
+            aiInterval = setInterval(opponentAiLoop, 3000); 
             
-            console.log("Clash Clone Initialized! Towers are on the map and bridges are destructible.");
+            console.log("Clash Clone Initialized! Towers, Pathing, Ranged Visuals, and Win Conditions are all active.");
         }
 
 
