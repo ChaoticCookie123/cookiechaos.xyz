@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Fixed Spawning</title>
+    <title>Clash Clone - Expanded</title>
     <style>
         body {
             background-color: #121212; display: flex; justify-content: center; 
@@ -45,11 +45,11 @@
 
         /* HAND */
         #hand {
-            display: flex; justify-content: center; align-items: center; gap: 12px; width: 100%; height: 120px;
+            display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; height: 120px;
         }
 
         .card {
-            width: 72px; height: 96px; background: #2b3a42; border: 3px solid #546e7a;
+            width: 70px; height: 94px; background: #2b3a42; border: 3px solid #546e7a;
             border-radius: 8px; position: relative; cursor: pointer; transition: transform 0.1s;
             display: flex; flex-direction: column; align-items: center;
             box-shadow: 0 4px 5px rgba(0,0,0,0.5);
@@ -69,8 +69,8 @@
             display: flex; justify-content: center; align-items: center;
         }
         
-        .icon { font-size: 38px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
-        .name { font-size: 10px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
+        .icon { font-size: 36px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
+        .name { font-size: 9px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
 
         #toast {
             position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
@@ -106,19 +106,33 @@
     const BRIDGE_L = 90, BRIDGE_R = W - 90;
     const MAX_UNITS = 60; 
 
-    // --- CARDS ---
+    // --- BALANCED CARD LIBRARY ---
     const CARDS = {
-        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 90, speed: 50, range: 5, type: 'ground', target: 'ground', size: 12 },
-        'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 300, dmg: 60, speed: 60, range: 120, type: 'ground', target: 'any', count: 2, size: 10 },
-        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2800, dmg: 180, speed: 30, range: 5, type: 'ground', target: 'building', size: 22 },
-        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1100, dmg: 170, speed: 95, range: 5, type: 'ground', target: 'building', jump: true, size: 14 },
-        'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 650, dmg: 160, speed: 50, range: 160, type: 'ground', target: 'any', size: 12 },
-        'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 950, dmg: 110, speed: 65, range: 80, type: 'air', target: 'any', area: true, size: 15 },
-        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 180, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3, size: 8 },
-        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 50, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 4, size: 7 }, 
-        'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 750, dmg: 110, speed: 0, range: 140, type: 'building', target: 'ground', size: 20 },
-        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450 },
-        'zap':    { name: 'Zap', cost: 2, icon: '⚡', type: 'spell', radius: 60, dmg: 140 }
+        // TANKS
+        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 140, speed: 30, range: 5, type: 'ground', target: 'building', size: 24 },
+        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 400, speed: 35, range: 5, type: 'ground', target: 'ground', size: 20 },
+        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1000, dmg: 170, speed: 95, range: 5, type: 'ground', target: 'building', jump: true, size: 14 },
+        
+        // FIGHTERS
+        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 100, speed: 50, range: 5, type: 'ground', target: 'ground', size: 12 },
+        'valk':   { name: 'Valkyrie', cost: 4, icon: '🪓', hp: 1100, dmg: 120, speed: 50, range: 5, type: 'ground', target: 'ground', area: true, size: 14 },
+        
+        // RANGED
+        'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 250, dmg: 60, speed: 60, range: 150, type: 'ground', target: 'any', count: 2, size: 10 },
+        'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 550, dmg: 150, speed: 50, range: 170, type: 'ground', target: 'any', size: 12 },
+        'wizard': { name: 'Wizard', cost: 5, icon: '🧙‍♂️', hp: 500, dmg: 130, speed: 50, range: 140, type: 'ground', target: 'any', area: true, size: 12 },
+        
+        // AIR
+        'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 100, speed: 65, range: 90, type: 'air', target: 'any', area: true, size: 15 },
+        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 160, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3, size: 8 },
+        
+        // SWARM
+        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 50, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 5, size: 6 },
+        'goblin': { name: 'Goblins', cost: 2, icon: '👺', hp: 100, dmg: 60, speed: 90, range: 5, type: 'ground', target: 'ground', count: 3, size: 8 },
+
+        // SPELLS/BUILDINGS
+        'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 700, dmg: 100, speed: 0, range: 140, type: 'building', target: 'ground', size: 20 },
+        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450 }
     };
     const ALL_KEYS = Object.keys(CARDS);
 
@@ -127,7 +141,7 @@
     let entities = [];
     let particles = [];
     let lastTime = 0;
-    let spawnTimer = 5.0; 
+    let spawnTimer = 4.0;
     
     // Cycle Logic
     let deckQueue = [];
@@ -136,6 +150,7 @@
 
     // --- SETUP ---
     function init() {
+        // Init Deck
         deckQueue = [...ALL_KEYS].sort(() => Math.random() - 0.5);
         for(let i=0; i<4; i++) hand.push(deckQueue.shift());
         renderHand();
@@ -199,7 +214,7 @@
         } else {
             const count = card.count || 1;
             for(let i=0; i<count; i++) {
-                const spread = (count > 1) ? 20 : 0;
+                const spread = (count > 1) ? 25 : 0;
                 const ox = (Math.random()-0.5)*spread;
                 const oy = (Math.random()-0.5)*spread;
                 
@@ -224,7 +239,7 @@
     }
 
     function castSpell(x, y, isPlayer, card) {
-        for(let i=0; i<10; i++) particles.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, life:0.5, color:card.icon==='⚡'?'cyan':'orange'});
+        for(let i=0; i<12; i++) particles.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, life:0.6, color:'orange'});
         entities.forEach(e => {
             if(e.isPlayer !== isPlayer && !e.isDead && !(e instanceof DeployTimer)) {
                 if(safeDist(e.x-x, e.y-y) < card.radius) e.takeDamage(card.dmg);
@@ -242,10 +257,11 @@
         const dt = Math.min((now - lastTime) / 1000, 0.1);
         lastTime = now;
 
-        // Cleanup Logic (FIXED: Checks isDead)
+        // Cleanup
         for(let i=entities.length-1; i>=0; i--) {
             let e = entities[i];
-            if(e.isDead || e.hp <= 0 || isNaN(e.x)) {
+            if(e.hp <= 0 || isNaN(e.x)) {
+                e.isDead = true;
                 entities.splice(i,1);
             }
         }
@@ -268,17 +284,17 @@
         if(spawnTimer <= 0) {
             if(entities.length < MAX_UNITS) {
                 const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                const keys = ['knight','giant','hog','archer']; 
+                const keys = ['knight','giant','hog','archer','baby','wizard']; 
                 const rk = keys[Math.floor(Math.random()*keys.length)];
                 
                 const c = CARDS[rk];
                 const count = c.count || 1;
                 for(let i=0; i<count; i++) {
-                    const spread = (count > 1) ? 20 : 0;
+                    const spread = (count > 1) ? 25 : 0;
                     spawnEntity(new DeployTimer(lane+(Math.random()-0.5)*spread, 20, false, c));
                 }
             }
-            spawnTimer = 5.0; 
+            spawnTimer = 5.0; // Slow play
         }
 
         // Physics
@@ -356,13 +372,13 @@
         constructor(x, y, isPlayer, card) {
             this.x = x; this.y = y; this.isPlayer = isPlayer; this.card = card;
             this.timer = 1.0; this.max = 1.0;
-            this.hasSpawned = false; // Double safety flag
+            this.spawned = false;
         }
         update(dt) {
             this.timer -= dt;
-            if(this.timer <= 0 && !this.hasSpawned) {
-                this.hasSpawned = true;
-                this.isDead = true; // Mark for deletion
+            if(this.timer <= 0 && !this.spawned) {
+                this.spawned = true;
+                this.hp = 0; // Kill timer
                 if(this.card.type === 'building') {
                     spawnEntity(new Tower(this.x, this.y, this.isPlayer, false, this.card));
                 } else {
@@ -505,13 +521,13 @@
             this.speed = 350;
         }
         update(dt) {
-            if(this.target.isDead) { this.isDead = true; return; }
+            if(this.target.isDead) { this.hp = 0; return; }
             let dx = this.target.x - this.x;
             let dy = (this.target.y-10) - this.y;
             let d = safeDist(dx, dy);
             
             if(d < 10) {
-                this.isDead = true;
+                this.hp = 0; // Kill projectile
                 if(this.area) {
                     entities.forEach(e => {
                         if(e.isPlayer !== this.target.isPlayer && !e.isDead && !(e instanceof DeployTimer)) {
