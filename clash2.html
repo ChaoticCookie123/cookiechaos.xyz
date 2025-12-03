@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Royale JS Clone - Drag & Drop</title>
+    <title>Clash Royale JS Clone - Combat Added</title>
     
     <style>
         /* --- CSS STYLES --- */
         :root {
-            --arena-color: #38761D; /* Dark Green */
-            --river-color: #4A86E8; /* Blue */
-            --border-color: #6AA84F; /* Lighter Green */
+            --arena-color: #38761D; 
+            --river-color: #4A86E8; 
             --hand-bg-color: #333;
-            --card-color: #8E7CC3; /* Purple/Gray */
+            --card-color: #8E7CC3; 
         }
 
         body, html {
@@ -43,6 +42,10 @@
             position: relative;
             border-top: 5px solid var(--river-color);
             border-bottom: 5px solid var(--river-color);
+            cursor: default;
+        }
+        #arena.placing {
+            cursor: crosshair; /* Visual feedback when placing a card */
         }
 
         .side {
@@ -54,20 +57,33 @@
             padding: 0 10px;
         }
 
-        #opponent-side { border-bottom: 5px solid var(--river-color); }
-        #player-side { border-top: 5px solid var(--river-color); }
-
         .tower, .king-tower {
-            font-size: 40px;
+            font-size: 30px; /* Reduced size to fit HP */
             width: 80px;
             height: 80px;
             background-color: #ccc;
             border: 3px solid #000;
             border-radius: 5px;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             cursor: default;
+            position: relative;
+        }
+
+        .health-bar {
+            position: absolute;
+            top: 5px;
+            width: 70px;
+            height: 5px;
+            background-color: red;
+            border: 1px solid #000;
+        }
+        .health-fill {
+            height: 100%;
+            background-color: green;
+            transition: width 0.3s;
         }
 
         /* River and Bridges */
@@ -133,22 +149,19 @@
             flex-direction: column;
             justify-content: space-around;
             align-items: center;
-            cursor: grab; /* Changed to grab */
+            cursor: pointer;
             transition: transform 0.1s;
             font-family: sans-serif;
             user-select: none;
             position: relative; 
-            z-index: 50; /* Ensure card is above arena elements */
+            z-index: 50; 
         }
 
-        .card.dragging {
-            opacity: 0.7;
-            border: 4px solid yellow; /* Visual feedback for dragging */
+        .card.active-to-place {
+            border-color: yellow;
+            box-shadow: 0 0 10px yellow;
         }
-
-        .card:hover {
-            transform: translateY(-5px);
-        }
+        
         /* Style for cards that cannot be played (not enough elixir) */
         .card.disabled {
             filter: grayscale(100%);
@@ -185,20 +198,31 @@
             justify-content: center;
             align-items: center;
             font-size: 20px;
-            transition: all 5s linear; 
             z-index: 10;
+            /* Remove transition to allow JS to control movement dynamically */
         }
         .player-troop { background-color: #008000; border: 2px solid #000; }
         .opponent-troop { background-color: #FF0000; border: 2px solid #000; }
+        .troop-health {
+            position: absolute;
+            bottom: -5px;
+            width: 20px;
+            height: 3px;
+            background-color: red;
+        }
+        .troop-health-fill {
+            height: 100%;
+            background-color: limegreen;
+        }
     </style>
 </head>
 <body>
 
     <div id="game-container">
         <div id="opponent-side" class="side">
-            <div id="opponent-left-tower" class="tower">🏰</div>
-            <div id="opponent-king-tower" class="king-tower">👑</div>
-            <div id="opponent-right-tower" class="tower">🏰</div>
+            <div id="opponent-left-tower" class="tower" data-id="O-L" data-max-hp="1000">🏰<div class="health-bar"><div class="health-fill"></div></div></div>
+            <div id="opponent-king-tower" class="king-tower" data-id="O-K" data-max-hp="1500">👑<div class="health-bar"><div class="health-fill"></div></div></div>
+            <div id="opponent-right-tower" class="tower" data-id="O-R" data-max-hp="1000">🏰<div class="health-bar"><div class="health-fill"></div></div></div>
         </div>
 
         <div id="arena">
@@ -207,9 +231,9 @@
         </div>
 
         <div id="player-side" class="side">
-            <div id="player-left-tower" class="tower">🏰</div>
-            <div id="player-king-tower" class="king-tower">👑</div>
-            <div id="player-right-tower" class="tower">🏰</div>
+            <div id="player-left-tower" class="tower" data-id="P-L" data-max-hp="1000">🏰<div class="health-bar"><div class="health-fill"></div></div></div>
+            <div id="player-king-tower" class="king-tower" data-id="P-K" data-max-hp="1500">👑<div class="health-bar"><div class="health-fill"></div></div></div>
+            <div id="player-right-tower" class="tower" data-id="P-R" data-max-hp="1000">🏰<div class="health-bar"><div class="health-fill"></div></div></div>
         </div>
 
         <div id="game-ui">
@@ -226,31 +250,71 @@
 
         // --- 1. GAME CONSTANTS AND DATA ---
         const CARD_DEFINITIONS = [
-            { name: "Knight", cost: 3, emoji: "🛡️", type: "troop" },
-            { name: "Archers", cost: 3, emoji: "🏹", type: "troop" },
-            { name: "Giant", cost: 5, emoji: "🗿", type: "troop" },
-            { name: "Fireball", cost: 4, emoji: "🔥", type: "spell" },
-            { name: "Goblin Barrel", cost: 3, emoji: "📦", type: "spell" },
-            { name: "Mini P.E.K.K.A", cost: 4, emoji: "🤖", type: "troop" },
-            { name: "Musketeer", cost: 4, emoji: "🔫", type: "troop" },
-            { name: "Valkyrie", cost: 4, emoji: "🪓", type: "troop" },
+            { name: "Knight", cost: 3, emoji: "🛡️", type: "troop", hp: 600, dmg: 50, range: 40 },
+            { name: "Archers", cost: 3, emoji: "🏹", type: "troop", hp: 300, dmg: 40, range: 200 },
+            { name: "Giant", cost: 5, emoji: "🗿", type: "troop", hp: 1200, dmg: 70, range: 40 },
+            { name: "Fireball", cost: 4, emoji: "🔥", type: "spell", dmg: 300 },
         ];
 
         const HAND_SIZE = 4;
+        const GAME_TICK_RATE = 100; // 100ms per tick (10 FPS for logic)
+        
         let playerElixir = 5;
         let playerHand = [];
-        let currentlyDraggedCardIndex = -1;
+        let cardToPlaceIndex = -1; // Tracks the card selected for placement
+        let activeTroops = []; // Array to hold all active troop objects
+
+        const TOWERS = {}; // Map to hold tower game objects
 
         // --- 2. DOM ELEMENTS ---
         const arena = document.getElementById('arena');
-        const gameContainer = document.getElementById('game-container');
         const cardHandDiv = document.getElementById('card-hand');
         const elixirCountSpan = document.getElementById('elixir-count');
-        const arenaRect = arena.getBoundingClientRect();
 
         // --- 3. HELPER FUNCTIONS ---
 
-        /** Draws a card from the definition list and adds it to the hand. */
+        /** Updates the visual health bar for any game object (Tower or Troop). */
+        function updateHealthBar(gameObject, currentHP, maxHP) {
+            const percentage = (currentHP / maxHP) * 100;
+            const fillElement = gameObject.element.querySelector('.health-fill');
+            if (fillElement) {
+                fillElement.style.width = `${Math.max(0, percentage)}%`;
+            }
+        }
+
+        /** Finds the closest enemy object (Troop or Tower) within a given range. */
+        function findClosestTarget(sourceTroop) {
+            const enemySide = sourceTroop.side === 'player' ? 'opponent' : 'player';
+            const targets = activeTroops.filter(t => t.side === enemySide);
+            
+            // Add towers to targets list
+            Object.values(TOWERS).forEach(tower => {
+                if (tower.side === enemySide) {
+                    targets.push(tower);
+                }
+            });
+
+            let closestTarget = null;
+            let minDistanceSq = Infinity;
+            const rangeSq = sourceTroop.range * sourceTroop.range;
+
+            targets.forEach(target => {
+                // Calculate distance squared for efficiency (no need for Math.sqrt)
+                const dx = target.x - sourceTroop.x;
+                const dy = target.y - sourceTroop.y;
+                const distanceSq = dx * dx + dy * dy;
+
+                if (distanceSq <= rangeSq && distanceSq < minDistanceSq) {
+                    minDistanceSq = distanceSq;
+                    closestTarget = target;
+                }
+            });
+            return closestTarget;
+        }
+
+
+        // --- 4. CARD HAND AND UI ---
+        
         function drawCard() {
             if (playerHand.length >= HAND_SIZE) return;
             const randomIndex = Math.floor(Math.random() * CARD_DEFINITIONS.length);
@@ -259,136 +323,170 @@
             renderHand();
         }
 
-        /** Updates the Elixir count on the UI and checks which cards can be played. */
         function updateElixirUI() {
             elixirCountSpan.textContent = playerElixir;
             
-            // Check card playability
+            // Update card playability styles
             document.querySelectorAll('.card').forEach(cardElement => {
                 const index = parseInt(cardElement.getAttribute('data-card-index'));
-                const cost = playerHand[index]?.cost || 99; // Get cost, default high if error
+                const cost = playerHand[index]?.cost || 99;
                 
                 if (playerElixir < cost) {
                     cardElement.classList.add('disabled');
-                    cardElement.setAttribute('draggable', 'false');
                 } else {
                     cardElement.classList.remove('disabled');
-                    cardElement.setAttribute('draggable', 'true');
                 }
             });
         }
 
-        /** Renders the player's current hand and attaches event listeners. */
         function renderHand() {
             cardHandDiv.innerHTML = '';
             playerHand.forEach((card, index) => {
                 const cardElement = document.createElement('div');
                 cardElement.className = 'card';
                 cardElement.setAttribute('data-card-index', index);
-                cardElement.setAttribute('draggable', 'true');
                 cardElement.innerHTML = `
                     <span class="card-emoji">${card.emoji}</span>
                     <div class="card-cost">${card.cost}</div>
                 `;
                 
-                // --- DRAG AND DROP LISTENERS ---
-                cardElement.addEventListener('dragstart', handleDragStart);
-                cardElement.addEventListener('dragend', handleDragEnd);
-
+                cardElement.addEventListener('click', () => handleCardSelection(index));
                 cardHandDiv.appendChild(cardElement);
             });
-            updateElixirUI(); // Apply the disabled class immediately
+            updateElixirUI();
         }
 
-        // --- 4. DRAG AND DROP HANDLERS ---
-        
-        function handleDragStart(e) {
-            const cardElement = e.target.closest('.card');
-            if (!cardElement || cardElement.classList.contains('disabled')) {
-                e.preventDefault(); // Prevent drag if disabled
+        // --- 5. CLICK AND PLACE LOGIC ---
+
+        function handleCardSelection(index) {
+            const card = playerHand[index];
+            if (playerElixir < card.cost) {
+                console.log("Not enough elixir!");
                 return;
             }
 
-            currentlyDraggedCardIndex = parseInt(cardElement.getAttribute('data-card-index'));
-            cardElement.classList.add('dragging');
-            // DataTransfer: Only used for drag visualization and to allow the drag event to fire
-            e.dataTransfer.setData('text/plain', currentlyDraggedCardIndex); 
-            e.dataTransfer.effectAllowed = 'copy';
+            // Remove previous active state
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('active-to-place'));
+            
+            // Set new active state
+            cardToPlaceIndex = index;
+            const cardElement = document.querySelector(`.card[data-card-index="${index}"]`);
+            cardElement.classList.add('active-to-place');
+            arena.classList.add('placing');
         }
 
-        function handleDragEnd(e) {
-            const cardElement = e.target.closest('.card');
-            if (cardElement) {
-                 cardElement.classList.remove('dragging');
-            }
-            
-            // If drop was successful, the card has already been removed from the hand
-            currentlyDraggedCardIndex = -1;
-        }
-        
-        // This is the main target area for the dropped card
-        arena.addEventListener('dragover', (e) => {
-            e.preventDefault(); // Necessary to allow dropping
-            e.dataTransfer.dropEffect = 'copy';
-        });
+        arena.addEventListener('click', (e) => {
+            if (cardToPlaceIndex === -1) return; // No card selected
 
-        arena.addEventListener('drop', (e) => {
-            e.preventDefault();
-            
-            if (currentlyDraggedCardIndex === -1) return; // Should not happen if dragstart worked
-            
-            // Get coordinates relative to the ARENA (the drop target)
+            const card = playerHand[cardToPlaceIndex];
             const rect = arena.getBoundingClientRect();
             const arenaX = e.clientX - rect.left;
             const arenaY = e.clientY - rect.top;
             
-            // --- Enforcement of Player's Territory (Bottom Half) ---
-            const arenaHeight = rect.height;
-            // Player's deployment zone is the bottom half (Y > 50% of arena height)
-            const deploymentYThreshold = arenaHeight * 0.5; 
+            // --- Deployment Zone Check (Bottom Half) ---
+            const deploymentYThreshold = rect.height * 0.5; 
 
             if (arenaY < deploymentYThreshold) {
-                console.log("Cannot deploy card that high! Must be in your territory (bottom half).");
+                console.log("Cannot deploy card in opponent's territory!");
                 return; // Prevent play if dropped too high
             }
             
-            // Play the card at the calculated coordinates
-            handleCardPlay(currentlyDraggedCardIndex, arenaX, arenaY);
+            // Successful placement: Play the card
+            handleCardPlacement(cardToPlaceIndex, arenaX, arenaY);
+            
+            // Reset placement state
+            cardToPlaceIndex = -1;
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('active-to-place'));
+            arena.classList.remove('placing');
         });
 
-
-        // --- 5. GAME MECHANICS ---
-
-        /** * Handles the action of a player attempting to play a card. 
-         * @param {number} cardIndex - Index of the card in the playerHand array.
-         * @param {number} x - X coordinate relative to the arena.
-         * @param {number} y - Y coordinate relative to the arena.
-         */
-        function handleCardPlay(cardIndex, x, y) {
+        function handleCardPlacement(cardIndex, x, y) {
             const card = playerHand[cardIndex];
             
-            if (playerElixir >= card.cost) {
-                if (card.type === 'troop') {
-                    spawnTroop('player', card, x, y); 
-                } else if (card.type === 'spell') {
-                    showSpellEffect(card, x, y);
-                }
-                
-                playerElixir -= card.cost;
-                playerHand.splice(cardIndex, 1); // Remove card from hand
-                drawCard(); // Draw a replacement card
-                updateElixirUI();
-            } else {
-                // This message should technically be suppressed by the 'disabled' class logic, 
-                // but included here for safety/debugging.
-                console.log("Not enough elixir to play " + card.name); 
+            // Use elixir and spawn troop/spell
+            playerElixir -= card.cost;
+            playerHand.splice(cardIndex, 1); 
+            drawCard(); 
+            updateElixirUI();
+            
+            if (card.type === 'troop') {
+                createTroop('player', card, x, y); 
+            } else if (card.type === 'spell') {
+                applySpellEffect(card, x, y);
             }
         }
-        
-        /** Shows a simple flash for spell cards. */
-        function showSpellEffect(card, x, y) {
+
+        // --- 6. TROOP & COMBAT LOGIC ---
+
+        /** Creates a new troop object and its DOM element. */
+        function createTroop(side, card, x, y) {
+            const troopElement = document.createElement('div');
+            troopElement.className = `troop ${side}-troop`;
+            troopElement.textContent = card.emoji;
+            troopElement.style.left = `${x - 15}px`;
+            troopElement.style.top = `${y - 15}px`;
+            
+            // Add health bar
+            troopElement.innerHTML += '<div class="troop-health"><div class="troop-health-fill" style="width:100%"></div></div>';
+            
+            arena.appendChild(troopElement);
+
+            const newTroop = {
+                id: Math.random(),
+                side: side,
+                name: card.name,
+                element: troopElement,
+                x: x, // Center X
+                y: y, // Center Y
+                hp: card.hp,
+                maxHp: card.hp,
+                dmg: card.dmg,
+                range: card.range,
+                speed: 1.5, // Pixels per tick
+                target: null, // The current object this troop is trying to attack
+                isAttacking: false,
+                attackCooldown: 0,
+                attackSpeed: 10, // Ticks between attacks
+            };
+            
+            activeTroops.push(newTroop);
+        }
+
+        function applySpellEffect(card, x, y) {
+             // For spells, we immediately apply damage to all troops in a small radius
+            activeTroops.forEach(troop => {
+                const dx = troop.x - x;
+                const dy = troop.y - y;
+                const distanceSq = dx * dx + dy * dy;
+                const radiusSq = 150 * 150; // Spell radius of 150 pixels
+
+                if (distanceSq < radiusSq) {
+                    if (troop.side === 'opponent') {
+                         troop.hp -= card.dmg; // Damage opponent troops
+                    }
+                }
+            });
+
+            // Damage enemy towers in range (for Fireball)
+            Object.values(TOWERS).forEach(tower => {
+                if (tower.side === 'opponent') {
+                    const towerX = parseFloat(tower.element.style.left) + 40; // Tower center estimate
+                    const towerY = parseFloat(tower.element.style.top) + 40;
+                    const dx = towerX - x;
+                    const dy = towerY - y;
+                    const distanceSq = dx * dx + dy * dy;
+                    const radiusSq = 150 * 150; 
+
+                    if (distanceSq < radiusSq) {
+                         tower.hp -= card.dmg;
+                         updateHealthBar(tower, tower.hp, tower.maxHp);
+                    }
+                }
+            });
+             
+            // Show simple flash (from previous version)
             const spellEffect = document.createElement('div');
-            spellEffect.className = 'spell-effect';
+            // ... (Spell effect creation logic - kept brief to focus on damage)
             spellEffect.textContent = card.emoji;
             spellEffect.style.position = 'absolute';
             spellEffect.style.left = `${x - 25}px`;
@@ -397,93 +495,172 @@
             spellEffect.style.opacity = 1;
             spellEffect.style.transition = 'opacity 0.3s ease-out';
             arena.appendChild(spellEffect);
-
-            // Quick fade out
-            setTimeout(() => {
-                spellEffect.style.opacity = 0;
-            }, 100);
-
-            // Remove after fade
-            setTimeout(() => {
-                spellEffect.remove();
-            }, 400);
+            setTimeout(() => { spellEffect.style.opacity = 0; }, 100);
+            setTimeout(() => { spellEffect.remove(); }, 400);
         }
 
-        /** Creates and places a troop on the arena. */
-        function spawnTroop(side, card, x, y) {
-            const troop = document.createElement('div');
-            troop.className = `troop ${side}-troop`;
-            troop.textContent = card.emoji;
+
+        // --- 7. MAIN GAME LOOP ---
+
+        function gameLoop() {
+            // --- 7.1 Troop Logic (Movement and Targeting) ---
+            activeTroops.forEach(troop => {
+                if (troop.hp <= 0) return; // Skip dead troops
+
+                // 1. Find Target
+                if (!troop.target || troop.target.hp <= 0) {
+                    troop.target = findClosestTarget(troop);
+                }
+
+                if (troop.target) {
+                    // Calculate distance to target
+                    const dx = troop.target.x - troop.x;
+                    const dy = troop.target.y - troop.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // 2. Attack or Move
+                    if (distance <= troop.range) {
+                        // Attack
+                        troop.isAttacking = true;
+                        if (troop.attackCooldown <= 0) {
+                            troop.target.hp -= troop.dmg;
+                            troop.attackCooldown = troop.attackSpeed; 
+                            
+                            // Update target health bar
+                            updateHealthBar(troop.target, troop.target.hp, troop.target.maxHp);
+
+                        }
+                    } else {
+                        // Move
+                        troop.isAttacking = false;
+                        const ratio = troop.speed / distance;
+                        troop.x += dx * ratio;
+                        troop.y += dy * ratio;
+                    }
+                } else {
+                    // No Target found, simply move towards the opponent's king tower (simplified path)
+                    const targetTower = troop.side === 'player' ? TOWERS['O-K'] : TOWERS['P-K'];
+                    const dx = targetTower.x - troop.x;
+                    const dy = targetTower.y - troop.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance > 5) {
+                        const ratio = troop.speed / distance;
+                        troop.x += dx * ratio;
+                        troop.y += dy * ratio;
+                    }
+                }
+
+                // 3. Update Cooldown & Visuals
+                if (troop.attackCooldown > 0) {
+                    troop.attackCooldown--;
+                }
+                troop.element.style.left = `${troop.x - 15}px`;
+                troop.element.style.top = `${troop.y - 15}px`;
+                updateHealthBar({ element: troop.element, }, troop.hp, troop.maxHp);
+            });
+
+            // --- 7.2 Cleanup Dead Units/Towers ---
+            activeTroops = activeTroops.filter(troop => {
+                if (troop.hp <= 0) {
+                    troop.element.remove();
+                    return false;
+                }
+                return true;
+            });
             
-            // Position the troop (x, y are relative to arena top-left)
-            troop.style.left = `${x - 15}px`; // Center X
-            troop.style.top = `${y - 15}px`; // Center Y
+            // Check Tower HP
+            Object.keys(TOWERS).forEach(id => {
+                 const tower = TOWERS[id];
+                 if (tower.hp <= 0 && tower.element.style.opacity !== '0.2') {
+                    // Visually mark as destroyed
+                    tower.element.textContent = '💥';
+                    tower.element.style.opacity = '0.2';
+                    tower.element.querySelector('.health-bar').style.display = 'none';
+                 }
+            });
+
+
+            // --- 7.3 Opponent AI Movement (Simplified) ---
+            // The opponent's troops are now handled by the Troop Logic above, 
+            // but we need to run a small check for their spawn location to be reasonable.
             
-            arena.appendChild(troop);
-
-            // Determine target location (simplified: move straight to the opposite side)
-            const targetY = (side === 'player' ? 100 : arena.offsetHeight * 0.8); 
-            const targetX = x; // Troop maintains its current lane/X position (simple movement)
-
-            // Apply movement after a tiny delay for visual placement
-            setTimeout(() => {
-                troop.style.top = `${targetY}px`;
-                troop.style.left = `${targetX - 15}px`; // Adjust target X for centering
-            }, 50);
-
-            // Remove the troop after movement duration
-            setTimeout(() => {
-                troop.remove();
-            }, 5000); 
         }
 
-        // --- 6. GAME LOOPS (Elixir and AI) ---
+        // --- 8. INITIALIZATION ---
 
-        /** Elixir Generation Loop */
+        function initTowers() {
+            document.querySelectorAll('.tower, .king-tower').forEach(el => {
+                const id = el.getAttribute('data-id');
+                const maxHp = parseInt(el.getAttribute('data-max-hp'));
+                const side = id.startsWith('P') ? 'player' : 'opponent';
+                
+                // Get tower center coordinates relative to the arena
+                const arenaRect = arena.getBoundingClientRect();
+                const elRect = el.getBoundingClientRect();
+                const x = elRect.left + (elRect.width / 2) - arenaRect.left;
+                const y = elRect.top + (elRect.height / 2) - arenaRect.top;
+
+                const tower = {
+                    id: id,
+                    side: side,
+                    element: el,
+                    hp: maxHp,
+                    maxHp: maxHp,
+                    dmg: 0, // Towers don't actively attack in this simulation
+                    range: 0, 
+                    x: x,
+                    y: y,
+                };
+                TOWERS[id] = tower;
+                updateHealthBar(tower, tower.hp, tower.maxHp);
+            });
+        }
+
+
+        /** Simple Opponent AI (Only Spawns, Movement handled by gameLoop) */
+        function opponentAiLoop() {
+            setInterval(() => {
+                const troopCards = CARD_DEFINITIONS.filter(c => c.type === 'troop' && c.cost <= 5);
+                
+                const isLeftLane = Math.random() < 0.5;
+                const spawnX = isLeftLane ? 200 : 400; 
+                const spawnY = arena.offsetHeight * 0.2; // 20% down the arena (Opponent's territory)
+
+                if (troopCards.length > 0) {
+                    const cardToPlay = troopCards[Math.floor(Math.random() * troopCards.length)];
+                    
+                    if (Math.random() > 0.6) { 
+                        createTroop('opponent', cardToPlay, spawnX, spawnY);
+                    }
+                }
+            }, 3000); 
+        }
+
+        function initGame() {
+            initTowers();
+            
+            for(let i = 0; i < HAND_SIZE; i++) {
+                drawCard();
+            }
+
+            setInterval(gameLoop, GAME_TICK_RATE); // Start the main game loop
+            elixirLoop();
+            opponentAiLoop(); 
+            
+            console.log("Clash Clone Initialized! Click a card, then click on the bottom half of the arena to deploy your troops and start the fight!");
+        }
+
+        // Elixir generation loop (from previous version)
         function elixirLoop() {
             setInterval(() => {
                 if (playerElixir < 10) {
                     playerElixir = Math.min(10, playerElixir + 1);
                     updateElixirUI();
                 }
-            }, 1000); // Generates 1 elixir every 1 second
+            }, 1000); 
         }
 
-        /** Simple Opponent AI */
-        function opponentAiLoop() {
-            setInterval(() => {
-                const troopCards = CARD_DEFINITIONS.filter(c => c.type === 'troop' && c.cost <= 5);
-                
-                // Randomly choose one lane to attack (left or right)
-                const isLeftLane = Math.random() < 0.5;
-                const spawnX = isLeftLane ? 200 : 400; // Left or Right lane X coordinate
-                const spawnY = arena.offsetHeight * 0.2; // 20% down the arena (Opponent's territory)
-
-                if (troopCards.length > 0) {
-                    const cardToPlay = troopCards[Math.floor(Math.random() * troopCards.length)];
-                    
-                    // 40% chance to play a card every 3 seconds
-                    if (Math.random() > 0.6) { 
-                        spawnTroop('opponent', cardToPlay, spawnX, spawnY);
-                    }
-                }
-            }, 3000); 
-        }
-
-
-        // --- 7. INITIALIZATION ---
-
-        function initGame() {
-            // Start with a full hand
-            for(let i = 0; i < HAND_SIZE; i++) {
-                drawCard();
-            }
-
-            elixirLoop();
-            opponentAiLoop(); 
-            
-            console.log("Clash Clone Initialized! Drag and drop cards onto the bottom half of the arena to play them.");
-        }
 
         window.onload = initGame;
     </script>
