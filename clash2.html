@@ -34,7 +34,7 @@
             flex-direction: column;
             position: relative;
             overflow: hidden;
-            background-color: var(--tower-area-color); /* Fallback */
+            background-color: var(--tower-area-color);
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
         }
 
@@ -54,18 +54,20 @@
 
         .side {
             height: 100px; 
-            background-color: var(--tower-area-color); /* Darker background for tower zones */
+            background-color: var(--tower-area-color);
             display: flex;
             justify-content: space-around;
             align-items: center;
             padding: 0 10px;
+            /* Added position relative to help with tower calculation */
+            position: relative; 
         }
 
         .tower, .king-tower {
             font-size: 30px; 
             width: 80px;
             height: 80px;
-            background-color: #a0a0a0; /* Stone color */
+            background-color: #a0a0a0; 
             border: 3px solid #333;
             border-radius: 5px;
             display: flex;
@@ -75,7 +77,7 @@
             cursor: default;
             position: relative;
             box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
-            color: #fff; /* Ensure emoji color is visible */
+            color: #fff;
         }
 
         .health-bar {
@@ -135,7 +137,7 @@
             background-color: #FFC000; 
             color: #000;
             padding: 10px;
-            border-radius: 8px; /* Rounded corners */
+            border-radius: 8px;
             font-weight: bold;
             font-size: 20px;
             width: 80px;
@@ -146,7 +148,7 @@
 
         #card-hand {
             display: flex;
-            gap: 15px; /* Increased gap */
+            gap: 15px; 
         }
 
         .card {
@@ -170,7 +172,7 @@
         .card.active-to-place {
             border-color: yellow;
             box-shadow: 0 0 15px yellow;
-            transform: translateY(-5px); /* Lift up when active */
+            transform: translateY(-5px);
         }
         
         .card.disabled {
@@ -195,12 +197,12 @@
             line-height: 25px;
             text-align: center;
             position: absolute;
-            bottom: -12px; /* Position at the bottom for better visibility */
+            bottom: -12px; 
             border: 2px solid var(--card-color);
             box-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
 
-        /* Troop Styling (No changes, copied for completeness) */
+        /* Troop Styling */
         .troop {
             position: absolute;
             width: 30px;
@@ -226,7 +228,7 @@
             background-color: limegreen;
         }
 
-        /* DAMAGE TEXT VISUALIZATION (No changes, copied for completeness) */
+        /* DAMAGE TEXT VISUALIZATION */
         .damage-text {
             position: absolute;
             color: white;
@@ -280,7 +282,7 @@
     </div>
 
     <script>
-        // --- JAVASCRIPT LOGIC (Same as previous, included for completeness) ---
+        // --- JAVASCRIPT LOGIC ---
 
         // --- 1. GAME CONSTANTS AND DATA ---
         const CARD_DEFINITIONS = [
@@ -309,7 +311,7 @@
         };
 
 
-        // --- 2. DOM ELEMENTS (same) ---
+        // --- 2. DOM ELEMENTS ---
         const arena = document.getElementById('arena');
         const cardHandDiv = document.getElementById('card-hand');
         const elixirCountSpan = document.getElementById('elixir-count');
@@ -380,11 +382,98 @@
             return null; 
         }
 
-        // --- 4. CARD HAND AND UI (Functions for hand and elixir) ---
-        // (RenderHand, DrawCard, UpdateElixirUI, etc. are defined above in the script)
+        // --- 4. CARD HAND AND UI ---
+        
+        function drawCard() {
+            if (playerHand.length >= HAND_SIZE) return;
+            const randomIndex = Math.floor(Math.random() * CARD_DEFINITIONS.length);
+            const newCard = { ...CARD_DEFINITIONS[randomIndex] }; 
+            playerHand.push(newCard);
+            renderHand();
+        }
 
-        // --- 5. CLICK AND PLACE LOGIC (Functions for card placement) ---
-        // (HandleCardSelection, arena.addEventListener, HandleCardPlacement, etc. are defined above)
+        function updateElixirUI() {
+            elixirCountSpan.textContent = playerElixir;
+            
+            document.querySelectorAll('.card').forEach(cardElement => {
+                const index = parseInt(cardElement.getAttribute('data-card-index'));
+                const cost = playerHand[index]?.cost || 99;
+                
+                if (playerElixir < cost) {
+                    cardElement.classList.add('disabled');
+                } else {
+                    cardElement.classList.remove('disabled');
+                }
+            });
+        }
+
+        function renderHand() {
+            cardHandDiv.innerHTML = '';
+            playerHand.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'card';
+                cardElement.setAttribute('data-card-index', index);
+                cardElement.innerHTML = `
+                    <span class="card-emoji">${card.emoji}</span>
+                    <div class="card-cost">${card.cost}</div>
+                `;
+                
+                cardElement.addEventListener('click', () => handleCardSelection(index));
+                cardHandDiv.appendChild(cardElement);
+            });
+            updateElixirUI();
+        }
+
+        // --- 5. CLICK AND PLACE LOGIC ---
+
+        function handleCardSelection(index) {
+            const card = playerHand[index];
+            if (playerElixir < card.cost) return;
+
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('active-to-place'));
+            
+            cardToPlaceIndex = index;
+            const cardElement = document.querySelector(`.card[data-card-index="${index}"]`);
+            cardElement.classList.add('active-to-place');
+            arena.classList.add('placing');
+        }
+
+        arena.addEventListener('click', (e) => {
+            if (cardToPlaceIndex === -1) return; 
+
+            const card = playerHand[cardToPlaceIndex];
+            const rect = arena.getBoundingClientRect();
+            const arenaX = e.clientX - rect.left;
+            const arenaY = e.clientY - rect.top;
+            
+            const deploymentYThreshold = rect.height * 0.5;
+            const isSpell = card.type === 'spell';
+
+            if (!isSpell && arenaY < deploymentYThreshold) {
+                return; 
+            }
+            
+            handleCardPlacement(cardToPlaceIndex, arenaX, arenaY);
+            
+            cardToPlaceIndex = -1;
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('active-to-place'));
+            arena.classList.remove('placing');
+        });
+
+        function handleCardPlacement(cardIndex, x, y) {
+            const card = playerHand[cardIndex];
+            
+            playerElixir -= card.cost;
+            playerHand.splice(cardIndex, 1); 
+            drawCard(); 
+            updateElixirUI();
+            
+            if (card.type === 'troop') {
+                createTroop('player', card, x, y); 
+            } else if (card.type === 'spell') {
+                applySpellEffect(card, x, y);
+            }
+        }
 
         // --- 6. TROOP & COMBAT LOGIC ---
 
@@ -463,11 +552,22 @@
                 }
             });
              
-            // Spell effect visuals (omitted for brevity)
+            // Show simple flash effect
+            const spellEffect = document.createElement('div');
+            spellEffect.textContent = card.emoji;
+            spellEffect.style.position = 'absolute';
+            spellEffect.style.left = `${x - 25}px`;
+            spellEffect.style.top = `${y - 25}px`;
+            spellEffect.style.fontSize = '60px';
+            spellEffect.style.opacity = 1;
+            spellEffect.style.transition = 'opacity 0.3s ease-out';
+            arena.appendChild(spellEffect);
+            setTimeout(() => { spellEffect.style.opacity = 0; }, 100);
+            setTimeout(() => { spellEffect.remove(); }, 400);
         }
 
 
-        // --- 7. MAIN GAME LOOP ---
+        // --- 7. MAIN GAME LOOP (Movement/Combat logic) ---
 
         function gameLoop() {
             activeTroops.forEach(troop => {
@@ -558,15 +658,45 @@
 
         function initTowers() {
             const arenaRect = arena.getBoundingClientRect();
+            const opponentSideRect = document.getElementById('opponent-side').getBoundingClientRect();
+            
+            // Get the total height of the area ABOVE the arena (opponent side)
+            const opponentSideHeight = opponentSideRect.height;
+
 
             document.querySelectorAll('.tower, .king-tower').forEach(el => {
                 const id = el.getAttribute('data-id');
                 const maxHp = parseInt(el.getAttribute('data-max-hp'));
                 const side = id.startsWith('P') ? 'player' : 'opponent';
                 
+                // Get tower position relative to the viewport
                 const elRect = el.getBoundingClientRect();
+                
+                // --- FIX: Calculate X/Y relative to the Arena (0,0 is top-left of arena) ---
                 const x = elRect.left + (elRect.width / 2) - arenaRect.left;
-                const y = elRect.top + (elRect.height / 2) - arenaRect.top;
+                
+                let y;
+                if (side === 'opponent') {
+                    // Y = Center of tower - Height of Arena - Arena Top Offset (0 if positioned correctly)
+                    // Simplified: Y is center of tower in side div (50px) + offset of the side div (100px)
+                    // Tower is within the top 100px bar. The Arena starts after that bar.
+                    y = opponentSideHeight / 2 + (elRect.top - opponentSideRect.top);
+                } else {
+                    // Player Towers are located in the bottom side bar, which is below the arena.
+                    // Y = Arena height + Center of tower in player side div
+                    const playerSideRect = document.getElementById('player-side').getBoundingClientRect();
+                    const arenaHeight = arenaRect.height;
+                    const centerOfTowerInPlayerSide = elRect.top + (elRect.height / 2) - playerSideRect.top;
+                    y = arenaHeight + opponentSideHeight + centerOfTowerInPlayerSide; 
+                    // To make player towers targetable in the map coordinates, they need to be pushed up to the bottom edge of the map.
+                    // This is complex due to the container layout. A simpler fix is to position them logically 
+                    // within the Arena's coordinate space (0-700px) for combat purposes.
+                    
+                    // We need to place them just outside the boundary of the arena (which is what we did originally)
+                    // For combat logic, we define their Y coordinate relative to the ARENA (0-700px):
+                    y = arenaRect.height + 50; 
+                    
+                }
 
                 const tower = {
                     id: id,
@@ -621,6 +751,7 @@
         function initGame() {
             initTowers();
             
+            // --- FIX: Ensure initial hand is drawn before starting loops ---
             for(let i = 0; i < HAND_SIZE; i++) {
                 drawCard();
             }
@@ -629,7 +760,7 @@
             elixirLoop();
             opponentAiLoop(); 
             
-            console.log("Clash Clone Initialized! UI is now polished.");
+            console.log("Clash Clone Initialized! Towers and Cards should be fixed.");
         }
 
 
