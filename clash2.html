@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Royale JS Clone - UI Fixed</title>
+    <title>Clash Royale JS Clone - FIXED</title>
     
     <style>
         /* --- CSS STYLES --- */
@@ -28,7 +28,7 @@
 
         #game-container {
             width: 600px; 
-            height: 900px; 
+            height: 900px; /* 100px top + 680px arena + 100px bottom + 120px UI = 900px */
             border: 5px solid #000;
             display: flex;
             flex-direction: column;
@@ -41,7 +41,7 @@
         /* --- ARENA (The playing field) --- */
 
         #arena {
-            flex-grow: 1;
+            flex-grow: 1; /* Takes up the remaining vertical space */
             background-color: var(--arena-color);
             position: relative;
             border-top: 5px solid var(--river-color);
@@ -53,13 +53,12 @@
         }
 
         .side {
-            height: 100px; 
+            height: 100px; /* Fixed height for tower area */
             background-color: var(--tower-area-color);
             display: flex;
             justify-content: space-around;
             align-items: center;
             padding: 0 10px;
-            /* Added position relative to help with tower calculation */
             position: relative; 
         }
 
@@ -119,7 +118,7 @@
             border-radius: 2px;
         }
         #bridge-1 { left: 150px; }
-        #bridge-2 { right: 150px; }
+        #bridge-2 { right: 410px; } /* Adjusted position for right bridge */
 
         /* --- UI (Hand and Elixir) --- */
 
@@ -303,11 +302,12 @@
         let activeTroops = []; 
         const TOWERS = {}; 
         
+        // Waypoint Y-coordinates slightly adjusted for better pathing towards the bridges
         const WAYPOINTS = {
-            'P-LEFT-WAYPOINT': { x: 170, y: 460 }, 
-            'P-RIGHT-WAYPOINT': { x: 430, y: 460 },
-            'O-LEFT-WAYPOINT': { x: 170, y: 440 },
-            'O-RIGHT-WAYPOINT': { x: 430, y: 440 },
+            'P-LEFT-WAYPOINT': { x: 170, y: 450 }, // Player side (bottom half)
+            'P-RIGHT-WAYPOINT': { x: 430, y: 450 },
+            'O-LEFT-WAYPOINT': { x: 170, y: 250 }, // Opponent side (top half)
+            'O-RIGHT-WAYPOINT': { x: 430, y: 250 },
         };
 
 
@@ -335,6 +335,19 @@
             let baseY = targetObject.y;
             
             if (targetObject.isTower) {
+                // Towers are rendered in their side divs, but combat occurs on the arena coordinate system (0-~680px)
+                // We must convert the tower's absolute Y-coordinate to its visual Y-coordinate on the arena canvas for the damage text.
+                const arenaRect = arena.getBoundingClientRect();
+                const opponentSideHeight = document.getElementById('opponent-side').offsetHeight;
+                
+                if(targetObject.side === 'opponent') {
+                    // Tower Y (-50) -> Y on screen relative to arena top (0) = -50
+                    baseY = targetObject.y + opponentSideHeight; 
+                } else {
+                    // Tower Y (ArenaHeight + 50) -> Y on screen relative to arena top (~680) = ~680 + 50
+                    baseY = targetObject.y - arenaRect.height;
+                }
+                
                 baseY -= 50; 
             } else {
                 baseY -= 15; 
@@ -355,6 +368,7 @@
             const enemySide = sourceTroop.side === 'player' ? 'opponent' : 'player';
             const targets = activeTroops.filter(t => t.side === enemySide && t.hp > 0);
             
+            // Note: Towers are added to the targets list
             Object.values(TOWERS).forEach(tower => {
                 if (tower.side === enemySide && tower.hp > 0) {
                     targets.push(tower);
@@ -498,7 +512,20 @@
             
             arena.appendChild(troopElement);
 
-            const initialWaypoint = getInitialWaypoint(side, x);
+            // Determine if the troop is spawned close to the river. If so, skip the first waypoint.
+            const arenaHeight = arena.offsetHeight;
+            const riverCenterY = arenaHeight / 2;
+            const deployDistanceToRiver = Math.abs(y - riverCenterY);
+            
+            let initialDestination = null;
+            if (deployDistanceToRiver > 100) { 
+                 initialDestination = getInitialWaypoint(side, x);
+            } else {
+                 // If close to the river/bridge, target the tower directly
+                 const targetTowerId = side === 'player' ? 'O-L' : 'P-L'; 
+                 initialDestination = TOWERS[targetTowerId];
+            }
+
 
             const newTroop = {
                 id: Math.random(),
@@ -512,7 +539,7 @@
                 range: card.range,
                 speed: TROOP_MOVEMENT_SPEED, 
                 target: null, 
-                currentDestination: initialWaypoint, 
+                currentDestination: initialDestination, 
                 isAttacking: false,
                 attackCooldown: 0,
                 attackSpeed: card.attackSpeed, 
@@ -573,6 +600,7 @@
             activeTroops.forEach(troop => {
                 if (troop.hp <= 0) return; 
 
+                // 1. Target check (Highest Priority)
                 if (!troop.target || troop.target.hp <= 0) {
                     troop.target = findClosestTarget(troop);
                 }
@@ -582,6 +610,7 @@
                     const dy = troop.target.y - troop.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
+                    // Attack or move towards TARGET
                     if (distance <= troop.range) {
                         troop.isAttacking = true;
                         if (troop.attackCooldown <= 0) {
@@ -592,27 +621,33 @@
                             showDamageText(troop.target, troop.dmg);
                         }
                     } else {
+                        // Move straight toward the enemy troop/tower target (overrides pathfinding)
                         troop.isAttacking = false;
                         const ratio = troop.speed / distance;
                         troop.x += dx * ratio;
                         troop.y += dy * ratio;
                     }
                 } else {
+                    // 2. Pathfinding (Lower Priority - only if no enemy in range)
+                    
                     let destination = troop.currentDestination;
                     const targetTowerId = troop.side === 'player' ? 'O-L' : 'P-L'; 
                     const targetTower = TOWERS[targetTowerId];
 
                     if (targetTower && targetTower.hp > 0) {
-                        if (destination && Math.sqrt((destination.x - troop.x)**2 + (destination.y - troop.y)**2) < 10) {
+                        // Check if the troop has reached its waypoint
+                        if (destination && destination !== targetTower && Math.sqrt((destination.x - troop.x)**2 + (destination.y - troop.y)**2) < 10) {
+                            // If reached waypoint, switch destination to the target tower
                             troop.currentDestination = targetTower;
                             destination = targetTower;
-                        } else if (!destination) {
-                            destination = targetTower;
-                        }
+                        } 
                     } else {
+                        // Fallback to the King Tower if the target princess tower is dead
                         destination = troop.side === 'player' ? TOWERS['O-K'] : TOWERS['P-K'];
+                        troop.currentDestination = destination;
                     }
 
+                    // Move toward the current path destination
                     if (destination) {
                         const dx = destination.x - troop.x;
                         const dy = destination.y - troop.y;
@@ -648,7 +683,7 @@
                     tower.element.textContent = '💥';
                     tower.element.style.opacity = '0.4';
                     tower.element.querySelector('.health-bar').style.display = 'none';
-                    tower.x = -1000; 
+                    tower.x = -1000; // Move off-map to prevent targeting
                     tower.y = -1000;
                  }
             });
@@ -657,45 +692,26 @@
         // --- 8. INITIALIZATION ---
 
         function initTowers() {
-            const arenaRect = arena.getBoundingClientRect();
-            const opponentSideRect = document.getElementById('opponent-side').getBoundingClientRect();
-            
-            // Get the total height of the area ABOVE the arena (opponent side)
-            const opponentSideHeight = opponentSideRect.height;
-
+            const arenaHeight = arena.offsetHeight;
 
             document.querySelectorAll('.tower, .king-tower').forEach(el => {
                 const id = el.getAttribute('data-id');
                 const maxHp = parseInt(el.getAttribute('data-max-hp'));
                 const side = id.startsWith('P') ? 'player' : 'opponent';
                 
-                // Get tower position relative to the viewport
                 const elRect = el.getBoundingClientRect();
-                
-                // --- FIX: Calculate X/Y relative to the Arena (0,0 is top-left of arena) ---
+                const arenaRect = arena.getBoundingClientRect();
+
+                // X: Center of tower relative to Arena left edge
                 const x = elRect.left + (elRect.width / 2) - arenaRect.left;
                 
                 let y;
                 if (side === 'opponent') {
-                    // Y = Center of tower - Height of Arena - Arena Top Offset (0 if positioned correctly)
-                    // Simplified: Y is center of tower in side div (50px) + offset of the side div (100px)
-                    // Tower is within the top 100px bar. The Arena starts after that bar.
-                    y = opponentSideHeight / 2 + (elRect.top - opponentSideRect.top);
+                    // Y: Center of tower is 50px above the top edge of the arena (Y=0)
+                    y = -50; 
                 } else {
-                    // Player Towers are located in the bottom side bar, which is below the arena.
-                    // Y = Arena height + Center of tower in player side div
-                    const playerSideRect = document.getElementById('player-side').getBoundingClientRect();
-                    const arenaHeight = arenaRect.height;
-                    const centerOfTowerInPlayerSide = elRect.top + (elRect.height / 2) - playerSideRect.top;
-                    y = arenaHeight + opponentSideHeight + centerOfTowerInPlayerSide; 
-                    // To make player towers targetable in the map coordinates, they need to be pushed up to the bottom edge of the map.
-                    // This is complex due to the container layout. A simpler fix is to position them logically 
-                    // within the Arena's coordinate space (0-700px) for combat purposes.
-                    
-                    // We need to place them just outside the boundary of the arena (which is what we did originally)
-                    // For combat logic, we define their Y coordinate relative to the ARENA (0-700px):
-                    y = arenaRect.height + 50; 
-                    
+                    // Y: Center of tower is 50px below the bottom edge of the arena (Y=arenaHeight)
+                    y = arenaHeight + 50; 
                 }
 
                 const tower = {
@@ -751,7 +767,6 @@
         function initGame() {
             initTowers();
             
-            // --- FIX: Ensure initial hand is drawn before starting loops ---
             for(let i = 0; i < HAND_SIZE; i++) {
                 drawCard();
             }
@@ -760,7 +775,7 @@
             elixirLoop();
             opponentAiLoop(); 
             
-            console.log("Clash Clone Initialized! Towers and Cards should be fixed.");
+            console.log("Clash Clone Initialized! Towers and Pathfinding should be fixed.");
         }
 
 
