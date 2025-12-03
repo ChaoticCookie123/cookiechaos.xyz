@@ -8,14 +8,14 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <title>Clash Clone - Fixed Input</title>
+    <title>Clash Clone - Smooth Movement</title>
     
     <style>
         body {
             display: flex; justify-content: center; align-items: center;
             min-height: 100vh; margin: 0; background-color: #1a1a1a; 
             font-family: 'Segoe UI', sans-serif; color: white; user-select: none; overflow: hidden;
-            touch-action: none; /* Prevent scroll on mobile */
+            touch-action: none;
         }
         #game-wrapper { position: relative; }
         #game-container {
@@ -25,7 +25,7 @@
         }
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         
-        /* Elixir */
+        /* Elixir Bar */
         #elixir-bar-container {
             position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
             width: 90%; height: 25px; background: rgba(0,0,0,0.8);
@@ -122,7 +122,7 @@
     };
     const CARD_KEYS = Object.keys(CARDS);
 
-    let lastTime = 0;
+    let lastTime = performance.now(); // Correct initialization
     let elixir = 5; let enemyElixir = 5;
     let spawnTimer = 3.0;
     let gameObjects = [];
@@ -132,6 +132,7 @@
     // --- INIT ---
     function initGame() {
         gameObjects = []; elixir = 5; enemyElixir = 5; gameOver = false;
+        lastTime = performance.now(); // Reset time on restart
         document.getElementById('game-over').style.opacity = 0;
         document.getElementById('game-over').style.pointerEvents = 'none';
 
@@ -170,14 +171,12 @@
         element.classList.add('selected');
     }
 
-    // --- INPUT (FIXED) ---
-    // Changed to pointerdown to support both Mouse and Touch
+    // --- INPUT ---
     canvas.addEventListener('pointerdown', (e) => {
-        e.preventDefault(); // Stop scrolling on mobile
+        e.preventDefault();
         if (gameOver) return;
         
-        // --- COORDINATE FIX ---
-        // Maps the click exactly to the canvas size, even if zoomed/resized
+        // Correct Coordinate Scaling
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
@@ -185,9 +184,8 @@
         const y = (e.clientY - rect.top) * scaleY;
         
         const card = CARDS[selectedType];
-        if(!card) return; // Safety check
+        if(!card) return;
 
-        // Spells can be cast anywhere
         if (card.type === 'spell') {
             if (elixir >= card.cost) {
                 castSpell(x, y, true, card);
@@ -196,7 +194,6 @@
                 showFloatText(x, y, "Need " + card.cost + " Elixir!", "#ff4757");
             }
         } 
-        // Units only on your side
         else {
             if (y > RIVER_Y) {
                 if (elixir >= card.cost) {
@@ -214,8 +211,9 @@
     function spawnUnitBatch(x, y, isPlayer, card) {
         spawnEffect(x, y, 'spawn_ring');
         for(let i=0; i<card.count; i++) {
-            let ox = (Math.random() - 0.5) * 30;
-            let oy = (Math.random() - 0.5) * 30;
+            // Random offset to prevent stacking on spawn
+            let ox = (Math.random() - 0.5) * 40;
+            let oy = (Math.random() - 0.5) * 40;
             gameObjects.push(new Unit(x + ox, y + oy, isPlayer, card));
         }
     }
@@ -293,6 +291,8 @@
 
         move(dt, target) {
             let destX, destY;
+            
+            // Logic: Determine Destination
             if (!target) {
                 destX = this.x < CW/2 ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
                 destY = this.isPlayer ? 0 : CH;
@@ -300,26 +300,35 @@
                 destX = target.x; destY = target.y;
             }
 
-            // Pathfinding: Bridge Logic
+            // Logic: Bridge Pathfinding
             if (!this.isFlying && !this.isJump) {
                 const mySide = this.y > RIVER_Y ? 'bottom' : 'top';
                 const destSide = destY > RIVER_Y ? 'bottom' : 'top';
+                
+                // If we need to cross the river
                 if (mySide !== destSide) {
-                    const inRiverZone = Math.abs(this.y - RIVER_Y) < 30;
+                    const inRiverZone = Math.abs(this.y - RIVER_Y) < 30; // Closer tolerance
+                    
                     if (!inRiverZone) {
                         const distLeft = Math.abs(this.x - BRIDGE_LEFT_X);
                         const distRight = Math.abs(this.x - BRIDGE_RIGHT_X);
                         const bridgeX = distLeft < distRight ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
-                        if (Math.abs(this.x - bridgeX) > 10) {
-                            destX = bridgeX; destY = RIVER_Y;
+                        
+                        // If we aren't aligned with the bridge yet
+                        // Increased tolerance to 25px to prevent vibrating at bridge entry
+                        if (Math.abs(this.x - bridgeX) > 25) {
+                            destX = bridgeX; 
+                            destY = RIVER_Y;
                         }
                     }
                 }
             }
 
+            // Execute Move
             const dx = destX - this.x; const dy = destY - this.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist > 0) {
+            
+            if (dist > 1) { // Only move if more than 1 pixel away
                 this.x += (dx / dist) * this.speed * dt;
                 this.y += (dy / dist) * this.speed * dt;
             }
@@ -347,7 +356,7 @@
                 spawnEffect(this.x, this.y, 'spin');
                 gameObjects.forEach(obj => {
                     if (obj.isPlayer !== this.isPlayer && !obj.isDead) {
-                        if (this.getDistance(obj) <= this.range + 10) {
+                        if (this.getDistance(obj) <= this.range + 15) {
                              if(!obj.isFlying) obj.takeDamage(this.dmg);
                         }
                     }
@@ -374,6 +383,7 @@
         getDistance(obj) { return Math.hypot(obj.x - this.x, obj.y - this.y); }
 
         draw() {
+            // Shadow
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             const shadowY = this.isFlying ? this.y + 20 : this.y + 5;
             ctx.beginPath(); 
@@ -381,10 +391,12 @@
             ctx.arc(0, 0, this.radius, 0, Math.PI*2); 
             ctx.restore(); ctx.fill();
 
+            // HP Bar
             const pct = Math.max(0, this.hp / this.maxHp);
             ctx.fillStyle = 'red'; ctx.fillRect(this.x - 10, this.y - this.radius - 10, 20, 3);
             ctx.fillStyle = '#2ecc71'; ctx.fillRect(this.x - 10, this.y - this.radius - 10, 20 * pct, 3);
 
+            // Body
             ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
             ctx.fillStyle = this.color; ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
@@ -559,11 +571,14 @@
 
                 const dist = Math.hypot(u1.x - u2.x, u1.y - u2.y);
                 const min = u1.radius + u2.radius;
-                if(dist < min && dist > 0) {
+                
+                // Fixed: Check for Dist > 0 to avoid NaN errors
+                if(dist < min && dist > 0.1) {
                     const overlap = min - dist;
                     const dx = (u1.x - u2.x)/dist; const dy = (u1.y - u2.y)/dist;
-                    u1.x += dx*overlap*0.5; u1.y += dy*overlap*0.5;
-                    u2.x -= dx*overlap*0.5; u2.y -= dy*overlap*0.5;
+                    // Reduced push force for smoother sliding
+                    u1.x += dx*overlap*0.1; u1.y += dy*overlap*0.1;
+                    u2.x -= dx*overlap*0.1; u2.y -= dy*overlap*0.1;
                 }
             }
 
@@ -572,11 +587,11 @@
                 
                 const dist = Math.hypot(u1.x - t.x, u1.y - t.y);
                 const min = u1.radius + t.radius;
-                if(dist < min && dist > 0) {
+                if(dist < min && dist > 0.1) {
                     const overlap = min - dist;
                     const dx = (u1.x - t.x)/dist; const dy = (u1.y - t.y)/dist;
-                    u1.x += dx * overlap; 
-                    u1.y += dy * overlap;
+                    u1.x += dx * overlap * 0.5; 
+                    u1.y += dy * overlap * 0.5;
                 }
             }
         }
