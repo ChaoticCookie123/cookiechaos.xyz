@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Clone - Free Placement</title>
+    <title>Clash Clone - Logic Update</title>
     
     <style>
         /* --- General Styling --- */
@@ -13,26 +13,27 @@
             align-items: center;
             min-height: 100vh; 
             margin: 0;
-            background-color: #2c2c2c; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a; 
+            font-family: 'Segoe UI', sans-serif;
             flex-direction: column;
             color: white;
             user-select: none;
+            overflow: hidden;
         }
 
         /* --- Game Container --- */
         #game-container {
-            border: 12px solid #5a3e2a; 
+            border: 10px solid #4a3b2a; 
             position: relative;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-            border-radius: 15px;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+            border-radius: 12px;
             overflow: hidden; 
-            background-color: #3b8c3b; /* Grass base */
+            background-color: #3b8c3b;
         }
 
-        #gameCanvas {
+        canvas {
             display: block;
-            cursor: crosshair;
+            cursor: pointer; /* Changed to pointer to indicate interaction */
         }
 
         /* --- UI Overlay --- */
@@ -42,26 +43,27 @@
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none;
+            pointer-events: none; /* Let clicks pass through to canvas */
         }
 
+        /* --- Elixir Bar --- */
         #elixir-bar-container {
             position: absolute;
-            bottom: 20px;
+            bottom: 15px;
             left: 50%;
             transform: translateX(-50%);
-            width: 80%;
-            height: 25px;
-            background: rgba(0,0,0,0.6);
-            border: 2px solid #a3a3a3;
-            border-radius: 12px;
+            width: 90%;
+            height: 30px;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #555;
+            border-radius: 15px;
             overflow: hidden;
         }
 
         #elixir-fill {
             height: 100%;
-            background: linear-gradient(90deg, #d336d3, #ff6bff);
-            width: 0%; /* Updated by JS */
+            background: linear-gradient(90deg, #c0392b, #d336d3);
+            width: 0%;
             transition: width 0.1s linear;
         }
 
@@ -70,65 +72,85 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-weight: bold;
+            font-weight: 800;
             text-shadow: 1px 1px 2px black;
-            font-size: 14px;
+            font-size: 16px;
+            z-index: 2;
         }
 
+        /* --- Message Toast --- */
         .message {
             position: absolute;
-            top: 20%;
+            top: 30%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 24px;
-            font-weight: bold;
-            color: #fff;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            font-size: 28px;
+            font-weight: 900;
+            color: #ff4757;
+            text-shadow: 0 2px 4px rgba(0,0,0,1);
             pointer-events: none;
             opacity: 0;
-            transition: opacity 0.5s;
+            transition: opacity 0.3s;
+            text-align: center;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 8px;
         }
 
+        /* --- Card Selection --- */
         #card-selection {
             position: absolute;
             bottom: 60px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 10px;
-            pointer-events: auto;
+            gap: 15px;
+            pointer-events: auto; /* Re-enable clicks for buttons */
         }
 
         .card {
-            width: 60px;
-            height: 80px;
-            background: #444;
-            border: 3px solid #888;
-            border-radius: 8px;
+            width: 70px;
+            height: 90px;
+            background: #2c3e50;
+            border: 3px solid #7f8c8d;
+            border-radius: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: transform 0.1s;
+            transition: all 0.1s;
+            position: relative;
         }
         
+        .card:hover { transform: translateY(-5px); }
+        .card:active { transform: scale(0.95); }
+
         .card.selected {
-            border-color: #ffd700;
-            transform: scale(1.1);
-            background: #555;
+            border-color: #f1c40f;
+            background: #34495e;
+            box-shadow: 0 0 15px #f1c40f;
+            transform: translateY(-10px);
         }
 
         .card-cost {
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            background: #d336d3;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
             font-size: 12px;
-            color: #d336d3;
             font-weight: bold;
-            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
         }
-        
-        .card-icon {
-            font-size: 24px;
-        }
+
+        .card-icon { font-size: 30px; }
+        .card-name { font-size: 10px; color: #ccc; margin-top: 5px; }
 
     </style>
 </head>
@@ -138,25 +160,26 @@
         <canvas id="gameCanvas" width="480" height="720"></canvas>
         
         <div id="ui-layer">
-            <div class="message" id="message-display">Not Enough Elixir!</div>
+            <div class="message" id="message-display">Wait for Elixir!</div>
             
             <div id="card-selection">
-                <div class="card selected" onclick="selectCard('tower')">
+                <div class="card selected" id="card-knight" onclick="selectCard('knight')">
+                    <span class="card-cost">3</span>
+                    <span class="card-icon">⚔️</span>
+                    <span class="card-name">KNIGHT</span>
+                </div>
+                <div class="card" id="card-tower" onclick="selectCard('tower')">
+                    <span class="card-cost">5</span>
                     <span class="card-icon">🏰</span>
-                    <span class="card-cost">4</span>
+                    <span class="card-name">TOWER</span>
                 </div>
             </div>
 
             <div id="elixir-bar-container">
                 <div id="elixir-fill"></div>
-                <span id="elixir-text">0 / 10</span>
+                <span id="elixir-text">5 / 10</span>
             </div>
         </div>
-    </div>
-
-    <div style="margin-top: 15px; text-align: center; color: #aaa; font-size: 0.9em;">
-        Click anywhere on your side (bottom half) to place a Tower.<br>
-        Enemies will spawn from the top. Defend your territory!
     </div>
 
     <script>
@@ -164,144 +187,221 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        const CANVAS_WIDTH = canvas.width;
-        const CANVAS_HEIGHT = canvas.height;
-        const RIVER_Y = CANVAS_HEIGHT / 2;
+        const CW = canvas.width;
+        const CH = canvas.height;
+        const RIVER_Y = CH / 2;
         
+        // Map Geometry
+        const BRIDGE_WIDTH = 60;
+        const BRIDGE_LEFT_X = 110; // Center of left bridge
+        const BRIDGE_RIGHT_X = CW - 110; // Center of right bridge
+        const BRIDGE_ZONE_HEIGHT = 60;
+
         // Game Constants
         const ELIXIR_MAX = 10;
-        const ELIXIR_REGEN_RATE = 0.5; // per second
-        const TOWER_COST = 4;
-        const SPAWN_RATE_INITIAL = 3.0; // Seconds between enemies
+        const ELIXIR_REGEN = 0.6; 
         
-        // Game State
+        // Card Data
+        const CARDS = {
+            'knight': { cost: 3, type: 'unit', hp: 400, dmg: 40, speed: 50, range: 40, color: '#3498db' },
+            'tower':  { cost: 5, type: 'building', hp: 800, dmg: 60, speed: 0, range: 140, color: '#2980b9' }
+        };
+
+        // State
         let lastTime = 0;
         let elixir = 5;
-        let spawnTimer = 0;
+        let spawnTimer = 2.0;
         let gameObjects = [];
         let score = 0;
-        
+        let selectedType = 'knight'; // Default selection
+
         // --- Input Handling ---
+
+        function selectCard(type) {
+            selectedType = type;
+            // Update UI visuals
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+            document.getElementById(`card-${type}`).classList.add('selected');
+        }
+
         canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             
-            handleInput(x, y);
+            // Player side restriction
+            if (y > RIVER_Y) {
+                attemptSpawn(x, y);
+            } else {
+                showMessage("Deploy on your side!");
+            }
         });
 
-        function handleInput(x, y) {
-            // Check if click is on player side (bottom half)
-            if (y > RIVER_Y) {
-                if (elixir >= TOWER_COST) {
-                    // Place Tower
-                    gameObjects.push(new Tower(x, y, true)); // true = isPlayer
-                    elixir -= TOWER_COST;
+        function attemptSpawn(x, y) {
+            const card = CARDS[selectedType];
+            
+            if (elixir >= card.cost) {
+                elixir -= card.cost;
+                
+                if (card.type === 'unit') {
+                    // Spawn Friendly Knight
+                    let u = new Unit(x, y, true, card);
+                    gameObjects.push(u);
                     spawnEffect(x, y, 'place');
-                } else {
-                    showMessage("Not enough Elixir!");
+                } else if (card.type === 'building') {
+                    // Spawn Friendly Tower
+                    let t = new Tower(x, y, true, card);
+                    gameObjects.push(t);
+                    spawnEffect(x, y, 'place_heavy');
                 }
             } else {
-                showMessage("Can only place on your side!");
+                showMessage("Not Enough Elixir!");
             }
         }
 
-        // --- Classes ---
+        // --- Core Classes ---
 
         class GameObject {
-            constructor(x, y) {
+            constructor(x, y, isPlayer) {
                 this.x = x;
                 this.y = y;
+                this.isPlayer = isPlayer;
                 this.isDead = false;
+                this.radius = 15;
             }
             update(dt) {}
             draw() {}
         }
 
         class Unit extends GameObject {
-            constructor(x, y, isPlayer, type = 'basic') {
-                super(x, y);
-                this.isPlayer = isPlayer;
-                this.type = type;
+            constructor(x, y, isPlayer, stats) {
+                super(x, y, isPlayer);
+                this.hp = stats.hp;
+                this.maxHp = stats.hp;
+                this.damage = stats.dmg;
+                this.speed = stats.speed;
+                this.range = stats.range; // Attack range
+                this.color = isPlayer ? stats.color : '#e74c3c';
                 
-                // Stats
-                this.hp = 100;
-                this.maxHp = 100;
-                this.speed = 40; // pixels per second
-                this.radius = 12;
-                this.damage = 10;
-                this.attackRange = 40;
-                this.attackCooldown = 1.0;
-                this.currentCooldown = 0;
-                
-                // Visuals
-                this.color = isPlayer ? '#4a90e2' : '#e74c3c';
+                this.attackTimer = 0;
+                this.attackRate = 1.0;
+                this.aggroRange = 200; // How far to look for enemies
             }
 
             update(dt) {
-                if (this.currentCooldown > 0) this.currentCooldown -= dt;
+                if (this.attackTimer > 0) this.attackTimer -= dt;
 
-                // Simple AI: Move towards closest enemy or enemy base edge
-                let target = this.findTarget();
-                
-                if (target) {
-                    const dx = target.x - this.x;
-                    const dy = target.y - this.y;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
+                // 1. Find Target
+                const target = this.findTarget();
 
-                    if (dist <= this.attackRange) {
-                        // Attack
-                        if (this.currentCooldown <= 0) {
-                            this.attack(target);
-                            this.currentCooldown = this.attackCooldown;
-                        }
-                    } else {
-                        // Move
-                        this.x += (dx / dist) * this.speed * dt;
-                        this.y += (dy / dist) * this.speed * dt;
+                if (target && this.getDistance(target) <= this.range) {
+                    // ATTACK
+                    if (this.attackTimer <= 0) {
+                        this.attack(target);
+                        this.attackTimer = this.attackRate;
                     }
                 } else {
-                    // No specific target, move forward
-                    // Enemy moves DOWN (+y), Player moves UP (-y)
-                    const moveDir = this.isPlayer ? -1 : 1;
-                    this.y += this.speed * moveDir * dt;
-                }
-
-                // Bounds check (despawn if off screen)
-                if (this.y < -50 || this.y > CANVAS_HEIGHT + 50) {
-                    this.isDead = true;
+                    // MOVE
+                    this.moveLogic(dt, target);
                 }
             }
 
+            moveLogic(dt, target) {
+                let destX, destY;
+
+                // If no specific enemy target, march towards the enemy King Tower position
+                if (!target) {
+                    destX = this.x; // Keep x roughly same (lanes)
+                    // Enemy Base is at Y=0, Player Base is at Y=CH
+                    destY = this.isPlayer ? -50 : CH + 50; 
+                    
+                    // Simple logic to pull units slightly toward center lanes if they are wide
+                    if (this.x < CW/2) destX = BRIDGE_LEFT_X;
+                    else destX = BRIDGE_RIGHT_X;
+                } else {
+                    destX = target.x;
+                    destY = target.y;
+                }
+
+                // --- BRIDGE PATHFINDING ---
+                // Check if we need to cross the river to get to destination
+                const mySide = this.y > RIVER_Y ? 'bottom' : 'top';
+                const destSide = destY > RIVER_Y ? 'bottom' : 'top';
+
+                if (mySide !== destSide) {
+                    // We must cross. Move toward nearest bridge first.
+                    const distLeft = Math.abs(this.x - BRIDGE_LEFT_X);
+                    const distRight = Math.abs(this.x - BRIDGE_RIGHT_X);
+                    
+                    // Aim for the bridge center
+                    const bridgeX = distLeft < distRight ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
+                    
+                    // If we aren't vertically aligned with the bridge yet, aim for bridge
+                    // Check if we are "in" the river zone (bridge crossing)
+                    const inRiverZone = Math.abs(this.y - RIVER_Y) < 30;
+
+                    if (!inRiverZone) {
+                        // Not in river yet, steer x toward bridge
+                         if (Math.abs(this.x - bridgeX) > 20) {
+                             destX = bridgeX;
+                             destY = RIVER_Y; // Aim for river center
+                         }
+                    }
+                }
+                // --------------------------
+
+                // Calculate Vector
+                const dx = destX - this.x;
+                const dy = destY - this.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist > 0) {
+                    this.x += (dx / dist) * this.speed * dt;
+                    this.y += (dy / dist) * this.speed * dt;
+                }
+
+                // Check Bounds
+                if (this.y < -100 || this.y > CH + 100) this.isDead = true;
+            }
+
             findTarget() {
-                // Find closest enemy unit or tower
                 let closest = null;
                 let closestDist = Infinity;
 
                 for (const obj of gameObjects) {
-                    if (obj instanceof Unit || obj instanceof Tower) {
-                        if (obj.isPlayer !== this.isPlayer && !obj.isDead) {
-                            const dx = obj.x - this.x;
-                            const dy = obj.y - this.y;
-                            const dist = Math.sqrt(dx*dx + dy*dy);
-                            
-                            // Aggro range check (simple global aggro for now)
-                            if (dist < 200 && dist < closestDist) {
-                                closestDist = dist;
-                                closest = obj;
-                            }
+                    if (obj.isPlayer !== this.isPlayer && !obj.isDead && (obj instanceof Unit || obj instanceof Tower)) {
+                        const d = this.getDistance(obj);
+                        if (d < this.aggroRange && d < closestDist) {
+                            closestDist = d;
+                            closest = obj;
                         }
                     }
                 }
                 return closest;
             }
 
-            attack(target) {
-                gameObjects.push(new Projectile(this.x, this.y, target, this.damage));
+            getDistance(obj) {
+                return Math.hypot(obj.x - this.x, obj.y - this.y);
             }
 
-            takeDamage(amount) {
-                this.hp -= amount;
+            attack(target) {
+                // melee visual
+                if (this.range < 50) {
+                    // Melee bump
+                    const dx = target.x - this.x;
+                    const dy = target.y - this.y;
+                    this.x += dx * 0.3; 
+                    this.y += dy * 0.3;
+                    setTimeout(() => { target.takeDamage(this.damage); }, 100);
+                } else {
+                    // Ranged projectile would go here
+                    target.takeDamage(this.damage);
+                }
+            }
+
+            takeDamage(amt) {
+                this.hp -= amt;
+                spawnEffect(this.x, this.y, 'hit');
                 if (this.hp <= 0) {
                     this.isDead = true;
                     spawnEffect(this.x, this.y, 'death');
@@ -310,61 +410,73 @@
             }
 
             draw() {
-                // Health Bar
-                const hpPercent = this.hp / this.maxHp;
+                // Health
+                const pct = Math.max(0, this.hp / this.maxHp);
                 ctx.fillStyle = 'red';
-                ctx.fillRect(this.x - 10, this.y - 20, 20, 4);
-                ctx.fillStyle = '#0f0';
-                ctx.fillRect(this.x - 10, this.y - 20, 20 * hpPercent, 4);
+                ctx.fillRect(this.x - 12, this.y - 22, 24, 4);
+                ctx.fillStyle = '#2ecc71';
+                ctx.fillRect(this.x - 12, this.y - 22, 24 * pct, 4);
+
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.ellipse(this.x, this.y+5, 10, 5, 0, 0, Math.PI*2);
+                ctx.fill();
 
                 // Body
                 ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
                 ctx.fillStyle = this.color;
                 ctx.fill();
-                ctx.strokeStyle = '#222';
+                ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 2;
                 ctx.stroke();
+
+                // Sword Icon helper
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
+                ctx.fillText("⚔️", this.x - 8, this.y + 4);
             }
         }
 
         class Tower extends GameObject {
-            constructor(x, y, isPlayer) {
-                super(x, y);
-                this.isPlayer = isPlayer;
-                this.hp = 400;
-                this.maxHp = 400;
-                this.range = 150;
-                this.damage = 25;
-                this.attackCooldown = 0.8;
-                this.currentCooldown = 0;
-                this.radius = 20;
+            constructor(x, y, isPlayer, stats) {
+                super(x, y, isPlayer);
+                this.hp = stats.hp;
+                this.maxHp = stats.hp;
+                this.damage = stats.dmg;
+                this.range = stats.range;
+                this.radius = 25;
+                
+                this.attackTimer = 0;
+                this.attackRate = 1.2;
             }
 
             update(dt) {
-                if (this.currentCooldown > 0) this.currentCooldown -= dt;
+                if (this.attackTimer > 0) this.attackTimer -= dt;
 
-                // Find enemy in range
+                // Find target
                 for (const obj of gameObjects) {
                     if (obj instanceof Unit && obj.isPlayer !== this.isPlayer && !obj.isDead) {
-                        const dist = Math.hypot(obj.x - this.x, obj.y - this.y);
-                        if (dist <= this.range) {
-                            if (this.currentCooldown <= 0) {
+                        const d = Math.hypot(obj.x - this.x, obj.y - this.y);
+                        if (d <= this.range) {
+                            if (this.attackTimer <= 0) {
                                 this.fire(obj);
-                                this.currentCooldown = this.attackCooldown;
+                                this.attackTimer = this.attackRate;
                             }
-                            return; // Attack one at a time
+                            return; 
                         }
                     }
                 }
             }
 
             fire(target) {
-                gameObjects.push(new Projectile(this.x, this.y - 10, target, this.damage, true)); // true = isTowerShot
+                gameObjects.push(new Projectile(this.x, this.y - 15, target, this.damage));
             }
 
-            takeDamage(amount) {
-                this.hp -= amount;
+            takeDamage(amt) {
+                this.hp -= amt;
+                spawnEffect(this.x, this.y - 10, 'hit');
                 if (this.hp <= 0) {
                     this.isDead = true;
                     spawnEffect(this.x, this.y, 'explosion');
@@ -372,51 +484,43 @@
             }
 
             draw() {
-                // Range Circle (subtle)
+                // Range (debug - optional)
                 /*
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.range, 0, Math.PI*2);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
                 ctx.stroke();
                 */
 
-                // Health Bar
-                const hpPercent = this.hp / this.maxHp;
+                const pct = Math.max(0, this.hp / this.maxHp);
                 ctx.fillStyle = 'red';
-                ctx.fillRect(this.x - 15, this.y - 35, 30, 5);
-                ctx.fillStyle = '#0f0';
-                ctx.fillRect(this.x - 15, this.y - 35, 30 * hpPercent, 5);
+                ctx.fillRect(this.x - 20, this.y - 40, 40, 6);
+                ctx.fillStyle = '#2ecc71';
+                ctx.fillRect(this.x - 20, this.y - 40, 40 * pct, 6);
 
-                // Tower Base
                 ctx.fillStyle = this.isPlayer ? '#2980b9' : '#c0392b';
-                ctx.fillRect(this.x - 15, this.y - 15, 30, 30);
+                ctx.fillRect(this.x - 20, this.y - 20, 40, 40);
                 
-                // Turret
-                ctx.fillStyle = '#eee';
+                // Roof
+                ctx.fillStyle = '#ecf0f1';
                 ctx.beginPath();
-                ctx.arc(this.x, this.y - 5, 12, 0, Math.PI*2);
+                ctx.moveTo(this.x - 25, this.y - 20);
+                ctx.lineTo(this.x + 25, this.y - 20);
+                ctx.lineTo(this.x, this.y - 50);
                 ctx.fill();
-                ctx.stroke();
             }
         }
 
         class Projectile extends GameObject {
-            constructor(x, y, target, damage, isTowerShot = false) {
-                super(x, y);
+            constructor(x, y, target, dmg) {
+                super(x, y, false);
                 this.target = target;
-                this.damage = damage;
-                this.speed = 250;
-                this.isTowerShot = isTowerShot;
-                this.hit = false;
+                this.damage = dmg;
+                this.speed = 300;
             }
 
             update(dt) {
-                if (this.hit) return;
-
-                if (this.target.isDead) {
-                    this.isDead = true;
-                    return;
-                }
+                if (this.target.isDead) { this.isDead = true; return; }
 
                 const dx = this.target.x - this.x;
                 const dy = this.target.y - this.y;
@@ -424,183 +528,178 @@
 
                 if (dist < 10) {
                     this.target.takeDamage(this.damage);
-                    this.hit = true;
                     this.isDead = true;
-                    spawnEffect(this.target.x, this.target.y, 'hit');
                 } else {
-                    this.x += (dx / dist) * this.speed * dt;
-                    this.y += (dy / dist) * this.speed * dt;
+                    this.x += (dx/dist) * this.speed * dt;
+                    this.y += (dy/dist) * this.speed * dt;
                 }
             }
 
             draw() {
-                ctx.fillStyle = this.isTowerShot ? '#f1c40f' : '#fff';
+                ctx.fillStyle = 'yellow';
                 ctx.beginPath();
-                ctx.arc(this.x, this.y, 4, 0, Math.PI*2);
+                ctx.arc(this.x, this.y, 5, 0, Math.PI*2);
                 ctx.fill();
             }
         }
 
-        class Effect extends GameObject {
+        class Effect {
             constructor(x, y, type) {
-                super(x, y);
-                this.type = type;
-                this.timer = 0;
-                this.maxTime = 0.5;
+                this.x = x; this.y = y; this.type = type;
+                this.life = 1.0;
+                this.maxLife = 1.0;
+                this.isDead = false;
             }
-
             update(dt) {
-                this.timer += dt;
-                if (this.timer >= this.maxTime) this.isDead = true;
+                this.life -= dt;
+                if(this.life <= 0) this.isDead = true;
             }
-
             draw() {
-                const alpha = 1 - (this.timer / this.maxTime);
-                ctx.globalAlpha = alpha;
-                
-                if (this.type === 'hit') {
-                    ctx.fillStyle = 'orange';
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, 8, 0, Math.PI*2);
-                    ctx.fill();
-                } else if (this.type === 'death') {
-                    ctx.fillStyle = '#555';
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, 15, 0, Math.PI*2);
-                    ctx.fill();
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                if(this.type === 'hit') {
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2); ctx.fill();
                 } else if (this.type === 'place') {
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, 25 * (this.timer * 4), 0, Math.PI*2);
-                    ctx.stroke();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+                    const r = 30 * (1 - this.life);
+                    ctx.beginPath(); ctx.arc(this.x, this.y, r, 0, Math.PI*2); ctx.stroke();
                 } else if (this.type === 'explosion') {
                     ctx.fillStyle = 'orange';
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, 30 * (this.timer * 2), 0, Math.PI*2);
-                    ctx.fill();
+                    ctx.beginPath(); ctx.arc(this.x, this.y, 40 * (1-this.life), 0, Math.PI*2); ctx.fill();
                 }
-
-                ctx.globalAlpha = 1.0;
+                ctx.restore();
             }
         }
 
-        // --- Helpers ---
+        // --- Systems ---
 
         function spawnEffect(x, y, type) {
             gameObjects.push(new Effect(x, y, type));
         }
 
-        function showMessage(text) {
-            const msg = document.getElementById('message-display');
-            msg.textContent = text;
-            msg.style.opacity = 1;
-            setTimeout(() => {
-                msg.style.opacity = 0;
-            }, 1000);
+        function showMessage(txt) {
+            const el = document.getElementById('message-display');
+            el.innerText = txt;
+            el.style.opacity = 1;
+            setTimeout(() => el.style.opacity = 0, 1000);
+        }
+
+        function resolveCollisions() {
+            // Simple iterative collision resolution to stop stacking
+            const units = gameObjects.filter(o => o instanceof Unit);
+            for (let i = 0; i < units.length; i++) {
+                for (let j = i + 1; j < units.length; j++) {
+                    const u1 = units[i];
+                    const u2 = units[j];
+                    const dx = u1.x - u2.x;
+                    const dy = u1.y - u2.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const minDist = u1.radius + u2.radius; // Minimum allowed distance
+
+                    if (dist < minDist && dist > 0) {
+                        const overlap = minDist - dist;
+                        const pushX = (dx / dist) * overlap * 0.5;
+                        const pushY = (dy / dist) * overlap * 0.5;
+                        
+                        // Push apart
+                        u1.x += pushX; u1.y += pushY;
+                        u2.x -= pushX; u2.y -= pushY;
+                    }
+                }
+            }
+        }
+
+        function spawnEnemies(dt) {
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) {
+                // Randomly spawn Left or Right
+                const lane = Math.random() > 0.5 ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
+                const offset = (Math.random() - 0.5) * 40;
+                
+                // Enemy Unit
+                const enemy = new Unit(lane + offset, -30, false, CARDS.knight);
+                gameObjects.push(enemy);
+
+                spawnTimer = 4.0 - (Math.min(2.5, score/200)); 
+            }
         }
 
         function updateUI() {
-            // Update Elixir Bar
-            const fill = document.getElementById('elixir-fill');
-            const text = document.getElementById('elixir-text');
-            const pct = (elixir / ELIXIR_MAX) * 100;
-            fill.style.width = `${pct}%`;
-            text.textContent = `${Math.floor(elixir)} / ${ELIXIR_MAX}`;
+            // Elixir
+            if (elixir < ELIXIR_MAX) elixir += 1/60 * ELIXIR_REGEN * 10; // Approx logic
+            if (elixir > ELIXIR_MAX) elixir = ELIXIR_MAX;
 
-            // Greyscale card if not enough elixir
-            const card = document.querySelector('.card');
-            if (elixir < TOWER_COST) {
-                card.style.filter = 'grayscale(1)';
-                card.style.opacity = '0.7';
-            } else {
-                card.style.filter = 'none';
-                card.style.opacity = '1';
+            document.getElementById('elixir-fill').style.width = (elixir / ELIXIR_MAX * 100) + '%';
+            document.getElementById('elixir-text').innerText = Math.floor(elixir);
+
+            // Card availability
+            const cost = CARDS[selectedType].cost;
+            const cardUI = document.querySelector('.card.selected');
+            if(cardUI) {
+                if(elixir < cost) cardUI.style.filter = "grayscale(1)";
+                else cardUI.style.filter = "none";
             }
         }
 
-        function updateEnemySpawn(dt) {
-            spawnTimer -= dt;
-            if (spawnTimer <= 0) {
-                // Spawn Enemy at random x at top
-                const x = 50 + Math.random() * (CANVAS_WIDTH - 100);
-                gameObjects.push(new Unit(x, -20, false)); // false = Enemy
-                
-                // Difficulty ramps up slightly
-                spawnTimer = SPAWN_RATE_INITIAL - Math.min(2.0, score / 500);
-                if (spawnTimer < 0.5) spawnTimer = 0.5;
-            }
-        }
-
-        function drawBackground() {
+        function drawMap() {
             // Grass
             ctx.fillStyle = '#3b8c3b';
-            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            ctx.fillRect(0, 0, CW, CH);
 
             // River
             ctx.fillStyle = '#3498db';
-            ctx.fillRect(0, RIVER_Y - 20, CANVAS_WIDTH, 40);
+            ctx.fillRect(0, RIVER_Y - 25, CW, 50);
 
-            // Bridges (Visual only, since we have free movement/placement for now)
-            ctx.fillStyle = '#8e44ad'; // Magical bridge color or wood
-            const bridgeWidth = 60;
-            ctx.fillRect(80, RIVER_Y - 22, bridgeWidth, 44); // Left
-            ctx.fillRect(CANVAS_WIDTH - 80 - bridgeWidth, RIVER_Y - 22, bridgeWidth, 44); // Right
+            // Bridges
+            ctx.fillStyle = '#8e44ad'; // Wood/Stone color
+            ctx.fillRect(BRIDGE_LEFT_X - 30, RIVER_Y - 28, 60, 56);
+            ctx.fillRect(BRIDGE_RIGHT_X - 30, RIVER_Y - 28, 60, 56);
+            
+            // Bridge Detail
+            ctx.strokeStyle = '#5e2a70';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(BRIDGE_LEFT_X - 30, RIVER_Y - 28, 60, 56);
+            ctx.strokeRect(BRIDGE_RIGHT_X - 30, RIVER_Y - 28, 60, 56);
 
-            // Valid Zone Indicator (Subtle overlay on bottom half)
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
-            ctx.fillRect(0, RIVER_Y, CANVAS_WIDTH, CANVAS_HEIGHT / 2);
+            // Deployment Line
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(0, RIVER_Y);
+            ctx.lineTo(CW, RIVER_Y);
+            ctx.stroke();
+            ctx.setLineDash([]);
         }
 
         // --- Main Loop ---
 
-        function initGame() {
-            elixir = 5;
-            gameObjects = [];
-            score = 0;
-            
-            // Initial Enemy
-            gameObjects.push(new Unit(CANVAS_WIDTH/2, -20, false));
-        }
-
-        function gameLoop(timestamp) {
-            if (!lastTime) lastTime = timestamp;
-            const deltaTime = (timestamp - lastTime) / 1000;
+        function loop(timestamp) {
+            const dt = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
-            // Logic
-            if (elixir < ELIXIR_MAX) {
-                elixir += ELIXIR_REGEN_RATE * deltaTime;
-                if (elixir > ELIXIR_MAX) elixir = ELIXIR_MAX;
-            }
-            
-            updateEnemySpawn(deltaTime);
+            // Update
             updateUI();
+            spawnEnemies(dt);
+            resolveCollisions();
 
-            // Draw Background
-            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-            drawBackground();
-
-            // Update & Draw Objects
-            // Sort by Y so lower objects draw on top of higher ones (pseudo-3D depth)
-            gameObjects.sort((a, b) => a.y - b.y);
+            gameObjects.sort((a,b) => a.y - b.y); // Draw depth
 
             for (let i = gameObjects.length - 1; i >= 0; i--) {
-                const obj = gameObjects[i];
-                obj.update(deltaTime);
-                obj.draw();
-                
-                if (obj.isDead) {
-                    gameObjects.splice(i, 1);
-                }
+                gameObjects[i].update(dt);
+                if (gameObjects[i].isDead) gameObjects.splice(i, 1);
             }
 
-            requestAnimationFrame(gameLoop);
+            // Draw
+            ctx.clearRect(0, 0, CW, CH);
+            drawMap();
+            
+            for (const obj of gameObjects) obj.draw();
+
+            requestAnimationFrame(loop);
         }
 
-        // Start
-        initGame();
-        requestAnimationFrame(gameLoop);
+        requestAnimationFrame(loop);
 
     </script>
 </body>
