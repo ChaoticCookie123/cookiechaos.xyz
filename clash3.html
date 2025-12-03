@@ -3,81 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Cycle Stable</title>
+    <title>Clash Simple</title>
     <style>
-        /* --- CSS --- */
         body {
-            background-color: #121212; display: flex; justify-content: center; 
-            align-items: center; height: 100vh; margin: 0; overflow: hidden; 
-            font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-user-select: none;
-            touch-action: none;
+            background-color: #222; margin: 0; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+            font-family: sans-serif; user-select: none;
         }
-
         #game-frame {
-            position: relative; width: 420px; height: 720px; background: #333;
-            border-radius: 12px; overflow: hidden; border: 4px solid #4e342e;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            position: relative; width: 420px; height: 720px; background: #3b8c3b;
+            border: 4px solid #555; overflow: hidden;
         }
-
         canvas { display: block; width: 100%; height: 100%; }
 
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-
-        /* DASHBOARD */
-        #dashboard {
-            position: absolute; bottom: 0; width: 100%; height: 170px;
-            background: linear-gradient(to top, #263238, #37474f);
-            border-top: 4px solid #111; pointer-events: auto;
-            display: flex; flex-direction: column; align-items: center;
-        }
-
-        #elixir-wrapper {
-            width: 85%; height: 20px; margin-top: 8px; margin-bottom: 5px;
-            background: #111; border: 2px solid #777; border-radius: 10px; overflow: hidden; position: relative;
-        }
+        /* UI */
+        #ui-layer { position: absolute; bottom: 0; width: 100%; height: 160px; pointer-events: none; }
+        
         #elixir-bar {
-            height: 100%; width: 50%; background: linear-gradient(90deg, #d500f9, #aa00ff);
-            transition: width 0.1s linear;
+            width: 80%; height: 20px; margin: 0 auto 10px auto;
+            background: #111; border: 2px solid #fff; border-radius: 10px;
+            position: relative; pointer-events: auto;
         }
+        #elixir-fill { height: 100%; background: #d0f; width: 50%; transition: width 0.1s; }
         #elixir-text {
-            position: absolute; top: 0; width: 100%; text-align: center; line-height: 20px;
-            color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 0 #000;
+            position: absolute; top: 0; width: 100%; text-align: center; color: #fff;
+            font-weight: bold; line-height: 20px; font-size: 14px;
         }
 
-        /* HAND (4 Cards) */
         #hand {
-            display: flex; justify-content: center; align-items: center; gap: 15px; width: 100%; height: 130px;
+            display: flex; justify-content: center; gap: 10px; pointer-events: auto;
         }
-
         .card {
-            width: 75px; height: 100px; background: #2b3a42; border: 3px solid #546e7a;
-            border-radius: 8px; position: relative; cursor: pointer; transition: transform 0.1s;
-            display: flex; flex-direction: column; align-items: center;
-            box-shadow: 0 4px 5px rgba(0,0,0,0.5);
+            width: 70px; height: 90px; background: #444; border: 2px solid #888;
+            border-radius: 6px; display: flex; flex-direction: column; align-items: center;
+            cursor: pointer; position: relative;
         }
-        
-        .card.selected {
-            border-color: #ffd700; transform: translateY(-12px) scale(1.05);
-            background: #455a64; box-shadow: 0 0 15px #ffd700; z-index: 10;
-        }
-        
-        .card.disabled { filter: grayscale(1) brightness(0.5); }
-
-        .cost {
-            position: absolute; top: -6px; left: -6px; width: 22px; height: 22px;
-            border-radius: 50%; background: #d500f9; border: 2px solid #fff;
-            color: white; font-weight: bold; font-size: 12px;
-            display: flex; justify-content: center; align-items: center;
-        }
-        
-        .icon { font-size: 40px; margin-top: 15px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
-        .name { font-size: 10px; color: #cfd8dc; margin-top: 5px; font-weight: bold; text-transform: uppercase; text-align: center; width: 100%; }
+        .card.selected { border-color: gold; background: #555; transform: translateY(-10px); }
+        .card.disabled { filter: grayscale(1); opacity: 0.5; }
+        .cost { position: absolute; top: -5px; left: -5px; background: #d0f; border-radius: 50%; width: 20px; height: 20px; text-align: center; line-height: 20px; color: white; font-weight: bold; border: 1px solid white; }
+        .icon { font-size: 35px; margin-top: 15px; }
+        .name { font-size: 10px; color: #ccc; margin-top: 5px; font-weight: bold; }
 
         #toast {
-            position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
-            border-radius: 20px; font-weight: bold; opacity: 0; transition: opacity 0.3s;
-            pointer-events: none;
+            position: absolute; top: 30%; width: 100%; text-align: center;
+            color: white; font-size: 20px; font-weight: bold; text-shadow: 2px 2px 0 #000;
+            pointer-events: none; opacity: 0; transition: opacity 0.5s;
         }
     </style>
 </head>
@@ -85,437 +55,314 @@
 
 <div id="game-frame">
     <canvas id="cvs" width="420" height="720"></canvas>
+    
+    <div id="toast">Msg</div>
+
     <div id="ui-layer">
-        <div id="toast">Select a Card!</div>
-        <div id="dashboard">
-            <div id="elixir-wrapper">
-                <div id="elixir-bar"></div>
-                <div id="elixir-text">5</div>
-            </div>
-            <div id="hand"></div>
+        <div id="elixir-bar">
+            <div id="elixir-fill"></div>
+            <div id="elixir-text">5</div>
         </div>
+        <div id="hand"></div>
     </div>
 </div>
 
 <script>
     const cvs = document.getElementById('cvs');
     const ctx = cvs.getContext('2d');
-
-    // --- CONFIG ---
+    
+    // Config
     const W = 420, H = 720;
-    const RIVER_Y = H/2 - 40;
+    const RIVER_Y = H / 2 - 30;
     const BRIDGE_L = 90, BRIDGE_R = W - 90;
-    const MAX_UNITS = 80;
-
-    // --- CARDS ---
+    
+    // Card Data
     const CARDS = {
-        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 800, dmg: 80, speed: 50, range: 5, type: 'ground', target: 'ground' },
-        'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 300, dmg: 60, speed: 55, range: 120, type: 'ground', target: 'any', count: 2 },
-        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2200, dmg: 150, speed: 30, range: 5, type: 'ground', target: 'building' },
-        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 900, dmg: 160, speed: 90, range: 5, type: 'ground', target: 'building', jump: true },
-        'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 600, dmg: 140, speed: 50, range: 160, type: 'ground', target: 'any' },
-        'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 100, speed: 65, range: 80, type: 'air', target: 'any', area: true },
-        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 60, dmg: 40, speed: 65, range: 5, type: 'ground', target: 'ground', count: 6 },
-        'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 700, dmg: 100, speed: 0, range: 140, type: 'building', target: 'ground' },
-        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 400 },
-        'zap':    { name: 'Zap', cost: 2, icon: '⚡', type: 'spell', radius: 60, dmg: 120 }
+        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 800, dmg: 80, spd: 50, range: 30, type: 'ground' },
+        'archer': { name: 'Archer', cost: 3, icon: '🏹', hp: 300, dmg: 60, spd: 60, range: 120, type: 'ground', count: 2 },
+        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2500, dmg: 150, spd: 30, range: 30, type: 'building' },
+        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1000, dmg: 180, speed: 90, range: 30, type: 'building' },
+        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 150, dmg: 40, spd: 80, range: 30, type: 'air', count: 3 },
+        'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 100, spd: 60, range: 90, type: 'air', area: true },
+        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 50, dmg: 30, spd: 70, range: 20, type: 'ground', count: 6 },
+        'ball':   { name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 400 }
     };
-    const ALL_KEYS = Object.keys(CARDS);
+    const DECK = Object.keys(CARDS);
 
-    // --- STATE ---
+    // State
     let elixir = 5;
     let entities = [];
-    let particles = [];
+    let projectiles = [];
     let lastTime = 0;
-    let spawnTimer = 2.0;
+    let spawnTimer = 3.0;
     
-    // Cycle Logic
+    // Cycle
     let deckQueue = [];
-    let hand = []; // Array of keys
-    let selectedIdx = null; // Index in hand (0-3)
+    let hand = [];
+    let selectedIdx = null;
 
     // --- SETUP ---
     function init() {
         // Init Deck
-        deckQueue = [...ALL_KEYS].sort(() => Math.random() - 0.5);
+        deckQueue = [...DECK].sort(() => Math.random() - 0.5);
         for(let i=0; i<4; i++) hand.push(deckQueue.shift());
         renderHand();
 
         // Towers
-        spawnEntity(new Entity(90, 520, true, 'tower'));
-        spawnEntity(new Entity(W-90, 520, true, 'tower'));
-        spawnEntity(new Entity(W/2, 580, true, 'king'));
+        addEntity(new Entity(90, 550, true, 'tower'));
+        addEntity(new Entity(W-90, 550, true, 'tower'));
+        addEntity(new Entity(W/2, 620, true, 'king')); // Player King
         
-        spawnEntity(new Entity(90, 120, false, 'tower'));
-        spawnEntity(new Entity(W-90, 120, false, 'tower'));
-        spawnEntity(new Entity(W/2, 60, false, 'king'));
+        addEntity(new Entity(90, 100, false, 'tower'));
+        addEntity(new Entity(W-90, 100, false, 'tower'));
+        addEntity(new Entity(W/2, 40, false, 'king')); // Enemy King
 
         requestAnimationFrame(loop);
     }
 
     function renderHand() {
-        const div = document.getElementById('hand');
-        div.innerHTML = '';
-        hand.forEach((key, i) => {
-            const c = CARDS[key];
-            const el = document.createElement('div');
-            el.className = 'card' + (i === selectedIdx ? ' selected' : '');
-            el.id = `hand-${i}`;
-            el.innerHTML = `<div class="cost">${c.cost}</div><div class="icon">${c.icon}</div><div class="name">${c.name}</div>`;
-            el.onclick = () => { selectedIdx = i; renderHand(); };
-            div.appendChild(el);
+        const h = document.getElementById('hand');
+        h.innerHTML = '';
+        hand.forEach((k, i) => {
+            let c = CARDS[k];
+            let d = document.createElement('div');
+            d.className = 'card' + (i===selectedIdx ? ' selected' : '');
+            d.innerHTML = `<div class="cost">${c.cost}</div><div class="icon">${c.icon}</div><div class="name">${c.name}</div>`;
+            d.onclick = () => { selectedIdx = i; renderHand(); };
+            h.appendChild(d);
         });
-    }
-
-    function cycleCard(idx) {
-        deckQueue.push(hand[idx]); // Old card to back
-        hand[idx] = deckQueue.shift(); // New card to hand
-        selectedIdx = null;
-        renderHand();
     }
 
     // --- INPUT ---
     cvs.addEventListener('pointerdown', e => {
-        e.preventDefault();
         const rect = cvs.getBoundingClientRect();
-        const scaleX = W / rect.width;
-        const scaleY = H / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
+        const x = (e.clientX - rect.left) * (W / rect.width);
+        const y = (e.clientY - rect.top) * (H / rect.height);
 
-        if (selectedIdx === null) { showToast("Select a Card!"); return; }
-        
-        const key = hand[selectedIdx];
-        const card = CARDS[key];
+        if (selectedIdx === null) return msg("Select a card!");
+        let card = CARDS[hand[selectedIdx]];
 
-        if (elixir < card.cost) { showToast("Not Enough Elixir!"); return; }
-        if (card.type !== 'spell' && y < RIVER_Y) { showToast("Enemy Territory!"); return; }
+        if (elixir < card.cost) return msg("Not enough Elixir!");
+        if (card.type !== 'spell' && y < RIVER_Y) return msg("Enemy Side!");
 
-        // Play
+        // Play Card
         elixir -= card.cost;
         if (card.type === 'spell') {
             castSpell(x, y, true, card);
         } else {
-            const count = card.count || 1;
+            let count = card.count || 1;
             for(let i=0; i<count; i++) {
-                const ox = (Math.random()-0.5)*40;
-                const oy = (Math.random()-0.5)*40;
-                if(card.type === 'building') {
-                    spawnEntity(new Tower(x, y, true, false, card));
-                } else {
-                    spawnEntity(new DeployTimer(x+ox, y+oy, true, card));
-                }
+                let ox = (Math.random()-0.5)*30;
+                let oy = (Math.random()-0.5)*30;
+                addEntity(new Entity(x+ox, y+oy, true, 'unit', card));
             }
         }
-        cycleCard(selectedIdx);
+
+        // Cycle
+        deckQueue.push(hand[selectedIdx]);
+        hand[selectedIdx] = deckQueue.shift();
+        selectedIdx = null;
+        renderHand();
     });
 
-    function showToast(msg) {
-        const t = document.getElementById('toast');
-        t.innerText = msg; t.style.opacity = 1;
-        setTimeout(() => t.style.opacity = 0, 1000);
+    function msg(txt) {
+        let t = document.getElementById('toast');
+        t.innerText = txt; t.style.opacity=1;
+        setTimeout(()=>t.style.opacity=0, 1000);
     }
 
-    function spawnEntity(e) {
-        if(entities.length < MAX_UNITS) entities.push(e);
+    function addEntity(e) {
+        if(entities.length < 80) entities.push(e);
     }
 
     function castSpell(x, y, isPlayer, card) {
-        for(let i=0; i<10; i++) particles.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, life:0.5, color:'cyan'});
+        // Simple visual circle
         entities.forEach(e => {
-            if(e.isPlayer !== isPlayer && !e.isDead && !(e instanceof DeployTimer)) {
-                if(safeDist(e.x-x, e.y-y) < card.radius) e.takeDamage(card.dmg);
+            if (e.isPlayer !== isPlayer && Math.hypot(e.x-x, e.y-y) < card.radius) {
+                e.hp -= card.dmg;
             }
         });
+        projectiles.push({x:x, y:y, type:'boom', life:0.5});
     }
 
-    function safeDist(dx, dy) {
-        let d = Math.sqrt(dx*dx + dy*dy);
-        return (isNaN(d) || d < 0.1) ? 0.1 : d;
+    // --- CLASSES ---
+    class Entity {
+        constructor(x, y, isPlayer, role, stats) {
+            this.x = x; this.y = y; this.isPlayer = isPlayer; this.role = role;
+            
+            if (role === 'unit') {
+                this.hp = stats.hp; this.maxHp = stats.hp;
+                this.dmg = stats.dmg; this.speed = stats.spd || 50;
+                this.range = stats.range; this.icon = stats.icon;
+                this.targetType = stats.type; // 'building'
+                this.flying = (stats.type === 'air');
+                this.waypoints = [];
+                
+                // --- SIMPLE WAYPOINT SYSTEM ---
+                // 1. Go to Bridge
+                // 2. Go to King
+                if (!this.flying) {
+                    let bridgeX = Math.abs(x - BRIDGE_L) < Math.abs(x - BRIDGE_R) ? BRIDGE_L : BRIDGE_R;
+                    let bridgeY = RIVER_Y + 15; // Middle of river height approx
+                    this.waypoints.push({x: bridgeX, y: bridgeY});
+                }
+                // Final Goal
+                this.waypoints.push({x: W/2, y: isPlayer ? 40 : 620});
+            } else {
+                // Tower
+                this.hp = role==='king'?3000:1800; this.maxHp = this.hp;
+                this.dmg = 80; this.speed = 0; this.range = 150;
+                this.icon = role==='king'?'👑':'🏰';
+                this.radius = 25;
+            }
+            this.radius = 15; this.cooldown = 0;
+        }
+
+        update(dt) {
+            if (this.cooldown > 0) this.cooldown -= dt;
+
+            // Find Target
+            let target = null;
+            let minDist = 300;
+
+            for(let e of entities) {
+                if(e.isPlayer === this.isPlayer || e.hp <= 0) continue;
+                if(this.targetType === 'building' && e.role === 'unit') continue; // Giant logic
+                
+                let d = Math.hypot(e.x - this.x, e.y - this.y);
+                if(d < minDist) { minDist = d; target = e; }
+            }
+
+            // Act
+            if (target && minDist <= this.range + target.radius) {
+                // Attack
+                if(this.cooldown <= 0) {
+                    projectiles.push({
+                        x:this.x, y:this.y-10, tx:target.x, ty:target.y-10, 
+                        dmg:this.dmg, speed:300, isPlayer:this.isPlayer
+                    });
+                    this.cooldown = 1.0;
+                }
+            } else if (this.speed > 0) {
+                // Move
+                let tx, ty;
+                
+                // If we have a target close by, chase it
+                if (target && minDist < 250) {
+                    tx = target.x; ty = target.y;
+                } else if (this.waypoints.length > 0) {
+                    // Follow Waypoints
+                    tx = this.waypoints[0].x;
+                    ty = this.waypoints[0].y;
+                    if (Math.hypot(tx-this.x, ty-this.y) < 10) {
+                        this.waypoints.shift(); // Reached point, go next
+                    }
+                } else {
+                    // Fallback (shouldn't happen with waypoints)
+                    tx = W/2; ty = this.isPlayer ? 40 : 620;
+                }
+
+                let angle = Math.atan2(ty - this.y, tx - this.x);
+                this.x += Math.cos(angle) * this.speed * dt;
+                this.y += Math.sin(angle) * this.speed * dt;
+            }
+        }
+
+        draw() {
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fill();
+            
+            // Icon
+            ctx.font = '24px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText(this.icon, this.x, this.y-5);
+
+            // HP
+            let pct = this.hp/this.maxHp;
+            ctx.fillStyle = 'red'; ctx.fillRect(this.x-10, this.y-25, 20, 4);
+            ctx.fillStyle = '#0f0'; ctx.fillRect(this.x-10, this.y-25, 20*pct, 4);
+        }
     }
 
-    // --- LOOP ---
+    // --- MAIN LOOP ---
     function loop(now) {
         const dt = Math.min((now - lastTime) / 1000, 0.1);
         lastTime = now;
 
-        // Cleanup
-        for(let i=entities.length-1; i>=0; i--) {
-            let e = entities[i];
-            if(e.isDead || isNaN(e.x)) entities.splice(i,1);
-        }
-
-        // Elixir
+        // UI
         if(elixir < 10) elixir += 0.5 * dt;
-        document.getElementById('elixir-bar').style.width = (elixir*10) + '%';
+        document.getElementById('elixir-fill').style.width = (elixir*10)+'%';
         document.getElementById('elixir-text').innerText = Math.floor(elixir);
         
-        // Hand UI Update
-        hand.forEach((k, i) => {
-            const el = document.getElementById(`hand-${i}`);
+        hand.forEach((k,i) => {
+            let el = document.getElementById('hand-'+i);
             if(el) {
                 if(CARDS[k].cost > elixir) el.classList.add('disabled');
                 else el.classList.remove('disabled');
             }
         });
 
-        // AI
+        // AI Spawner
         spawnTimer -= dt;
         if(spawnTimer <= 0) {
-            if(entities.length < MAX_UNITS) {
-                const lane = Math.random()>0.5 ? BRIDGE_L : BRIDGE_R;
-                const rk = ['knight','giant','hog','archer','baby'][Math.floor(Math.random()*5)];
-                spawnEntity(new DeployTimer(lane+(Math.random()-0.5)*20, 20, false, CARDS[rk]));
-            }
+            let keys = ['knight','archer','giant'];
+            let rk = keys[Math.floor(Math.random()*keys.length)];
+            let lane = Math.random()>0.5 ? BRIDGE_L : BRIDGE_R;
+            addEntity(new Entity(lane, 20, false, 'unit', CARDS[rk]));
             spawnTimer = 4.0;
         }
 
-        // Physics
-        resolveCollisions();
+        // Entities
         entities.sort((a,b) => a.y - b.y);
-        for(let i=entities.length-1; i>=0; i--) entities[i].update(dt);
+        for(let i=entities.length-1; i>=0; i--) {
+            entities[i].update(dt);
+            if(entities[i].hp <= 0) entities.splice(i,1);
+        }
 
-        // Particles
-        for(let i=particles.length-1; i>=0; i--) {
-            let p = particles[i];
-            p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt;
-            if(p.life <= 0) particles.splice(i,1);
+        // Projectiles
+        for(let i=projectiles.length-1; i>=0; i--) {
+            let p = projectiles[i];
+            if(p.type === 'boom') {
+                p.life -= dt;
+                if(p.life <= 0) projectiles.splice(i,1);
+            } else {
+                let dx = p.tx - p.x, dy = p.ty - p.y;
+                let d = Math.hypot(dx, dy);
+                if(d < 10) {
+                    // Hit logic
+                    let hit = entities.find(e => e.isPlayer !== p.isPlayer && Math.hypot(e.x-p.x, e.y-p.y) < 20);
+                    if(hit) hit.hp -= p.dmg;
+                    projectiles.splice(i,1);
+                } else {
+                    p.x += (dx/d)*p.speed*dt;
+                    p.y += (dy/d)*p.speed*dt;
+                }
+            }
         }
 
         draw();
         requestAnimationFrame(loop);
     }
 
-    function resolveCollisions() {
-        // Simple separation to prevent stacking crashes
-        for(let i=0; i<entities.length; i++) {
-            let e1 = entities[i];
-            if(e1 instanceof DeployTimer || e1 instanceof Projectile) continue;
-            // Bridge check (disable collision on bridge)
-            if(Math.abs(e1.y - RIVER_Y) < 55) continue;
-
-            for(let j=i+1; j<entities.length; j++) {
-                let e2 = entities[j];
-                if(e2 instanceof DeployTimer || e2 instanceof Projectile) continue;
-                if(e1.flying !== e2.flying) continue;
-
-                let dist = safeDist(e1.x-e2.x, e1.y-e2.y);
-                let min = e1.radius + e2.radius;
-                if(dist < min) {
-                    let overlap = min - dist;
-                    let dx = (e1.x-e2.x)/dist; 
-                    let dy = (e1.y-e2.y)/dist;
-                    let force = overlap * 0.1; // Gentle push
-                    if(e1.speed > 0) { e1.x += dx*force; e1.y += dy*force; }
-                    if(e2.speed > 0) { e2.x -= dx*force; e2.y -= dy*force; }
-                }
-            }
-        }
-    }
-
-    // --- DRAW ---
     function draw() {
         ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,H);
-        ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, W, 35);
-        
-        ctx.fillStyle = '#8d6e63';
-        ctx.fillRect(BRIDGE_L-20, RIVER_Y-10, 40, 55);
-        ctx.fillRect(BRIDGE_R-20, RIVER_Y-10, 40, 55);
-        
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-        ctx.beginPath(); ctx.moveTo(0, RIVER_Y+40); ctx.lineTo(W, RIVER_Y+40); ctx.stroke();
+        ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, W, 30);
+        ctx.fillStyle = '#8d6e63'; 
+        ctx.fillRect(BRIDGE_L-15, RIVER_Y-10, 30, 50);
+        ctx.fillRect(BRIDGE_R-15, RIVER_Y-10, 30, 50);
 
-        entities.forEach(e => e.draw(ctx));
-        particles.forEach(p => {
-            ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
-            ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+        entities.forEach(e => e.draw());
+        
+        projectiles.forEach(p => {
+            if(p.type === 'boom') {
+                ctx.fillStyle='orange'; ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI*2); ctx.fill();
+            } else {
+                ctx.fillStyle='yellow'; ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+            }
         });
-        ctx.globalAlpha = 1;
-    }
-
-    // --- CLASSES ---
-
-    class DeployTimer {
-        constructor(x, y, isPlayer, card) {
-            this.x = x; this.y = y; this.isPlayer = isPlayer; this.card = card;
-            this.timer = 1.0; this.max = 1.0;
-        }
-        update(dt) {
-            this.timer -= dt;
-            if(this.timer <= 0) {
-                this.isDead = true;
-                spawnEntity(new Entity(this.x, this.y, this.isPlayer, 'unit', this.card));
-            }
-        }
-        draw(ctx) {
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2*(this.timer/this.max)); ctx.stroke();
-        }
-    }
-
-    class Entity {
-        constructor(x, y, isPlayer, role, stats) {
-            this.x = x; this.y = y; this.isPlayer = isPlayer;
-            this.role = role;
-            
-            if(role === 'unit' || role === 'building') {
-                this.hp = stats.hp; this.maxHp = stats.hp;
-                this.dmg = stats.dmg; this.speed = stats.speed;
-                this.range = stats.range; this.icon = stats.icon;
-                this.targetPref = stats.target;
-                this.type = stats.type; // ground/air
-                this.area = stats.area || false;
-                this.jump = stats.jump || false;
-            } else {
-                // Tower
-                this.hp = role==='king'?3000:1800; this.maxHp = this.hp;
-                this.dmg = 70; this.speed = 0; this.range = 150;
-                this.icon = role==='king'?'👑':'🏰';
-                this.targetPref = 'any'; this.type = 'building';
-            }
-            this.radius = 12; this.cooldown = 0;
-            this.flying = (this.type === 'air');
-        }
-
-        update(dt) {
-            if(this.cooldown > 0) this.cooldown -= dt;
-
-            // Target
-            let target = null;
-            let minD = 300;
-            for(let e of entities) {
-                if(e === this || e.isPlayer === this.isPlayer || e instanceof DeployTimer || e instanceof Projectile) continue;
-                if(this.targetPref === 'building' && e.type !== 'building') continue;
-                if(this.targetPref === 'ground' && e.type === 'air') continue;
-                
-                let d = safeDist(e.x-this.x, e.y-this.y);
-                if(d < minD) { minD = d; target = e; }
-            }
-
-            // Move or Attack
-            if(target) {
-                let reach = this.range + target.radius + this.radius;
-                if(safeDist(target.x-this.x, target.y-this.y) <= reach) {
-                    if(this.cooldown <= 0) {
-                        this.attack(target);
-                        this.cooldown = 1.2;
-                    }
-                } else {
-                    this.move(dt, target.x, target.y);
-                }
-            } else if(this.speed > 0) {
-                // Default move
-                let tx = W/2; let ty = this.isPlayer ? 60 : H-60;
-                if(this.x < 150) { tx = 90; ty = this.isPlayer?120:520; } // Lane
-                else if(this.x > 270) { tx = W-90; ty = this.isPlayer?120:520; }
-                this.move(dt, tx, ty);
-            }
-        }
-
-        move(dt, tx, ty) {
-            if(this.speed === 0) return; // Static tower
-
-            let dx = tx - this.x; let dy = ty - this.y;
-            
-            // Bridge Logic
-            if(this.type === 'ground' && !this.jump) {
-                let rDist = Math.abs(this.y - RIVER_Y);
-                if(rDist < 50 && ((this.isPlayer && this.y > RIVER_Y) || (!this.isPlayer && this.y < RIVER_Y))) {
-                    let bx = Math.abs(this.x - BRIDGE_L) < Math.abs(this.x - BRIDGE_R) ? BRIDGE_L : BRIDGE_R;
-                    if(Math.abs(this.x - bx) > 5) {
-                        dx = bx - this.x; dy = 0; // Walk sideways
-                    }
-                }
-            }
-
-            let d = safeDist(dx, dy);
-            this.x += (dx/d)*this.speed*dt;
-            this.y += (dy/d)*this.speed*dt;
-        }
-
-        attack(t) {
-            // Bump only if unit
-            if(this.speed > 0) {
-                let a = Math.atan2(t.y-this.y, t.x-this.x);
-                this.x += Math.cos(a)*4; this.y += Math.sin(a)*4;
-            }
-            if(this.range > 30) {
-                spawnEntity(new Projectile(this.x, this.y-10, t, this.dmg, this.area));
-            } else {
-                t.takeDamage(this.dmg);
-            }
-        }
-
-        takeDamage(n) {
-            this.hp -= n;
-            if(this.hp <= 0) this.isDead = true;
-        }
-
-        draw(ctx) {
-            // Shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.beginPath(); ctx.ellipse(this.x, this.flying?this.y+20:this.y, this.radius, this.radius*0.6, 0, 0, Math.PI*2); ctx.fill();
-            
-            // Icon (on Map)
-            ctx.font = this.speed===0 ? '35px Arial' : '26px Arial';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#fff';
-            ctx.save(); ctx.translate(this.x, this.y-10);
-            if(!this.isPlayer) ctx.scale(-1, 1); // Flip enemy? Optional.
-            ctx.fillText(this.icon, 0, 0); ctx.restore();
-
-            // HP
-            let pct = this.hp/this.maxHp;
-            ctx.fillStyle = '#333'; ctx.fillRect(this.x-12, this.y-35, 24, 4);
-            ctx.fillStyle = this.isPlayer ? '#448aff' : '#ff5252'; ctx.fillRect(this.x-12, this.y-35, 24*pct, 4);
-        }
-    }
-
-    class Tower extends Entity {
-        constructor(x, y, isPlayer, isKing, card) {
-            // If built from card (Cannon) vs Static Tower
-            let stats = card ? card : (isKing ? {hp:3000,dmg:70,speed:0,range:150} : {hp:1800,dmg:70,speed:0,range:150});
-            super(x, y, isPlayer, 'tower', stats);
-            this.icon = card ? card.icon : (isKing ? '👑' : '🏰');
-            this.type = 'building';
-        }
-    }
-
-    class Projectile {
-        constructor(x, y, t, dmg, area) {
-            this.x = x; this.y = y; this.target = t; this.dmg = dmg; this.area = area;
-            this.speed = 300;
-        }
-        update(dt) {
-            if(this.target.isDead) { this.isDead = true; return; }
-            let dx = this.target.x - this.x;
-            let dy = (this.target.y-10) - this.y;
-            let d = safeDist(dx, dy);
-            
-            if(d < 10) {
-                this.isDead = true;
-                if(this.area) {
-                    entities.forEach(e => {
-                        if(e.isPlayer !== this.target.isPlayer && !e.isDead && !(e instanceof DeployTimer)) {
-                            if(safeDist(e.x-this.x, e.y-this.y) < 50) e.takeDamage(this.dmg);
-                        }
-                    });
-                    for(let i=0; i<5; i++) particles.push({x:this.x, y:this.y, vx:(Math.random()-0.5)*150, vy:(Math.random()-0.5)*150, life:0.4, color:'orange'});
-                } else {
-                    this.target.takeDamage(this.dmg);
-                }
-            } else {
-                this.x += (dx/d)*this.speed*dt;
-                this.y += (dy/d)*this.speed*dt;
-            }
-        }
-        draw(ctx) {
-            ctx.fillStyle = 'yellow'; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
-        }
     }
 
     init();
-
 </script>
 </body>
 </html>
