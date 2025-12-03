@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <title>Clash Clone - Crash Proof</title>
+    <title>Clash Clone - Stable</title>
     
     <style>
         body {
@@ -104,14 +104,14 @@
     const ELIXIR_REGEN = 0.5;
 
     const CARDS = {
-        'knight': { name: 'Knight', icon: '⚔️', cost: 3, type: 'ground', count: 1, hp: 650, dmg: 75, speed: 55, range: 5, target: 'ground', color: '#3498db', radius: 14, hitAir: false, mass: 10 },
-        'archers': { name: 'Archers', icon: '🏹', cost: 3, type: 'ground', count: 2, hp: 220, dmg: 45, speed: 60, range: 120, target: 'any', color: '#e056fd', radius: 12, hitAir: true, mass: 5 },
-        'giant': { name: 'Giant', icon: '👹', cost: 5, type: 'ground', count: 1, hp: 2000, dmg: 120, speed: 35, range: 5, target: 'building', color: '#e67e22', radius: 24, hitAir: false, mass: 50 },
-        'minions': { name: 'Minions', icon: '🦇', cost: 3, type: 'air', count: 3, hp: 150, dmg: 40, speed: 80, range: 30, target: 'any', color: '#8e44ad', radius: 10, hitAir: true, flying: true, mass: 1 },
-        'hog': { name: 'Hog Rider', icon: '🔨', cost: 4, type: 'ground', count: 1, hp: 800, dmg: 150, speed: 90, range: 5, target: 'building', color: '#D2691E', radius: 15, hitAir: false, jump: true, mass: 15 },
-        'valkyrie': { name: 'Valkyrie', icon: '🪓', cost: 4, type: 'ground', count: 1, hp: 900, dmg: 110, speed: 55, range: 5, target: 'ground', color: '#d35400', radius: 16, hitAir: false, area: true, mass: 12 },
-        'wizard': { name: 'Wizard', icon: '🔥', cost: 5, type: 'ground', count: 1, hp: 350, dmg: 100, speed: 55, range: 130, target: 'any', color: '#2c3e50', radius: 14, hitAir: true, area: true, projectile: 'fire', mass: 10 },
-        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, type: 'ground', count: 10, hp: 50, dmg: 30, speed: 70, range: 5, target: 'ground', color: '#ecf0f1', radius: 6, hitAir: false, mass: 2 },
+        'knight': { name: 'Knight', icon: '⚔️', cost: 3, type: 'ground', count: 1, hp: 650, dmg: 75, speed: 55, range: 5, target: 'ground', color: '#3498db', radius: 14, hitAir: false },
+        'archers': { name: 'Archers', icon: '🏹', cost: 3, type: 'ground', count: 2, hp: 220, dmg: 45, speed: 60, range: 120, target: 'any', color: '#e056fd', radius: 12, hitAir: true },
+        'giant': { name: 'Giant', icon: '👹', cost: 5, type: 'ground', count: 1, hp: 2000, dmg: 120, speed: 35, range: 5, target: 'building', color: '#e67e22', radius: 24, hitAir: false },
+        'minions': { name: 'Minions', icon: '🦇', cost: 3, type: 'air', count: 3, hp: 150, dmg: 40, speed: 80, range: 30, target: 'any', color: '#8e44ad', radius: 10, hitAir: true, flying: true },
+        'hog': { name: 'Hog Rider', icon: '🔨', cost: 4, type: 'ground', count: 1, hp: 800, dmg: 150, speed: 90, range: 5, target: 'building', color: '#D2691E', radius: 15, hitAir: false, jump: true },
+        'valkyrie': { name: 'Valkyrie', icon: '🪓', cost: 4, type: 'ground', count: 1, hp: 900, dmg: 110, speed: 55, range: 5, target: 'ground', color: '#d35400', radius: 16, hitAir: false, area: true },
+        'wizard': { name: 'Wizard', icon: '🔥', cost: 5, type: 'ground', count: 1, hp: 350, dmg: 100, speed: 55, range: 130, target: 'any', color: '#2c3e50', radius: 14, hitAir: true, area: true, projectile: 'fire' },
+        'skarmy': { name: 'Skarmy', icon: '💀', cost: 3, type: 'ground', count: 10, hp: 50, dmg: 30, speed: 70, range: 5, target: 'ground', color: '#ecf0f1', radius: 6, hitAir: false },
         'fireball': { name: 'Fireball', icon: '☄️', cost: 4, type: 'spell', radius: 60, dmg: 350, effect: 'fire' },
         'zap': { name: 'Zap', icon: '⚡', cost: 2, type: 'spell', radius: 50, dmg: 80, effect: 'zap' }
     };
@@ -124,10 +124,11 @@
     let selectedType = 'knight';
     let gameOver = false;
 
-    // Safety Distance Check
+    // --- MATH HELPERS ---
     function safeDist(dx, dy) {
         let d = Math.sqrt(dx*dx + dy*dy);
-        return (isNaN(d) || d < 0.1) ? 0.1 : d;
+        // If distance is 0, return small number to prevent divide-by-zero
+        return (isNaN(d) || d < 0.001) ? 0.001 : d;
     }
 
     function initGame() {
@@ -200,6 +201,7 @@
     function spawnUnitBatch(x, y, isPlayer, card) {
         spawnEffect(x, y, 'spawn_ring');
         for(let i=0; i<card.count; i++) {
+            // Random offset to prevent stacking which causes NaN errors
             let ox = (Math.random() - 0.5) * 40;
             let oy = (Math.random() - 0.5) * 40;
             gameObjects.push(new Unit(x + ox, y + oy, isPlayer, card));
@@ -254,13 +256,14 @@
             this.isFlying = stats.flying || false;
             this.isArea = stats.area || false;
             this.isJump = stats.jump || false; 
-            this.mass = stats.mass || 5; 
             this.projectile = stats.projectile || null;
             this.attackTimer = 0; this.attackRate = 1.2;
             this.aggroRange = 250; 
         }
 
         update(dt) {
+            if (isNaN(this.x) || isNaN(this.y)) { this.isDead = true; return; }
+
             if (this.attackTimer > 0) this.attackTimer -= dt;
             const target = this.findTarget();
 
@@ -330,7 +333,8 @@
         }
 
         attack(target) {
-            if(!target) return;
+            if(!target || target.isDead) return;
+
             if (this.isArea && !this.projectile) {
                 spawnEffect(this.x, this.y, 'spin');
                 gameObjects.forEach(obj => {
@@ -441,7 +445,9 @@
         }
 
         update(dt) {
-            if (this.target.isDead) { this.isDead = true; return; }
+            // Safety: Target might die mid-air
+            if (!this.target || this.target.isDead) { this.isDead = true; return; }
+            
             const dx = this.target.x - this.x; const dy = this.target.y - this.y;
             const dist = safeDist(dx, dy);
 
@@ -569,7 +575,7 @@
             if (dt > 0.1) dt = 0.1;
             lastTime = timestamp;
 
-            // SANITIZER: Kill broken units immediately
+            // SANITIZER
             for(let i=gameObjects.length-1; i>=0; i--) {
                 let o = gameObjects[i];
                 if(isNaN(o.x) || isNaN(o.y)) {
@@ -610,9 +616,8 @@
             ctx.fillRect(BRIDGE_RIGHT_X-25, RIVER_Y-22, 50, 44);
 
             for(const obj of gameObjects) obj.draw();
-        } catch (e) {
-            console.error("Game Loop Error:", e);
-        }
+        } catch(e) { console.error("Game Recovering...", e); }
+        
         requestAnimationFrame(loop);
     }
 
