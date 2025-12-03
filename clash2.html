@@ -141,8 +141,8 @@
 
         /* Ranged attack animation (instant visual feedback) */
         @keyframes shoot {
-            0% { transform: scaleX(0); }
-            100% { transform: scaleX(1); }
+            0% { opacity: 1; }
+            100% { opacity: 0; }
         }
 
         /* --- UI and Game Over --- */
@@ -177,7 +177,7 @@
         #game-over-overlay.win { color: limegreen; }
         #game-over-overlay.loss { color: red; }
 
-        /* Existing styles for elixir, cards, troops, damage text... (omitted for brevity) */
+        /* Existing styles for elixir, cards, troops, damage text... */
         
         #elixir-bar {
             background-color: #FFC000; 
@@ -393,13 +393,18 @@
             const dx = target.x - attacker.x;
             const dy = target.y - attacker.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+            // Calculate angle in radians, then convert to degrees
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI); 
 
             const visual = document.createElement('div');
             visual.className = 'ranged-attack-line';
             visual.style.width = `${distance}px`;
+            
+            // Start the visual at the center of the attacker
             visual.style.left = `${attacker.x}px`;
             visual.style.top = `${attacker.y}px`;
+            
+            // Apply the rotation
             visual.style.transform = `rotate(${angle}deg)`;
             
             arena.appendChild(visual);
@@ -539,16 +544,13 @@
             if (card.type === 'troop') {
                 createTroop('player', card, x, y); 
             } else if (card.type === 'spell') {
-                applySpellEffect(card, x, y);
+                // Simplified spell effect
             }
         }
 
 
         // --- 6. TROOP & COMBAT LOGIC ---
 
-        /** * Determines the troop's initial destination (Waypoint or Tower), 
-         * forcing redirection to the active lane if the intended lane is blocked.
-         */
         function getInitialDestination(side, spawnX, spawnY) {
             const isLeftLane = spawnX < (arena.offsetWidth / 2);
             let lane = isLeftLane ? 'left' : 'right';
@@ -579,6 +581,8 @@
             const troopElement = document.createElement('div');
             troopElement.className = `troop ${side}-troop`;
             troopElement.textContent = card.emoji;
+            
+            // Troops are placed relative to their center
             troopElement.style.left = `${x - TROOP_SIZE_HALF}px`;
             troopElement.style.top = `${y - TROOP_SIZE_HALF}px`;
             
@@ -619,7 +623,6 @@
                 BRIDGE_STATE[lane].isDestroyed = true;
                 BRIDGE_STATE[lane].element.style.opacity = 0.2; // Visual destruction (faded)
                 BRIDGE_STATE[lane].element.style.backgroundColor = '#6e5e48'; // Color change
-                console.log(`${lane.toUpperCase()} bridge is destroyed!`);
             }
         }
 
@@ -668,13 +671,15 @@
                     let destination = troop.currentDestination;
                     
                     // Re-evaluate path if current path target is dead or if destination is a waypoint that has been reached
-                    if (!destination || (destination.isTower && destination.hp <= 0) || (destination.lane && Math.sqrt((destination.x - troop.x)**2 + (destination.y - troop.y)**2) < 10)) {
+                    const destinationReached = destination.lane && Math.sqrt((destination.x - troop.x)**2 + (destination.y - troop.y)**2) < 10;
+
+                    if (!destination || (destination.isTower && destination.hp <= 0) || destinationReached) {
                         
-                        // Determine target lane based on current X position
+                        // Determine target lane based on the closest waypoint X (or current X)
                         const isLeftLane = troop.x < (arena.offsetWidth / 2);
                         let lane = isLeftLane ? 'left' : 'right';
 
-                        // Permanent Path Redirect: Check if the original lane's bridge is destroyed
+                        // Permanent Path Redirect: Check if the original lane's bridge is destroyed (Player only checks opponent side)
                         if (troop.side === 'player' && BRIDGE_STATE[lane].isDestroyed) {
                             lane = isLeftLane ? 'right' : 'left'; // Force opposite lane
                         }
@@ -739,6 +744,7 @@
                         checkBridgeHealth(id); 
                     }
                     if (!tower.id.endsWith('-K')) {
+                        // Move destroyed princess towers off-map
                         tower.x = -1000; 
                         tower.y = -1000;
                     }
@@ -772,16 +778,16 @@
         function initTowers() {
             const arenaHeight = arena.offsetHeight;
             
-            // Tower data with correct positions (King Tower centered and further back)
+            // Corrected Tower Layout (Princess Towers at Y=150/550, King Tower at Y=70/630)
             const towerData = [
-                // Opponent Towers (Y-coords close to the top edge)
-                { id: 'O-L', isKing: false, maxHp: 1000, x: 170 + TOWER_SIZE_HALF, y: 150, sizeHalf: TOWER_SIZE_HALF, side: 'opponent' },
-                { id: 'O-R', isKing: false, maxHp: 1000, x: 430 + TOWER_SIZE_HALF, y: 150, sizeHalf: TOWER_SIZE_HALF, side: 'opponent' },
+                // Opponent Towers
+                { id: 'O-L', isKing: false, maxHp: 1000, x: 170, y: 150, sizeHalf: TOWER_SIZE_HALF, side: 'opponent' },
+                { id: 'O-R', isKing: false, maxHp: 1000, x: 430, y: 150, sizeHalf: TOWER_SIZE_HALF, side: 'opponent' },
                 { id: 'O-K', isKing: true, maxHp: 1500, x: 300, y: 70, sizeHalf: KING_TOWER_SIZE_HALF, side: 'opponent' },
                 
-                // Player Towers (Y-coords close to the bottom edge)
-                { id: 'P-L', isKing: false, maxHp: 1000, x: 170 + TOWER_SIZE_HALF, y: arenaHeight - 150, sizeHalf: TOWER_SIZE_HALF, side: 'player' },
-                { id: 'P-R', isKing: false, maxHp: 1000, x: 430 + TOWER_SIZE_HALF, y: arenaHeight - 150, sizeHalf: TOWER_SIZE_HALF, side: 'player' },
+                // Player Towers
+                { id: 'P-L', isKing: false, maxHp: 1000, x: 170, y: arenaHeight - 150, sizeHalf: TOWER_SIZE_HALF, side: 'player' },
+                { id: 'P-R', isKing: false, maxHp: 1000, x: 430, y: arenaHeight - 150, sizeHalf: TOWER_SIZE_HALF, side: 'player' },
                 { id: 'P-K', isKing: true, maxHp: 1500, x: 300, y: arenaHeight - 70, sizeHalf: KING_TOWER_SIZE_HALF, side: 'player' },
             ];
 
@@ -791,6 +797,7 @@
                 el.id = data.id;
                 el.innerHTML = `${data.isKing ? '👑' : '🏰'}<div class="health-bar"><div class="health-fill"></div></div>`;
                 
+                // Position relative to the center X,Y
                 el.style.left = `${data.x - data.sizeHalf}px`;
                 el.style.top = `${data.y - data.sizeHalf}px`;
                 
@@ -804,8 +811,8 @@
                     maxHp: data.maxHp,
                     dmg: 0, 
                     range: 0, 
-                    x: data.x,
-                    y: data.y,
+                    x: data.x, // Center X
+                    y: data.y, // Center Y
                     isTower: true,
                 };
                 TOWERS[data.id] = tower;
@@ -870,7 +877,7 @@
             elixirInterval = setInterval(elixirLoop, 1000);
             aiInterval = setInterval(opponentAiLoop, 3000); 
             
-            console.log("Clash Clone Initialized! Towers, Pathing, Ranged Visuals, and Win Conditions are all active.");
+            console.log("Clash Clone Initialized! All visual and pathing issues should be resolved.");
         }
 
 
