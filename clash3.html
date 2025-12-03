@@ -2,24 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Clash Clone - No Cache Version</title>
+
+    <title>Clash Clone - Fixed Input</title>
     
     <style>
         body {
             display: flex; justify-content: center; align-items: center;
             min-height: 100vh; margin: 0; background-color: #1a1a1a; 
             font-family: 'Segoe UI', sans-serif; color: white; user-select: none; overflow: hidden;
+            touch-action: none; /* Prevent scroll on mobile */
         }
         #game-wrapper { position: relative; }
         #game-container {
-            border: 10px solid #4a3b2a; position: relative;
+            border: 8px solid #4a3b2a; position: relative;
             box-shadow: 0 0 50px rgba(0, 0, 0, 0.8); border-radius: 12px;
-            overflow: hidden; background-color: #3b8c3b; cursor: pointer;
+            overflow: hidden; background-color: #3b8c3b; cursor: crosshair;
         }
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         
@@ -50,6 +52,7 @@
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             cursor: pointer; transition: transform 0.1s; position: relative;
         }
+        .card:active { transform: scale(0.95); }
         .card.selected { border-color: #f1c40f; background: #34495e; transform: translateY(-8px); box-shadow: 0 0 10px #f1c40f; }
         .card-cost {
             position: absolute; top: -5px; left: -5px; background: #d336d3; width: 18px; height: 18px;
@@ -167,27 +170,43 @@
         element.classList.add('selected');
     }
 
-    // --- INPUT ---
-    canvas.addEventListener('mousedown', (e) => {
+    // --- INPUT (FIXED) ---
+    // Changed to pointerdown to support both Mouse and Touch
+    canvas.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); // Stop scrolling on mobile
         if (gameOver) return;
+        
+        // --- COORDINATE FIX ---
+        // Maps the click exactly to the canvas size, even if zoomed/resized
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
         
         const card = CARDS[selectedType];
+        if(!card) return; // Safety check
 
         // Spells can be cast anywhere
         if (card.type === 'spell') {
             if (elixir >= card.cost) {
                 castSpell(x, y, true, card);
                 elixir -= card.cost;
+            } else {
+                showFloatText(x, y, "Need " + card.cost + " Elixir!", "#ff4757");
             }
         } 
         // Units only on your side
-        else if (y > RIVER_Y) {
-            if (elixir >= card.cost) {
-                spawnUnitBatch(x, y, true, card);
-                elixir -= card.cost;
+        else {
+            if (y > RIVER_Y) {
+                if (elixir >= card.cost) {
+                    spawnUnitBatch(x, y, true, card);
+                    elixir -= card.cost;
+                } else {
+                    showFloatText(x, y, "Need " + card.cost + " Elixir!", "#ff4757");
+                }
+            } else {
+                showFloatText(x, y, "Enemy Side!", "#ff4757");
             }
         }
     });
@@ -202,8 +221,7 @@
     }
 
     function castSpell(x, y, isPlayer, card) {
-        spawnEffect(x, y, card.effect, card.radius); // Visual
-        // Deal Damage immediately
+        spawnEffect(x, y, card.effect, card.radius); 
         gameObjects.forEach(obj => {
             if (obj.isPlayer !== isPlayer && !obj.isDead) {
                 const dist = Math.hypot(obj.x - x, obj.y - y);
@@ -214,11 +232,30 @@
         });
     }
 
+    function showFloatText(x, y, text, color) {
+        gameObjects.push(new FloatingText(x, y, text, color));
+    }
+
     // --- CLASSES ---
 
     class GameObject {
         constructor(x, y, isPlayer) {
             this.x = x; this.y = y; this.isPlayer = isPlayer; this.isDead = false;
+        }
+    }
+
+    class FloatingText extends GameObject {
+        constructor(x, y, text, color) {
+            super(x, y, true);
+            this.text = text; this.color = color; this.life = 1.0;
+        }
+        update(dt) { this.life -= dt; this.y -= 30 * dt; if(this.life <=0) this.isDead = true; }
+        draw() {
+            ctx.globalAlpha = Math.max(0, this.life);
+            ctx.fillStyle = this.color; ctx.font = "bold 20px Arial"; 
+            ctx.textAlign = "center"; ctx.shadowColor = "black"; ctx.shadowBlur = 4;
+            ctx.fillText(this.text, this.x, this.y);
+            ctx.shadowBlur = 0; ctx.textAlign = "start"; ctx.globalAlpha = 1;
         }
     }
 
@@ -229,11 +266,11 @@
             this.dmg = stats.dmg; this.speed = stats.speed;
             this.range = stats.range; this.color = isPlayer ? stats.color : '#ff4757';
             this.radius = stats.radius; 
-            this.targetType = stats.target; // 'any', 'building', 'ground'
+            this.targetType = stats.target;
             this.hitAir = stats.hitAir;
             this.isFlying = stats.flying || false;
             this.isArea = stats.area || false;
-            this.isJump = stats.jump || false; // Hog rider
+            this.isJump = stats.jump || false; 
             this.projectile = stats.projectile || null;
 
             this.attackTimer = 0; this.attackRate = 1.2;
@@ -257,7 +294,6 @@
         move(dt, target) {
             let destX, destY;
             if (!target) {
-                // If no target, go to end of lane
                 destX = this.x < CW/2 ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
                 destY = this.isPlayer ? 0 : CH;
             } else {
@@ -265,7 +301,6 @@
             }
 
             // Pathfinding: Bridge Logic
-            // If flying or jumping (Hog), ignore bridges
             if (!this.isFlying && !this.isJump) {
                 const mySide = this.y > RIVER_Y ? 'bottom' : 'top';
                 const destSide = destY > RIVER_Y ? 'bottom' : 'top';
@@ -294,10 +329,7 @@
             let closest = null; let closestDist = Infinity;
             for (const obj of gameObjects) {
                 if (obj.isPlayer !== this.isPlayer && !obj.isDead) {
-                    // Filter: Building Targeting
                     if (this.targetType === 'building' && !(obj instanceof Tower)) continue;
-                    
-                    // Filter: Can I hit air?
                     if (obj.isFlying && !this.hitAir) continue;
 
                     const d = this.getDistance(obj);
@@ -311,7 +343,6 @@
         }
 
         attack(target) {
-            // Area Damage (Valkyrie)
             if (this.isArea && !this.projectile) {
                 spawnEffect(this.x, this.y, 'spin');
                 gameObjects.forEach(obj => {
@@ -324,11 +355,9 @@
                 return;
             }
 
-            // Projectile (Wizard/Archer)
             if (this.range > 50) {
                 gameObjects.push(new Projectile(this.x, this.y, target, this.dmg, this.isArea));
             } else {
-                // Melee Single
                 target.takeDamage(this.dmg);
             }
         }
@@ -345,28 +374,21 @@
         getDistance(obj) { return Math.hypot(obj.x - this.x, obj.y - this.y); }
 
         draw() {
-            // Shadow (Using arc instead of ellipse to prevent crashes on old browsers)
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             const shadowY = this.isFlying ? this.y + 20 : this.y + 5;
             ctx.beginPath(); 
-            ctx.save();
-            ctx.translate(this.x, shadowY);
-            ctx.scale(1, 0.5); // Squash circle to look like shadow
+            ctx.save(); ctx.translate(this.x, shadowY); ctx.scale(1, 0.5); 
             ctx.arc(0, 0, this.radius, 0, Math.PI*2); 
-            ctx.restore();
-            ctx.fill();
+            ctx.restore(); ctx.fill();
 
-            // HP Bar
             const pct = Math.max(0, this.hp / this.maxHp);
             ctx.fillStyle = 'red'; ctx.fillRect(this.x - 10, this.y - this.radius - 10, 20, 3);
             ctx.fillStyle = '#2ecc71'; ctx.fillRect(this.x - 10, this.y - this.radius - 10, 20 * pct, 3);
 
-            // Body
             ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
             ctx.fillStyle = this.color; ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
             
-            // Icon overlay
             if(this.isFlying) { ctx.fillStyle='cyan'; ctx.fillRect(this.x-2, this.y-2, 4,4); }
         }
     }
@@ -388,7 +410,6 @@
             }
             if (this.attackTimer > 0) this.attackTimer -= dt;
 
-            // Tower finds target (Tower can always hit air)
             for (const obj of gameObjects) {
                 if (obj instanceof Unit && obj.isPlayer !== this.isPlayer && !obj.isDead) {
                     if (Math.hypot(obj.x - this.x, obj.y - this.y) <= this.range) {
@@ -448,7 +469,6 @@
             if (dist < 10) {
                 this.isDead = true;
                 if(this.isArea) {
-                    // Wizard Splash
                     spawnEffect(this.x, this.y, 'fire', 40);
                     gameObjects.forEach(obj => {
                         if(obj.isPlayer !== this.target.isPlayer && !obj.isDead) {
@@ -509,7 +529,6 @@
         spawnTimer -= dt;
 
         if (spawnTimer <= 0) {
-            // Pick random card
             const randKey = CARD_KEYS[Math.floor(Math.random() * CARD_KEYS.length)];
             const card = CARDS[randKey];
             
@@ -528,14 +547,12 @@
     }
 
     function resolveCollisions() {
-        // Collide Unit vs Unit
         const units = gameObjects.filter(o => o instanceof Unit);
         const towers = gameObjects.filter(o => o instanceof Tower);
 
         for(let i=0; i<units.length; i++) {
             const u1 = units[i];
             
-            // Unit vs Unit
             for(let j=i+1; j<units.length; j++) {
                 const u2 = units[j];
                 if(u1.isFlying !== u2.isFlying) continue;
@@ -550,9 +567,8 @@
                 }
             }
 
-            // Unit vs Tower (Prevent walking inside tower)
             for(const t of towers) {
-                if(u1.isFlying) continue; // Flyers fly over towers
+                if(u1.isFlying) continue; 
                 
                 const dist = Math.hypot(u1.x - t.x, u1.y - t.y);
                 const min = u1.radius + t.radius;
@@ -576,7 +592,6 @@
                 document.getElementById('elixir-fill').style.width = (elixir/ELIXIR_MAX*100)+'%';
                 document.getElementById('elixir-text').innerText = Math.floor(elixir);
 
-                // Grayscale Logic
                 const cardDivs = document.querySelectorAll('.card');
                 cardDivs.forEach((div, idx) => {
                     const key = CARD_KEYS[idx];
@@ -596,7 +611,6 @@
                 }
             }
 
-            // Draw Map
             ctx.clearRect(0, 0, CW, CH);
             ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,CW,CH);
             ctx.fillStyle = '#3498db'; ctx.fillRect(0, RIVER_Y - 20, CW, 40);
@@ -608,8 +622,7 @@
             requestAnimationFrame(loop);
             
         } catch (e) {
-            console.error("Game Loop Error:", e);
-            // Don't freeze, just try next frame
+            console.error(e);
             requestAnimationFrame(loop);
         }
     }
