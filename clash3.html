@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Fair AI</title>
+    <title>Clash Clone - Competitive</title>
     <style>
         body {
             background-color: #121212; display: flex; justify-content: center; 
@@ -21,6 +21,39 @@
         canvas { display: block; width: 100%; height: 100%; }
 
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+        /* TOP BAR (Timer) */
+        #top-bar {
+            position: absolute; top: 10px; width: 100%; display: flex; justify-content: center;
+            pointer-events: none;
+        }
+        #timer {
+            background: rgba(0,0,0,0.6); color: white; padding: 5px 15px;
+            border-radius: 20px; font-weight: bold; font-size: 20px; border: 2px solid #fff;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        /* GAME OVER SCREEN */
+        #game-over {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 1000;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #go-title {
+            font-size: 56px; font-weight: 900; margin-bottom: 10px;
+            text-transform: uppercase; text-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        #go-subtitle {
+            font-size: 20px; color: #ccc; margin-bottom: 30px; font-weight: bold;
+        }
+        #restart-btn {
+            padding: 15px 40px; font-size: 22px; font-weight: bold;
+            background: #2196f3; color: white; border: none; border-radius: 50px;
+            cursor: pointer; pointer-events: auto; box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
+            transition: transform 0.1s, background 0.2s;
+        }
+        #restart-btn:active { transform: scale(0.95); background: #1976d2; }
 
         /* DASHBOARD */
         #dashboard {
@@ -81,8 +114,20 @@
 
 <div id="game-frame">
     <canvas id="cvs" width="420" height="720"></canvas>
+    
     <div id="ui-layer">
+        <div id="top-bar">
+            <div id="timer">3:00</div>
+        </div>
+
         <div id="toast">Not Enough Elixir!</div>
+        
+        <div id="game-over">
+            <div id="go-title">VICTORY</div>
+            <div id="go-subtitle">Three Crowns!</div>
+            <button id="restart-btn" onclick="init()">Play Again</button>
+        </div>
+
         <div id="dashboard">
             <div id="elixir-wrapper">
                 <div id="elixir-bar"></div>
@@ -101,33 +146,37 @@
     const W = 420, H = 720;
     const RIVER_Y = H/2 - 40;
     const BRIDGE_L = 90, BRIDGE_R = W - 90;
-    const MAX_UNITS = 100; // Cap to prevent crash
+    const MAX_UNITS = 100;
+    const MATCH_TIME = 180; // 3 Minutes
 
     // --- CARDS ---
     const CARDS = {
-        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 90, speed: 50, range: 5, type: 'ground', target: 'ground', size: 12 },
-        'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 300, dmg: 60, speed: 60, range: 120, type: 'ground', target: 'any', count: 2, size: 10 },
-        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 140, speed: 30, range: 5, type: 'ground', target: 'building', size: 22 },
+        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 140, speed: 30, range: 5, type: 'ground', target: 'building', size: 24 },
+        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 400, speed: 35, range: 5, type: 'ground', target: 'ground', size: 20 },
         'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1000, dmg: 170, speed: 95, range: 5, type: 'ground', target: 'building', jump: true, size: 14 },
-        'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 650, dmg: 160, speed: 50, range: 160, type: 'ground', target: 'any', size: 12 },
-        'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 950, dmg: 110, speed: 65, range: 80, type: 'air', target: 'any', area: true, size: 15 },
-        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 180, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3, size: 8 },
-        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 50, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 4, size: 7 },
-        'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 750, dmg: 110, speed: 0, range: 140, type: 'building', target: 'ground', size: 20 },
-        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 3000, dmg: 400, speed: 35, range: 5, type: 'ground', target: 'ground', size: 20 },
-        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450 },
-        'zap':    { name: 'Zap', cost: 2, icon: '⚡', type: 'spell', radius: 60, dmg: 140 }
+        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 100, speed: 50, range: 5, type: 'ground', target: 'ground', size: 12 },
+        'valk':   { name: 'Valkyrie', cost: 4, icon: '🪓', hp: 1100, dmg: 120, speed: 50, range: 5, type: 'ground', target: 'ground', area: true, size: 14 },
+        'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 250, dmg: 60, speed: 60, range: 150, type: 'ground', target: 'any', count: 2, size: 10 },
+        'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 550, dmg: 150, speed: 50, range: 170, type: 'ground', target: 'any', size: 12 },
+        'wizard': { name: 'Wizard', cost: 5, icon: '🧙‍♂️', hp: 500, dmg: 130, speed: 50, range: 140, type: 'ground', target: 'any', area: true, size: 12 },
+        'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 100, speed: 65, range: 90, type: 'air', target: 'any', area: true, size: 15 },
+        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 160, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3, size: 8 },
+        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 50, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 5, size: 6 },
+        'goblin': { name: 'Goblins', cost: 2, icon: '👺', hp: 100, dmg: 60, speed: 90, range: 5, type: 'ground', target: 'ground', count: 3, size: 8 },
+        'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 700, dmg: 100, speed: 0, range: 140, type: 'building', target: 'ground', size: 20 },
+        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450 }
     };
     const ALL_KEYS = Object.keys(CARDS);
 
     // --- STATE ---
     let elixir = 5;
-    let enemyElixir = 5; // HIDDEN AI ELIXIR
-    let aiTimer = 2.0;   // AI Reaction time
-
+    let enemyElixir = 5;
     let entities = [];
     let particles = [];
     let lastTime = 0;
+    let spawnTimer = 4.0;
+    let gameTime = MATCH_TIME;
+    let gameOver = false;
     
     // Cycle Logic
     let deckQueue = [];
@@ -136,8 +185,24 @@
 
     // --- SETUP ---
     function init() {
+        // Reset State
+        entities = [];
+        particles = [];
+        elixir = 5;
+        enemyElixir = 5;
+        gameOver = false;
+        selectedIdx = null;
+        gameTime = MATCH_TIME;
+        lastTime = performance.now();
+        
+        // Hide Game Over
+        const goScreen = document.getElementById('game-over');
+        goScreen.style.opacity = 0;
+        goScreen.style.pointerEvents = 'none';
+
         // Init Deck
         deckQueue = [...ALL_KEYS].sort(() => Math.random() - 0.5);
+        hand = [];
         for(let i=0; i<4; i++) hand.push(deckQueue.shift());
         renderHand();
 
@@ -162,7 +227,7 @@
             el.className = 'card' + (idx === selectedIdx ? ' selected' : '');
             el.id = `card-${idx}`;
             el.innerHTML = `<div class="cost">${c.cost}</div><div class="icon">${c.icon}</div><div class="name">${c.name}</div>`;
-            el.onclick = () => { selectedIdx = idx; renderHand(); };
+            el.onclick = () => { if(!gameOver) { selectedIdx = idx; renderHand(); } };
             div.appendChild(el);
         });
     }
@@ -174,8 +239,37 @@
         renderHand();
     }
 
+    // --- GAME OVER LOGIC ---
+    function checkTimeWin() {
+        let playerTowers = entities.filter(e => e.isPlayer && (e.role==='tower'||e.role==='king')).length;
+        let enemyTowers = entities.filter(e => !e.isPlayer && (e.role==='tower'||e.role==='king')).length;
+        
+        if (playerTowers > enemyTowers) endGame('VICTORY', 'Time Expired!');
+        else if (enemyTowers > playerTowers) endGame('DEFEAT', 'Time Expired!');
+        else endGame('DRAW', 'Time Expired!');
+    }
+
+    function endGame(title, subtitle) {
+        if(gameOver) return;
+        gameOver = true;
+        const goScreen = document.getElementById('game-over');
+        const t = document.getElementById('go-title');
+        const s = document.getElementById('go-subtitle');
+        
+        t.innerText = title;
+        s.innerText = subtitle;
+        
+        goScreen.style.opacity = 1;
+        goScreen.style.pointerEvents = 'auto';
+        
+        if (title === "VICTORY") t.style.color = "#4caf50";
+        else if (title === "DEFEAT") t.style.color = "#f44336";
+        else t.style.color = "#fff";
+    }
+
     // --- INPUT ---
     cvs.addEventListener('pointerdown', e => {
+        if(gameOver) return;
         e.preventDefault();
         const rect = cvs.getBoundingClientRect();
         const scaleX = W / rect.width;
@@ -229,7 +323,7 @@
     }
 
     function castSpell(x, y, isPlayer, card) {
-        for(let i=0; i<12; i++) particles.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, life:0.6, color:card.icon==='⚡'?'cyan':'orange'});
+        for(let i=0; i<12; i++) particles.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, life:0.6, color:'orange'});
         entities.forEach(e => {
             if(e.isPlayer !== isPlayer && !e.remove && !(e instanceof DeployTimer)) {
                 if(safeDist(e.x-x, e.y-y) < card.radius) e.takeDamage(card.dmg);
@@ -244,8 +338,21 @@
 
     // --- LOOP ---
     function loop(now) {
+        if(gameOver) return;
+
         const dt = Math.min((now - lastTime) / 1000, 0.1);
         lastTime = now;
+
+        // Timer
+        gameTime -= dt;
+        if(gameTime <= 0) {
+            gameTime = 0;
+            checkTimeWin();
+        }
+        
+        let mins = Math.floor(gameTime/60);
+        let secs = Math.floor(gameTime%60);
+        document.getElementById('timer').innerText = `${mins}:${secs<10?'0':''}${secs}`;
 
         // Cleanup
         for(let i=entities.length-1; i>=0; i--) {
@@ -270,38 +377,24 @@
         });
 
         // --- SMART AI LOGIC ---
-        aiTimer -= dt;
-        if(aiTimer <= 0) {
-            // Pick a random card from full library
+        spawnTimer -= dt;
+        if(spawnTimer <= 0) {
             const rk = ALL_KEYS[Math.floor(Math.random() * ALL_KEYS.length)];
             const aiCard = CARDS[rk];
 
-            // AI MUST PAY ELIXIR
             if (enemyElixir >= aiCard.cost && entities.length < MAX_UNITS) {
-                
-                // Decide position
-                let spawnX, spawnY;
-                
                 if (aiCard.type === 'spell') {
-                    // Aim at player King
-                    spawnX = W/2; spawnY = 580; 
                     enemyElixir -= aiCard.cost;
-                    castSpell(spawnX, spawnY, false, aiCard);
+                    castSpell(W/2, 580, false, aiCard);
                 } else {
-                    // Pick random lane
                     const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                    spawnX = lane + (Math.random()-0.5)*30;
-                    spawnY = 100; // Top side
-
-                    enemyElixir -= aiCard.cost; // PAY COST
-                    spawnCardUnits(spawnX, spawnY, false, aiCard);
+                    const spawnX = lane + (Math.random()-0.5)*30;
+                    enemyElixir -= aiCard.cost; 
+                    spawnCardUnits(spawnX, 100, false, aiCard);
                 }
-
-                // AI "Think Time" Reset (2s - 4s)
-                aiTimer = 2.0 + Math.random() * 2.0; 
+                spawnTimer = 2.0 + Math.random() * 2.0; 
             } else {
-                // Not enough elixir? Check again shortly
-                aiTimer = 0.5;
+                spawnTimer = 0.5;
             }
         }
 
@@ -493,7 +586,7 @@
             this.hp -= n;
             if(this.hp <= 0) {
                 this.remove = true;
-                if(this.role === 'king') alert(this.isPlayer ? "DEFEAT" : "VICTORY");
+                if(this.role === 'king') endGame(!this.isPlayer ? "VICTORY" : "DEFEAT", "King Tower Destroyed!");
             }
         }
 
@@ -520,7 +613,7 @@
     class Tower extends Entity {
         constructor(x, y, isPlayer, isKing, card) {
             let stats = card ? card : (isKing ? {hp:3000,dmg:70,speed:0,range:150} : {hp:1800,dmg:70,speed:0,range:150});
-            super(x, y, isPlayer, 'tower', stats);
+            super(x, y, isPlayer, isKing ? 'king' : 'tower', stats);
             this.icon = card ? card.icon : (isKing ? '👑' : '🏰');
             this.type = 'building';
         }
