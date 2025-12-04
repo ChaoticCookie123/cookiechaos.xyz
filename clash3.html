@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Territory</title>
+    <title>Clash Clone - Extended</title>
     <style>
         /* --- CORE STYLES --- */
         body {
@@ -200,15 +200,24 @@
         'valk':   { name: 'Valkyrie', cost: 4, icon: '🪓', hp: 1200, dmg: 130, speed: 50, range: 40, type: 'ground', target: 'ground', area: true, size: 14, aiRole: 'splash' },
         'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 280, dmg: 70, speed: 60, range: 140, type: 'ground', target: 'any', count: 2, size: 10, aiRole: 'support' },
         'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 600, dmg: 160, speed: 50, range: 170, type: 'ground', target: 'any', size: 12, aiRole: 'support' },
-        'wizard': { name: 'Wizard', cost: 5, icon: '🧙‍♂️', hp: 500, dmg: 130, speed: 50, range: 140, type: 'ground', target: 'any', area: true, size: 12, aiRole: 'splash' },
+        'witch':  { name: 'Witch', cost: 5, icon: '🧙‍♀️', hp: 700, dmg: 70, speed: 45, range: 150, type: 'ground', target: 'any', area: true, size: 14, summon: 'skarmy_unit', aiRole: 'splash' },
+        'bats':   { name: 'Bats', cost: 2, icon: '🦇', hp: 60, dmg: 40, speed: 85, range: 30, type: 'air', target: 'any', count: 5, size: 7, aiRole: 'swarm' },
         'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 110, speed: 65, range: 90, type: 'air', target: 'any', area: true, size: 15, aiRole: 'splash' },
-        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 160, dmg: 50, speed: 80, range: 40, type: 'air', target: 'any', count: 3, size: 8, aiRole: 'dps' },
+        'minion': { name: 'Minions', cost: 3, icon: '👿', hp: 160, dmg: 50, speed: 80, range: 40, type: 'air', target: 'any', count: 3, size: 8, aiRole: 'dps' },
         'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 60, dmg: 35, speed: 70, range: 30, type: 'ground', target: 'ground', count: 5, size: 7, aiRole: 'swarm' },
+        'golem':  { name: 'Golem', cost: 8, icon: '🗿', hp: 4200, dmg: 200, speed: 20, range: 30, type: 'ground', target: 'building', size: 28, aiRole: 'tank' },
         'goblin': { name: 'Goblins', cost: 2, icon: '👺', hp: 100, dmg: 60, speed: 90, range: 30, type: 'ground', target: 'ground', count: 3, size: 8, aiRole: 'cycle' },
         'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 750, dmg: 110, speed: 0, range: 140, type: 'building', target: 'ground', size: 20, aiRole: 'building' },
-        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450, aiRole: 'spell' }
+        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450, aiRole: 'spell' },
+        'rocket': { name: 'Rocket', cost: 6, icon: '🚀', type: 'spell', radius: 45, dmg: 1100, aiRole: 'spell' },
+        'freeze': { name: 'Freeze', cost: 4, icon: '❄️', type: 'spell', radius: 100, duration: 4.0, aiRole: 'spell' },
+        'heal':   { name: 'Heal', cost: 3, icon: '💖', type: 'spell', radius: 85, heal: 600, aiRole: 'spell' }
     };
-    const DECK_KEYS = Object.keys(CARDS);
+    
+    // Internal card for Witch Summon
+    CARDS['skarmy_unit'] = { name: 'Skeleton', icon: '💀', hp: 60, dmg: 35, speed: 70, range: 30, type: 'ground', target: 'ground', size: 7 };
+
+    const DECK_KEYS = Object.keys(CARDS).filter(k => k !== 'skarmy_unit'); // Exclude internal units
 
     // --- GAME STATE ---
     let elixir = 5;
@@ -367,7 +376,6 @@
 
     function getValidEnemySpawnY(x) {
         let limit = RIVER_Y;
-        // Inverse logic: if PLAYER tower dead, enemy can spawn deeper (higher Y)
         if (x < W/2 && !pLeftT) limit = H - 180;
         if (x > W/2 && !pRightT) limit = H - 180;
         return limit;
@@ -412,20 +420,40 @@
     }
 
     function castSpell(x, y, isPlayer, card) {
-        for(let i=0; i<12; i++) {
+        let pColor = 'orange';
+        if (card.name === 'Freeze') pColor = 'cyan';
+        if (card.name === 'Heal') pColor = '#e91e63';
+
+        for(let i=0; i<15; i++) {
             particles.push({
-                x:x, y:y, vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, 
-                life:0.6, color: card.icon==='⚡' ? 'cyan' : 'orange'
+                x:x, y:y, vx:(Math.random()-0.5)*350, vy:(Math.random()-0.5)*350, 
+                life:0.6, color: pColor
             });
         }
+        
         entities.forEach(e => {
-            if(e.isPlayer !== isPlayer && !e.remove && !(e instanceof DeployTimer)) {
-                if(safeDist(e.x-x, e.y-y) < card.radius) e.takeDamage(card.dmg);
+            if(e.remove || e instanceof DeployTimer) return;
+            let dist = safeDist(e.x-x, e.y-y);
+            
+            if (card.name === 'Freeze') {
+                if (dist < card.radius && e.isPlayer !== isPlayer) {
+                    e.freezeTimer = card.duration;
+                }
+            } else if (card.name === 'Heal') {
+                if (dist < card.radius && e.isPlayer === isPlayer && e.role !== 'building' && e.role !== 'tower' && e.role !== 'king') {
+                    e.hp = Math.min(e.hp + card.heal, e.maxHp);
+                    for(let k=0; k<3; k++) particles.push({ x:e.x, y:e.y, vx:0, vy:-50, life:0.5, color: '#e91e63' });
+                }
+            } else {
+                // Damage Spells
+                if(e.isPlayer !== isPlayer) {
+                    if(dist < card.radius) e.takeDamage(card.dmg);
+                }
             }
         });
     }
 
-    // --- UPDATED AI LOGIC ---
+    // --- AI LOGIC ---
     function aiThink(dt) {
         aiTimer -= dt;
         if (aiTimer > 0) return;
@@ -451,14 +479,16 @@
                 enemyElixir -= CARDS[bestKey].cost;
                 const ox = (Math.random()-0.5)*50;
                 
-                // Defensive placement: Clamp to AI side
                 let spawnY = Math.min(getValidEnemySpawnY(threat.x), threat.y - 100); 
-                // Don't spawn behind King
                 if (spawnY < 120) spawnY = 120;
-                // If the threat is already deep, we must spawn back
                 if (threat.y < 200) spawnY = 100;
 
-                spawnCard(threat.x + ox, spawnY, false, CARDS[bestKey]);
+                const c = CARDS[bestKey];
+                if(c.type === 'spell') {
+                    castSpell(threat.x, threat.y, false, c);
+                } else {
+                    spawnCard(threat.x + ox, spawnY, false, c);
+                }
                 played = true;
             } else {
                 const cheap = affordableCards.filter(k => CARDS[k].type !== 'spell');
@@ -481,10 +511,7 @@
                     const key = attackers[Math.floor(Math.random() * attackers.length)];
                     enemyElixir -= CARDS[key].cost;
                     const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                    
-                    // Offensive placement: Use extended territory if available
                     let maxY = getValidEnemySpawnY(lane) - 30;
-                    
                     spawnCard(lane, maxY, false, CARDS[key]);
                     played = true;
                 }
@@ -616,8 +643,8 @@
                     let dx = (e1.x-e2.x)/dist; 
                     let dy = (e1.y-e2.y)/dist;
                     let force = overlap * 0.1;
-                    if(e1.speed > 0) { e1.x += dx*force; e1.y += dy*force; }
-                    if(e2.speed > 0) { e2.x -= dx*force; e2.y -= dy*force; }
+                    if(e1.speed > 0 && e1.freezeTimer<=0) { e1.x += dx*force; e1.y += dy*force; }
+                    if(e2.speed > 0 && e2.freezeTimer<=0) { e2.x -= dx*force; e2.y -= dy*force; }
                 }
             }
         }
@@ -647,7 +674,6 @@
         ctx.stroke();
         ctx.setLineDash([]);
         
-        // DEBUG: Draw enemy boundary line (faint red)
         ctx.strokeStyle = 'rgba(255,100,100,0.2)';
         let ely = (!pLeftT) ? H-180 : RIVER_Y;
         let ery = (!pRightT) ? H-180 : RIVER_Y;
@@ -656,7 +682,6 @@
         if (ely !== ery) ctx.lineTo(W/2, ery);
         ctx.lineTo(W/2, ery); ctx.lineTo(W, ery);
         ctx.stroke();
-
 
         entities.forEach(e => e.draw(ctx));
         particles.forEach(p => {
@@ -693,6 +718,8 @@
         constructor(x, y, isPlayer, role, stats) {
             this.x = x; this.y = y; this.isPlayer = isPlayer; this.role = role;
             this.remove = false;
+            this.freezeTimer = 0;
+            this.card = stats;
             
             if (role === 'unit' || role === 'building') { 
                 this.hp = stats.hp; this.maxHp = stats.hp;
@@ -702,6 +729,7 @@
                 this.targetPref = stats.target;
                 this.flying = (stats.type === 'air'); this.area = stats.area || false;
                 this.jump = stats.jump || false; this.radius = stats.size || 12; 
+                if(stats.summon) this.summonTimer = 5.0; // Witches summon every 5s
             } else { 
                 this.hp = role==='king'?3500:2000; this.maxHp = this.hp;
                 this.dmg = 90; this.speed = 0; this.range = 150;
@@ -714,7 +742,23 @@
         }
 
         update(dt) {
+            if (this.freezeTimer > 0) {
+                this.freezeTimer -= dt;
+                return; // Frozen units do nothing
+            }
+
             if(this.cooldown > 0) this.cooldown -= dt;
+            if(this.summonTimer > 0) {
+                this.summonTimer -= dt;
+                if(this.summonTimer <= 0 && this.card.summon) {
+                    this.summonTimer = 6.0;
+                    for(let i=0; i<3; i++) {
+                        let ox = (Math.random()-0.5)*30; let oy = (Math.random()-0.5)*30;
+                        spawnEntity(new Entity(this.x+ox, this.y+oy, this.isPlayer, 'unit', CARDS[this.card.summon]));
+                        particles.push({x:this.x, y:this.y, vx:0, vy:-20, life:0.5, color:'#b39ddb'});
+                    }
+                }
+            }
 
             let target = null;
             let minD = 300; 
@@ -795,6 +839,12 @@
             let sy = this.flying ? this.y+20 : this.y;
             ctx.beginPath(); ctx.arc(this.x, sy, this.radius, 0, Math.PI*2); ctx.fill();
 
+            // Frozen effect
+            if(this.freezeTimer > 0) {
+                ctx.fillStyle = 'rgba(0,255,255,0.4)';
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius+5, 0, Math.PI*2); ctx.fill();
+            }
+
             let fs = Math.max(16, this.radius * 2);
             ctx.font = fs + 'px Arial';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -863,3 +913,4 @@
     initGame();
 </script>
 </body>
+</html>
