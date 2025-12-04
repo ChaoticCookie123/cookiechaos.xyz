@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Tactical</title>
+    <title>Clash Clone - Crown Update</title>
     <style>
         /* STYLES */
         body {
@@ -23,7 +23,7 @@
 
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
-        /* UI ELEMENTS */
+        /* TOP BAR */
         #top-bar {
             position: absolute; top: 10px; width: 100%; display: flex; justify-content: center;
             pointer-events: none; z-index: 10;
@@ -34,6 +34,7 @@
             text-shadow: 1px 1px 2px black;
         }
 
+        /* DASHBOARD */
         #dashboard {
             position: absolute; bottom: 0; width: 100%; height: 160px;
             background: linear-gradient(to top, #263238, #37474f);
@@ -79,17 +80,26 @@
         .icon { font-size: 38px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
         .name { font-size: 9px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
 
+        /* GAME OVER SCREEN */
         #game-over {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
+            background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
             justify-content: center; align-items: center; z-index: 100;
             opacity: 0; pointer-events: none; transition: opacity 0.3s;
         }
         #go-title {
-            font-size: 50px; font-weight: 900; margin-bottom: 10px;
+            font-size: 56px; font-weight: 900; margin-bottom: 5px;
             text-transform: uppercase; text-shadow: 0 0 20px rgba(0,0,0,0.8);
         }
-        #go-sub { font-size: 18px; color: #eee; margin-bottom: 30px; font-weight: bold; }
+        #go-score {
+            font-size: 60px; font-weight: bold; margin: 10px 0;
+            text-shadow: 0 4px 10px black;
+        }
+        .blue-score { color: #4fc3f7; }
+        .red-score { color: #ff5252; }
+        
+        #go-sub { font-size: 18px; color: #ccc; margin-bottom: 30px; font-weight: bold; }
+        
         #restart-btn {
             padding: 15px 40px; font-size: 22px; font-weight: bold;
             background: #2196f3; color: white; border: none; border-radius: 50px;
@@ -118,6 +128,9 @@
         
         <div id="game-over">
             <div id="go-title">VICTORY</div>
+            <div id="go-score">
+                <span class="blue-score">3</span> - <span class="red-score">0</span>
+            </div>
             <div id="go-sub">Match Complete</div>
             <button id="restart-btn" onclick="initGame()">Play Again</button>
         </div>
@@ -145,7 +158,7 @@
     const MAX_UNITS = 120; 
     const MATCH_TIME = 180;
 
-    // --- CARD DATA (Added AI Roles) ---
+    // --- CARD DATA ---
     const CARDS = {
         'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 150, speed: 30, range: 5, type: 'ground', target: 'building', size: 24, aiRole: 'tank' },
         'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 450, speed: 35, range: 5, type: 'ground', target: 'ground', size: 20, aiRole: 'killer' },
@@ -154,12 +167,13 @@
         'valk':   { name: 'Valkyrie', cost: 4, icon: '🪓', hp: 1200, dmg: 130, speed: 50, range: 5, type: 'ground', target: 'ground', area: true, size: 14, aiRole: 'splash' },
         'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 280, dmg: 70, speed: 60, range: 140, type: 'ground', target: 'any', count: 2, size: 10, aiRole: 'support' },
         'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 600, dmg: 160, speed: 50, range: 170, type: 'ground', target: 'any', size: 12, aiRole: 'support' },
+        'wizard': { name: 'Wizard', cost: 5, icon: '🧙‍♂️', hp: 500, dmg: 130, speed: 50, range: 140, type: 'ground', target: 'any', area: true, size: 12, aiRole: 'splash' },
         'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 110, speed: 65, range: 90, type: 'air', target: 'any', area: true, size: 15, aiRole: 'splash' },
         'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 160, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3, size: 8, aiRole: 'dps' },
         'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 60, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 5, size: 7, aiRole: 'swarm' },
+        'goblin': { name: 'Goblins', cost: 2, icon: '👺', hp: 100, dmg: 60, speed: 90, range: 5, type: 'ground', target: 'ground', count: 3, size: 8, aiRole: 'cycle' },
         'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 750, dmg: 110, speed: 0, range: 140, type: 'building', target: 'ground', size: 20, aiRole: 'building' },
-        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450, aiRole: 'spell' },
-        'zap':    { name: 'Zap', cost: 2, icon: '⚡', type: 'spell', radius: 60, dmg: 120, aiRole: 'spell' }
+        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450, aiRole: 'spell' }
     };
     const DECK_KEYS = Object.keys(CARDS);
 
@@ -173,7 +187,11 @@
     let gameTime = MATCH_TIME;
     let gameOver = false;
     
-    // Tower Status (For Expansion)
+    // Scores
+    let playerCrowns = 0;
+    let enemyCrowns = 0;
+
+    // Tower Status
     let leftEnemyDead = false;
     let rightEnemyDead = false;
 
@@ -188,24 +206,23 @@
         elixir = 5; enemyElixir = 5;
         gameOver = false; selectedIdx = null;
         gameTime = MATCH_TIME;
-        lastTime = performance.now();
+        playerCrowns = 0; enemyCrowns = 0;
         leftEnemyDead = false; rightEnemyDead = false;
+        lastTime = performance.now();
         
         document.getElementById('game-over').style.opacity = 0;
         document.getElementById('game-over').style.pointerEvents = 'none';
 
-        // Deck
         deckQueue = [...DECK_KEYS].sort(() => Math.random() - 0.5);
         hand = [];
         for(let i=0; i<4; i++) hand.push(deckQueue.shift());
         renderHand();
 
         // Towers
-        // Player
         spawnEntity(new Entity(90, 520, true, 'tower'));
         spawnEntity(new Entity(W-90, 520, true, 'tower'));
         spawnEntity(new Entity(W/2, 580, true, 'king'));
-        // Enemy
+        
         spawnEntity(new Entity(90, 120, false, 'tower'));
         spawnEntity(new Entity(W-90, 120, false, 'tower'));
         spawnEntity(new Entity(W/2, 60, false, 'king'));
@@ -234,17 +251,11 @@
         renderHand();
     }
 
-    // --- INPUT & PLACEMENT LOGIC ---
+    // --- INPUT ---
     function getValidSpawnY(x) {
-        // Default river limit
         let limit = RIVER_Y; 
-        
-        // Expansion Logic: If tower is dead, allow placement up to 180px
-        // Left Side
         if (x < W/2 && leftEnemyDead) limit = 180;
-        // Right Side
         if (x > W/2 && rightEnemyDead) limit = 180;
-
         return limit;
     }
 
@@ -252,8 +263,10 @@
         if(gameOver) return;
         e.preventDefault();
         const rect = cvs.getBoundingClientRect();
-        const x = (e.clientX - rect.left) * (W / rect.width);
-        const y = (e.clientY - rect.top) * (H / rect.height);
+        const scaleX = W / rect.width;
+        const scaleY = H / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
 
         if (selectedIdx === null) { showToast("Select a Card!"); return; }
         
@@ -262,7 +275,6 @@
 
         if (elixir < card.cost) { showToast("Not Enough Elixir!"); return; }
         
-        // Placement Check
         if (card.type !== 'spell') {
             const validY = getValidSpawnY(x);
             if (y < validY) { showToast("Enemy Territory!"); return; }
@@ -270,7 +282,6 @@
 
         if (entities.length >= MAX_UNITS) { showToast("Too many units!"); return; }
 
-        // Play
         elixir -= card.cost;
         if (card.type === 'spell') {
             castSpell(x, y, true, card);
@@ -318,38 +329,31 @@
         });
     }
 
-    // --- SMART AI ENGINE ---
+    // --- AI LOGIC ---
     function aiThink(dt) {
         aiTimer -= dt;
         if (aiTimer > 0) return;
 
-        // 1. Analyze Threats (Player units on AI side)
         const threats = entities.filter(e => e.isPlayer && e.y < RIVER_Y + 100 && !e.remove && !(e instanceof DeployTimer));
-        
         let played = false;
 
-        // DEFENSIVE MODE: If threat exists
         if (threats.length > 0) {
-            const threat = threats[0]; // Pick closest
-            // Simple Counter Logic
+            const threat = threats[0];
             let counterRole = 'defense';
-            if (threat.hp < 200) counterRole = 'splash'; // Swarm? Splash it
-            else if (threat.hp > 1500) counterRole = 'swarm'; // Tank? Swarm it
+            if (threat.hp < 200) counterRole = 'splash'; 
+            else if (threat.hp > 1500) counterRole = 'swarm';
 
-            // Find matching card
             const bestCardKey = DECK_KEYS.find(k => {
                 const c = CARDS[k];
                 return c.aiRole === counterRole && c.cost <= enemyElixir;
             });
 
             if (bestCardKey) {
-                // Play Defense between threat and tower
                 const c = CARDS[bestCardKey];
                 enemyElixir -= c.cost;
                 spawnCard(threat.x, 150, false, c);
                 played = true;
             } else {
-                // Panic: Play anything affordable
                 const cheapKey = DECK_KEYS.find(k => CARDS[k].cost <= enemyElixir && CARDS[k].type !== 'spell');
                 if (cheapKey) {
                     enemyElixir -= CARDS[cheapKey].cost;
@@ -357,21 +361,16 @@
                     played = true;
                 }
             }
-        } 
-        // OFFENSIVE MODE: Full Elixir
-        else if (enemyElixir > 9) {
-            // Find a Tank or Wincon
+        } else if (enemyElixir > 9) {
             const wincon = DECK_KEYS.find(k => (CARDS[k].aiRole === 'tank' || CARDS[k].aiRole === 'wincon') && CARDS[k].cost <= enemyElixir);
             if (wincon) {
                 const c = CARDS[wincon];
                 const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
                 enemyElixir -= c.cost;
-                spawnCard(lane, 100, false, c); // Play in back
+                spawnCard(lane, 100, false, c);
                 played = true;
             }
         }
-
-        // Reset Timer
         aiTimer = played ? (2.0 + Math.random()) : 0.5;
     }
 
@@ -382,19 +381,19 @@
             const dt = Math.min((now - lastTime) / 1000, 0.1);
             lastTime = now;
 
-            // Time & Elixir
+            // Time
             gameTime -= dt;
-            if(gameTime <= 0) checkTimeWin();
+            if(gameTime <= 0) endGame();
             let mins = Math.floor(gameTime/60);
             let secs = Math.floor(gameTime%60);
             document.getElementById('timer').innerText = `${mins}:${secs<10?'0':''}${secs}`;
 
+            // Elixir
             if(elixir < 10) elixir += 0.5 * dt;
-            if(enemyElixir < 10) enemyElixir += 0.5 * dt; // AI Regen
-
-            // UI
+            if(enemyElixir < 10) enemyElixir += 0.5 * dt;
             document.getElementById('elixir-bar').style.width = (elixir*10) + '%';
             document.getElementById('elixir-text').innerText = Math.floor(elixir);
+            
             hand.forEach((k, i) => {
                 let el = document.getElementById(`card-${i}`);
                 if(el) {
@@ -403,33 +402,29 @@
                 }
             });
 
-            // AI
             aiThink(dt);
 
-            // Cleanup & Tower Check
+            // Cleanup & Map Logic
             let eLeft = false, eRight = false;
             for(let i=entities.length-1; i>=0; i--) {
                 let e = entities[i];
                 if(e.remove || isNaN(e.x)) {
                     entities.splice(i, 1);
                 } else {
-                    // Check if towers exist
                     if (!e.isPlayer && e.role === 'tower') {
                         if (e.x < W/2) eLeft = true;
                         else eRight = true;
                     }
                 }
             }
-            // If towers missing, mark dead (for map expansion)
             leftEnemyDead = !eLeft;
             rightEnemyDead = !eRight;
 
-            // Physics
+            // Physics & Update
             resolveCollisions();
             entities.sort((a,b) => a.y - b.y);
             for(let i=0; i<entities.length; i++) entities[i].update(dt);
 
-            // Particles
             for(let i=particles.length-1; i>=0; i--) {
                 let p = particles[i];
                 p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt;
@@ -438,47 +433,59 @@
 
             draw();
         } catch(e) { console.error(e); }
-        
         requestAnimationFrame(loop);
     }
 
-    function checkTimeWin() {
-        let pScore = entities.filter(e => e.isPlayer && (e.role==='tower'||e.role==='king')).length;
-        let eScore = entities.filter(e => !e.isPlayer && (e.role==='tower'||e.role==='king')).length;
-        if(pScore > eScore) endGame(true, "Time Limit Reached!");
-        else if(eScore > pScore) endGame(false, "Time Limit Reached!");
-        else endGame(false, "Draw!");
-    }
-
-    function endGame(won, msg) {
+    function endGame(kingsDead = false) {
         gameOver = true;
-        document.getElementById('game-over').style.opacity = 1;
-        document.getElementById('game-over').style.pointerEvents = 'auto';
-        document.getElementById('go-title').innerText = won ? "VICTORY" : "DEFEAT";
-        document.getElementById('go-title').style.color = won ? "#4caf50" : "#f44336";
-        document.getElementById('go-sub').innerText = msg;
+        const go = document.getElementById('game-over');
+        const title = document.getElementById('go-title');
+        const score = document.getElementById('go-score');
+        
+        go.style.opacity = 1; go.style.pointerEvents = 'auto';
+        
+        // Final Score Calculation
+        if (kingsDead) {
+            // Already set by takeDamage
+        } else {
+            // Calculate remaining towers
+            // We count DESTROYED towers for crowns.
+            // 3 starting towers per side.
+            let pTowersAlive = entities.filter(e => e.isPlayer && (e.role==='tower'||e.role==='king')).length;
+            let eTowersAlive = entities.filter(e => !e.isPlayer && (e.role==='tower'||e.role==='king')).length;
+            enemyCrowns = 3 - pTowersAlive;
+            playerCrowns = 3 - eTowersAlive;
+        }
+
+        score.innerHTML = `<span class="blue-score">👑 ${playerCrowns}</span> - <span class="red-score">${enemyCrowns} 👑</span>`;
+
+        if (playerCrowns > enemyCrowns) {
+            title.innerText = "VICTORY";
+            title.style.color = "#4caf50";
+        } else if (enemyCrowns > playerCrowns) {
+            title.innerText = "DEFEAT";
+            title.style.color = "#f44336";
+        } else {
+            title.innerText = "DRAW";
+            title.style.color = "#fff";
+        }
     }
 
     function resolveCollisions() {
-        // Cap collisions to prevent freeze
-        const checkLimit = 200; 
-        let checks = 0;
-
+        const checkLimit = 200; let checks = 0;
         for(let i=0; i<entities.length; i++) {
             let e1 = entities[i];
             if(e1 instanceof DeployTimer || e1 instanceof Projectile) continue;
             if(Math.abs(e1.y - RIVER_Y) < 55) continue;
 
             for(let j=i+1; j<entities.length; j++) {
-                if (checks++ > checkLimit) break; // Safety break
-
+                if (checks++ > checkLimit) break;
                 let e2 = entities[j];
                 if(e2 instanceof DeployTimer || e2 instanceof Projectile) continue;
                 if(e1.flying !== e2.flying) continue;
 
                 let dist = safeDist(e1.x-e2.x, e1.y-e2.y);
                 let min = e1.radius + e2.radius; 
-                
                 if(dist < min) {
                     let overlap = min - dist;
                     let dx = (e1.x-e2.x)/dist; 
@@ -496,7 +503,6 @@
         return d < 0.1 ? 0.1 : d;
     }
 
-    // --- DRAW ---
     function draw() {
         ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,H);
         ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, W, 35);
@@ -505,23 +511,16 @@
         ctx.fillRect(BRIDGE_L-20, RIVER_Y-12, 40, 58);
         ctx.fillRect(BRIDGE_R-20, RIVER_Y-12, 40, 58);
         
-        // Draw Valid Zone Line (Dynamic)
+        // Draw Valid Zone
         ctx.strokeStyle = 'rgba(255,255,255,0.3)';
         ctx.setLineDash([10,10]);
         ctx.lineWidth = 2;
-        
-        // Calculate dynamic boundary
         let ly = leftEnemyDead ? 180 : RIVER_Y+40;
         let ry = rightEnemyDead ? 180 : RIVER_Y+40;
-        
         ctx.beginPath();
-        // Left Side
         ctx.moveTo(0, ly); ctx.lineTo(W/2, ly);
-        // Vertical connector if uneven
         if (ly !== ry) ctx.lineTo(W/2, ry);
-        // Right Side
         ctx.lineTo(W/2, ry); ctx.lineTo(W, ry);
-        
         ctx.stroke();
         ctx.setLineDash([]);
 
@@ -615,7 +614,6 @@
             if(this.speed === 0) return;
             let dx = tx - this.x; let dy = ty - this.y;
             
-            // Bridge
             if(this.targetType === 'ground' && !this.jump) {
                 let rDist = Math.abs(this.y - RIVER_Y);
                 if(rDist < 50 && ((this.isPlayer && this.y > RIVER_Y) || (!this.isPlayer && this.y < RIVER_Y))) {
@@ -645,7 +643,16 @@
             this.hp -= n;
             if(this.hp <= 0) {
                 this.remove = true;
-                if(this.role === 'king') endGame(!this.isPlayer, "King Tower Destroyed!");
+                // Count Crown immediately on tower death
+                if (this.role === 'tower') {
+                    if (this.isPlayer) enemyCrowns++;
+                    else playerCrowns++;
+                }
+                else if (this.role === 'king') {
+                    if (this.isPlayer) enemyCrowns = 3;
+                    else playerCrowns = 3;
+                    endGame(true); // Trigger instant win/loss
+                }
             }
         }
 
@@ -686,7 +693,6 @@
         update(dt) {
             this.life -= dt;
             if(this.target.remove || this.life <= 0) { this.remove = true; return; }
-            
             let dx = this.target.x - this.x; let dy = (this.target.y-10) - this.y;
             let d = safeDist(dx, dy);
             
