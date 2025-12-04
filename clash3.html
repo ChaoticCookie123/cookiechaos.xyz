@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Drag & Drop</title>
+    <title>Clash Clone - Fixed Wizard</title>
     <style>
         /* --- CORE STYLES --- */
         body {
@@ -74,7 +74,7 @@
             border-radius: 8px; position: relative; cursor: grab; transition: transform 0.1s;
             display: flex; flex-direction: column; align-items: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.5);
-            touch-action: none; /* Critical for Drag Drop */
+            touch-action: none;
         }
         .card:active { cursor: grabbing; }
         .card.selected {
@@ -754,7 +754,8 @@
                 this.x += Math.cos(a)*3; this.y += Math.sin(a)*3;
             }
             if(this.range > 30) {
-                spawnEntity(new Projectile(this.x, this.y-10, t, this.dmg, this.area));
+                // PASS THIS.ISPLAYER (THE OWNER) TO THE PROJECTILE
+                spawnEntity(new Projectile(this.x, this.y-10, t, this.dmg, this.area, this.isPlayer));
             } else {
                 t.takeDamage(this.dmg);
             }
@@ -789,17 +790,16 @@
     }
 
     class Projectile {
-        constructor(x, y, t, dmg, area) {
+        constructor(x, y, t, dmg, area, ownerIsPlayer) {
             this.x = x; this.y = y; this.target = t; this.dmg = dmg; this.area = area;
+            this.ownerIsPlayer = ownerIsPlayer; // STORE WHO FIRED IT
             this.speed = 350; this.remove = false; this.life = 2.0;
-            // Store target last pos in case it dies
             this.tx = t.x; this.ty = t.y - 10;
         }
         update(dt) {
             this.life -= dt;
             if(this.life <= 0) { this.remove = true; return; }
 
-            // Update target pos if alive
             if (!this.target.remove) {
                 this.tx = this.target.x;
                 this.ty = this.target.y - 10;
@@ -808,20 +808,17 @@
             let dx = this.tx - this.x; let dy = this.ty - this.y;
             let d = safeDist(dx, dy);
             
-            // Reached destination or hit target
             if(d < 10) {
                 this.remove = true; 
                 if(this.area) {
-                    // Splash Logic: Check all entities near explosion point
                     entities.forEach(e => {
-                        if(e.isPlayer !== this.target.isPlayer && !e.remove && !(e instanceof DeployTimer)) {
-                            // Splash radius 60
+                        // FIX: CHECK IF TARGET IS NOT ON THE SAME TEAM AS THE SHOOTER
+                        if(e.isPlayer !== this.ownerIsPlayer && !e.remove && !(e instanceof DeployTimer)) {
                             if(safeDist(e.x - this.x, e.y - this.y) < 60) {
                                 e.takeDamage(this.dmg);
                             }
                         }
                     });
-                    // Explosion Effect
                     for(let i=0; i<6; i++) {
                         particles.push({
                             x:this.x, y:this.y, 
