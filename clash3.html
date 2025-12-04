@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Wizard Fixed</title>
+    <title>Clash Clone - Fixed Giants</title>
     <style>
         /* --- CORE STYLES --- */
         body {
@@ -666,14 +666,22 @@
                 this.hp = stats.hp; this.maxHp = stats.hp;
                 this.dmg = stats.dmg; this.speed = stats.speed;
                 this.range = stats.range; this.icon = stats.icon;
-                this.targetType = stats.type; this.targetPref = stats.target;
+                
+                // FIX: Renamed this.targetType to this.type
+                this.type = stats.type; 
+                this.targetPref = stats.target;
+                
                 this.flying = (stats.type === 'air'); this.area = stats.area || false;
                 this.jump = stats.jump || false; this.radius = stats.size || 12; 
             } else { 
                 this.hp = role==='king'?3500:2000; this.maxHp = this.hp;
                 this.dmg = 90; this.speed = 0; this.range = 150;
                 this.icon = role==='king'?'👑':'🏰';
-                this.targetType = 'building'; this.targetPref = 'any';
+                
+                // FIX: Explicitly set type to 'building' for towers
+                this.type = 'building';
+                this.targetPref = 'any';
+                
                 this.radius = 25;
             }
             this.cooldown = 0;
@@ -688,8 +696,11 @@
             for(let e of entities) {
                 if(e === this || e.isPlayer === this.isPlayer || e.remove || e instanceof DeployTimer || e instanceof Projectile) continue;
                 if(this.targetPref === 'building' && (e.role === 'unit')) continue; 
+                
+                // FIX: Used e.type which is now correctly set
                 if(this.targetPref === 'building' && e.type !== 'building') continue; 
 
+                // FIX: Used e.type which is now correctly set
                 if(this.targetPref === 'ground' && e.type === 'air') continue;
                 
                 let d = safeDist(e.x-this.x, e.y-this.y);
@@ -725,7 +736,8 @@
             if(this.speed === 0) return;
             let dx = tx - this.x; let dy = ty - this.y;
             
-            if(this.targetType === 'ground' && !this.jump) {
+            // FIX: Use this.type instead of this.targetType
+            if(this.type === 'ground' && !this.jump) {
                 let rDist = Math.abs(this.y - RIVER_Y);
                 if(rDist < 50 && ((this.isPlayer && this.y > RIVER_Y) || (!this.isPlayer && this.y < RIVER_Y))) {
                     let bx = Math.abs(this.x - BRIDGE_L) < Math.abs(this.x - BRIDGE_R) ? BRIDGE_L : BRIDGE_R;
@@ -800,7 +812,6 @@
                 this.remove = true; 
                 if(this.area) {
                     entities.forEach(e => {
-                        // FIX: Ensure target is an Entity (Unit/Tower) AND is an enemy
                         if(e instanceof Entity && e.isPlayer !== this.ownerIsPlayer && !e.remove) {
                             if(safeDist(e.x - this.x, e.y - this.y) < 70) {
                                 e.takeDamage(this.dmg);
