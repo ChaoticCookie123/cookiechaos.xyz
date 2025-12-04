@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Fixed</title>
+    <title>Clash Clone - AI Upgrade</title>
     <style>
         /* --- CORE STYLES --- */
         body {
@@ -176,7 +176,7 @@
     const W = 420, H = 720;
     const RIVER_Y = H/2 - 40;
     const BRIDGE_L = 90, BRIDGE_R = W - 90;
-    const MAX_UNITS = 200; // Increased to prevent locks
+    const MAX_UNITS = 200; // Keep this high to prevent spawn lock
     const MATCH_TIME = 180;
 
     // --- CARDS ---
@@ -209,10 +209,10 @@
     let gameOver = false;
     let leftEnemyDead = false, rightEnemyDead = false;
     
-    // **FIX: Added global tower variables**
+    // Global Tower States (Pathfinding Fix)
     let pLeftT = true, pRightT = true;
     let eLeftT = true, eRightT = true;
-    
+
     let deckQueue = [], hand = [];
     let selectedIdx = null;
 
@@ -224,7 +224,6 @@
         gameTime = MATCH_TIME;
         leftEnemyDead = false; rightEnemyDead = false;
         
-        // Reset tower states
         pLeftT = true; pRightT = true;
         eLeftT = true; eRightT = true;
 
@@ -349,49 +348,87 @@
         });
     }
 
-    // --- AI LOGIC ---
+    // --- UPDATED AI LOGIC ---
     function aiThink(dt) {
         aiTimer -= dt;
         if (aiTimer > 0) return;
 
-        const threats = entities.filter(e => e.isPlayer && e.y < RIVER_Y + 100 && !e.remove && !(e instanceof DeployTimer));
+        // 1. Check for threats
+        const threats = entities.filter(e => e.isPlayer && e.y < RIVER_Y + 120 && !e.remove && !(e instanceof DeployTimer));
         let played = false;
 
         if (threats.length > 0) {
-            const threat = threats[0];
-            let counterRole = 'defense';
-            if (threat.hp < 200) counterRole = 'splash'; 
-            else if (threat.hp > 1500) counterRole = 'swarm';
+            // DEFENSE: Pick a random threat
+            threats.sort((a,b) => a.y - b.y);
+            const threat = threats[0]; // Most advanced threat
 
-            const bestCardKey = DECK_KEYS.find(k => {
+            // Build list of valid counters
+            const candidates = DECK_KEYS.filter(k => {
                 const c = CARDS[k];
-                return c.aiRole === counterRole && c.cost <= enemyElixir;
+                if (c.cost > enemyElixir) return false;
+                
+                // If threat is flying, we need air targeting
+                if (threat.flying) {
+                    if (c.target === 'ground' && c.type !== 'spell') return false;
+                }
+                
+                // If threat is swarm, prefer splash (but allow others for variety)
+                if ((threat.count && threat.count > 1) || threat.hp < 200) {
+                     // Prefer splash, but 30% chance to just pick any cheap DPS
+                     if (!c.area && Math.random() > 0.3) return false;
+                }
+
+                // If threat is tank, prefer killers/swarms
+                if (threat.hp > 1200) {
+                    if (c.aiRole !== 'killer' && c.aiRole !== 'swarm' && Math.random() > 0.2) return false;
+                }
+
+                return true;
             });
 
-            if (bestCardKey) {
-                const c = CARDS[bestCardKey];
-                enemyElixir -= c.cost;
-                spawnCard(threat.x, 150, false, c);
+            if (candidates.length > 0) {
+                // Randomly pick one of the valid counters
+                const bestKey = candidates[Math.floor(Math.random() * candidates.length)];
+                enemyElixir -= CARDS[bestKey].cost;
+                // Vary spawn position slightly
+                const ox = (Math.random()-0.5)*50;
+                spawnCard(threat.x + ox, 180, false, CARDS[bestKey]);
                 played = true;
             } else {
-                const cheapKey = DECK_KEYS.find(k => CARDS[k].cost <= enemyElixir && CARDS[k].type !== 'spell');
-                if (cheapKey) {
-                    enemyElixir -= CARDS[cheapKey].cost;
-                    spawnCard(threat.x, 150, false, CARDS[cheapKey]);
+                // No perfect counter? Panic play cheap card
+                const cheap = DECK_KEYS.filter(k => CARDS[k].cost <= enemyElixir && CARDS[k].type !== 'spell');
+                if (cheap.length > 0) {
+                    const k = cheap[Math.floor(Math.random()*cheap.length)];
+                    enemyElixir -= CARDS[k].cost;
+                    spawnCard(threat.x, 180, false, CARDS[k]);
                     played = true;
                 }
             }
-        } else if (enemyElixir > 9) {
-            const wincon = DECK_KEYS.find(k => (CARDS[k].aiRole === 'tank' || CARDS[k].aiRole === 'wincon') && CARDS[k].cost <= enemyElixir);
-            if (wincon) {
-                const c = CARDS[wincon];
-                const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                enemyElixir -= c.cost;
-                spawnCard(lane, 100, false, c);
-                played = true;
+        } 
+        
+        // OFFENSE: If no immediate threat, maybe attack?
+        if (!played) {
+            // High elixir OR random aggression (10% chance if elixir > 4)
+            if (enemyElixir > 9 || (enemyElixir > 4 && Math.random() < 0.1)) {
+                // Look for offensive cards
+                const attackers = DECK_KEYS.filter(k => {
+                    const c = CARDS[k];
+                    return (c.aiRole === 'tank' || c.aiRole === 'wincon' || c.aiRole === 'cycle' || c.aiRole === 'swarm') && c.cost <= enemyElixir;
+                });
+
+                if (attackers.length > 0) {
+                    const key = attackers[Math.floor(Math.random() * attackers.length)];
+                    const c = CARDS[key];
+                    const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
+                    enemyElixir -= c.cost;
+                    spawnCard(lane, 110, false, c);
+                    played = true;
+                }
             }
         }
-        aiTimer = played ? (2.0 + Math.random()) : 0.5;
+        
+        // Randomize thinking speed
+        aiTimer = played ? (1.5 + Math.random() * 2.0) : 0.6;
     }
 
     // --- MAIN LOOP ---
@@ -422,7 +459,7 @@
 
             aiThink(dt);
 
-            // **FIX: Reset Tower Flags**
+            // Updated Pathfinding Logic
             let eLeft = false, eRight = false;
             let pTowers = 0, eTowers = 0;
             pLeftT = false; pRightT = false;
@@ -436,11 +473,9 @@
                     if (e.role === 'tower') {
                         if (e.isPlayer) {
                             pTowers++;
-                            // **FIX: Update global player tower flags**
                             if(e.x < W/2) pLeftT = true; else pRightT = true;
                         } else {
                             eTowers++;
-                            // **FIX: Update global enemy tower flags**
                             if (e.x < W/2) { eLeft = true; eLeftT = true; } 
                             else { eRight = true; eRightT = true; }
                         }
@@ -455,7 +490,6 @@
             resolveCollisions();
             entities.sort((a,b) => a.y - b.y);
             
-            // Now that global tower vars are set, Update is safe
             for(let i=0; i<entities.length; i++) entities[i].update(dt);
 
             for(let i=particles.length-1; i>=0; i--) {
@@ -478,7 +512,7 @@
         gameOver = true;
         const go = document.getElementById('game-over');
         const banner = document.getElementById('go-banner');
-        go.classList.add('active'); // Use CSS class for pointer events
+        go.classList.add('active'); 
 
         let pKingAlive = entities.some(e => e.isPlayer && e.role === 'king' && !e.remove);
         let eKingAlive = entities.some(e => !e.isPlayer && e.role === 'king' && !e.remove);
@@ -491,7 +525,6 @@
         if (!pKingAlive) eCrowns = 3; else eCrowns = 2 - pTowersAlive;
         if (!eKingAlive) pCrowns = 3; else pCrowns = 2 - eTowersAlive;
 
-        // Ensure bounds
         pCrowns = Math.max(0, Math.min(3, pCrowns));
         eCrowns = Math.max(0, Math.min(3, eCrowns));
 
