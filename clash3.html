@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Fixed</title>
+    <title>Clash Clone - Final</title>
     <style>
-        /* BASE STYLES */
+        /* --- CORE STYLES --- */
         body {
             background-color: #121212; display: flex; justify-content: center; 
             align-items: center; height: 100vh; margin: 0; overflow: hidden; 
-            font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; 
+            font-family: 'Segoe UI', sans-serif; user-select: none; 
             -webkit-user-select: none; touch-action: none;
         }
 
@@ -21,26 +21,24 @@
 
         canvas { display: block; width: 100%; height: 100%; }
 
-        /* UI LAYER */
+        /* --- UI LAYERS --- */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
         /* TOP BAR */
         #top-bar {
             position: absolute; top: 15px; width: 100%; display: flex; 
             justify-content: space-between; padding: 0 20px; box-sizing: border-box;
-            pointer-events: none; z-index: 10;
+            z-index: 10;
         }
         #timer {
             background: rgba(0,0,0,0.5); color: #fff; padding: 5px 12px;
             border-radius: 6px; font-weight: bold; font-size: 20px; 
             border: 2px solid #ddd; text-shadow: 1px 1px 2px black;
         }
-        .crown-score {
-            font-size: 24px; font-weight: 900; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-        }
+        .crown-score { font-size: 24px; font-weight: 900; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
         .blue { color: #64b5f6; } .red { color: #e57373; }
 
-        /* DASHBOARD */
+        /* BOTTOM DASHBOARD */
         #dashboard {
             position: absolute; bottom: 0; width: 100%; height: 160px;
             background: linear-gradient(to top, #263238, #37474f);
@@ -62,13 +60,16 @@
             color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 0 #000;
         }
 
-        /* CARD HAND */
+        #controls-hint {
+            color: #78909c; font-size: 10px; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        /* CARDS */
         #hand {
             display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; height: 120px;
         }
-
         .card {
-            width: 72px; height: 96px; background: #2b3a42; border: 3px solid #546e7a;
+            width: 70px; height: 94px; background: #2b3a42; border: 3px solid #546e7a;
             border-radius: 8px; position: relative; cursor: pointer; transition: transform 0.1s;
             display: flex; flex-direction: column; align-items: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.5);
@@ -78,7 +79,7 @@
             background: #455a64; box-shadow: 0 0 15px #ffd700; z-index: 20;
         }
         .card.disabled { filter: grayscale(1) brightness(0.5); }
-
+        
         .cost {
             position: absolute; top: -6px; left: -6px; width: 22px; height: 22px;
             border-radius: 50%; background: #d500f9; border: 2px solid #fff;
@@ -88,7 +89,7 @@
         .icon { font-size: 38px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
         .name { font-size: 9px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
 
-        /* ROYAL GAME OVER SCREEN */
+        /* GAME OVER OVERLAY */
         #game-over {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
@@ -96,30 +97,23 @@
             opacity: 0; pointer-events: none; transition: opacity 0.4s ease-in;
             backdrop-filter: blur(5px);
         }
-        
+        #game-over.active { opacity: 1; pointer-events: auto; }
+
         .result-banner {
-            font-size: 50px; font-weight: 900; 
-            text-transform: uppercase; 
-            text-shadow: 0 4px 0px rgba(0,0,0,0.5);
-            margin-bottom: 20px;
+            font-size: 50px; font-weight: 900; text-transform: uppercase; 
+            text-shadow: 0 4px 0px rgba(0,0,0,0.5); margin-bottom: 20px;
             animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .win-text { 
-            color: #ffca28; /* Gold */
-            text-shadow: 2px 2px 0 #d32f2f, -1px -1px 0 #d32f2f, 1px -1px 0 #d32f2f, -1px 1px 0 #d32f2f, 1px 1px 0 #d32f2f;
-        }
+        .win-text { color: #ffca28; text-shadow: 2px 2px 0 #d32f2f; }
         .lose-text { color: #ef5350; text-shadow: 2px 2px 0 #b71c1c; }
         
-        .crown-display {
-            display: flex; gap: 20px; margin-bottom: 40px;
-        }
+        .crown-display { display: flex; gap: 20px; margin-bottom: 40px; }
         .crown-box {
             display: flex; flex-direction: column; align-items: center;
             background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px;
             border: 2px solid #555; width: 100px;
         }
         .crown-icon { font-size: 40px; margin-bottom: 5px; }
-        .crown-label { color: #aaa; font-size: 12px; font-weight: bold; text-transform: uppercase; }
         .crown-val { font-size: 32px; font-weight: bold; color: white; }
 
         #restart-btn {
@@ -127,15 +121,10 @@
             background: linear-gradient(to bottom, #4fc3f7, #2196f3); 
             color: white; border: none; border-radius: 8px; border-bottom: 4px solid #1565c0;
             cursor: pointer; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-            transition: transform 0.1s;
         }
         #restart-btn:active { transform: translateY(4px); border-bottom-width: 0; }
 
-        @keyframes popIn {
-            0% { transform: scale(0); }
-            80% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
+        @keyframes popIn { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
         #toast {
             position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
@@ -161,24 +150,15 @@
         
         <div id="game-over">
             <div id="go-banner" class="result-banner">VICTORY!</div>
-            
             <div class="crown-display">
-                <div class="crown-box">
-                    <div class="crown-icon">👑</div>
-                    <div class="crown-val blue" id="go-p-score">3</div>
-                    <div class="crown-label">You</div>
-                </div>
-                <div class="crown-box">
-                    <div class="crown-icon">💀</div>
-                    <div class="crown-val red" id="go-e-score">0</div>
-                    <div class="crown-label">Enemy</div>
-                </div>
+                <div class="crown-box"><div class="crown-icon">👑</div><div class="crown-val blue" id="go-p-score">3</div></div>
+                <div class="crown-box"><div class="crown-icon">💀</div><div class="crown-val red" id="go-e-score">0</div></div>
             </div>
-
             <button id="restart-btn" onclick="initGame()">Battle Again</button>
         </div>
 
         <div id="dashboard">
+            <div id="controls-hint">Tap Card • Tap Map</div>
             <div id="elixir-wrapper">
                 <div id="elixir-bar"></div>
                 <div id="elixir-text">5</div>
@@ -199,15 +179,13 @@
     const MAX_UNITS = 120; 
     const MATCH_TIME = 180;
 
-    // --- CARDS (Optimized Ranges) ---
+    // --- CARDS ---
     const CARDS = {
-        // Range increased to 40 for melee to prevent block-fail
-        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 150, speed: 30, range: 40, type: 'ground', target: 'building', size: 18, aiRole: 'tank' },
-        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 450, speed: 35, range: 40, type: 'ground', target: 'ground', size: 18, aiRole: 'killer' },
+        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 150, speed: 30, range: 40, type: 'ground', target: 'building', size: 24, aiRole: 'tank' },
+        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 450, speed: 35, range: 40, type: 'ground', target: 'ground', size: 20, aiRole: 'killer' },
         'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1100, dmg: 180, speed: 95, range: 40, type: 'ground', target: 'building', jump: true, size: 14, aiRole: 'wincon' },
         'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 100, speed: 50, range: 40, type: 'ground', target: 'ground', size: 12, aiRole: 'defense' },
         'valk':   { name: 'Valkyrie', cost: 4, icon: '🪓', hp: 1200, dmg: 130, speed: 50, range: 40, type: 'ground', target: 'ground', area: true, size: 14, aiRole: 'splash' },
-        
         'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 280, dmg: 70, speed: 60, range: 140, type: 'ground', target: 'any', count: 2, size: 10, aiRole: 'support' },
         'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 600, dmg: 160, speed: 50, range: 170, type: 'ground', target: 'any', size: 12, aiRole: 'support' },
         'wizard': { name: 'Wizard', cost: 5, icon: '🧙‍♂️', hp: 500, dmg: 130, speed: 50, range: 140, type: 'ground', target: 'any', area: true, size: 12, aiRole: 'splash' },
@@ -229,14 +207,8 @@
     let aiTimer = 2.0;
     let gameTime = MATCH_TIME;
     let gameOver = false;
-    
-    // Tower Status
-    let leftEnemyDead = false;
-    let rightEnemyDead = false;
-
-    // Cycle
-    let deckQueue = [];
-    let hand = [];
+    let leftEnemyDead = false, rightEnemyDead = false;
+    let deckQueue = [], hand = [];
     let selectedIdx = null;
 
     // --- INITIALIZATION ---
@@ -248,10 +220,7 @@
         leftEnemyDead = false; rightEnemyDead = false;
         lastTime = performance.now();
         
-        const go = document.getElementById('game-over');
-        go.style.opacity = 0;
-        go.style.pointerEvents = 'none'; 
-        
+        document.getElementById('game-over').classList.remove('active');
         updateScoreUI(0, 0);
 
         deckQueue = [...DECK_KEYS].sort(() => Math.random() - 0.5);
@@ -443,7 +412,6 @@
 
             aiThink(dt);
 
-            // Cleanup & Map & Score
             let eLeft = false, eRight = false;
             let pTowers = 0, eTowers = 0;
 
@@ -452,6 +420,7 @@
                 if(e.remove || isNaN(e.x)) {
                     entities.splice(i, 1);
                 } else {
+                    // Only count original towers for map expansion logic and score
                     if (e.role === 'tower') {
                         if (e.isPlayer) {
                             pTowers++;
@@ -465,10 +434,7 @@
             leftEnemyDead = !eLeft;
             rightEnemyDead = !eRight;
             
-            // Calc Score
-            let pScore = 2 - eTowers;
-            let eScore = 2 - pTowers;
-            updateScoreUI(pScore, eScore);
+            updateScoreUI(2 - eTowers, 2 - pTowers);
 
             resolveCollisions();
             entities.sort((a,b) => a.y - b.y);
@@ -494,24 +460,22 @@
         gameOver = true;
         const go = document.getElementById('game-over');
         const banner = document.getElementById('go-banner');
-        
-        go.style.opacity = 1; go.style.pointerEvents = 'auto';
+        go.classList.add('active'); // Use CSS class for pointer events
 
-        // Filter out any "dead" marked units from count
         let pKingAlive = entities.some(e => e.isPlayer && e.role === 'king' && !e.remove);
         let eKingAlive = entities.some(e => !e.isPlayer && e.role === 'king' && !e.remove);
         
         let pTowersAlive = entities.filter(e => e.isPlayer && e.role === 'tower' && !e.remove).length;
         let eTowersAlive = entities.filter(e => !e.isPlayer && e.role === 'tower' && !e.remove).length;
 
-        let pCrowns = 0;
-        let eCrowns = 0;
+        let pCrowns = 0, eCrowns = 0;
 
-        if (!pKingAlive) eCrowns = 3;
-        else eCrowns = 2 - pTowersAlive;
+        if (!pKingAlive) eCrowns = 3; else eCrowns = 2 - pTowersAlive;
+        if (!eKingAlive) pCrowns = 3; else pCrowns = 2 - eTowersAlive;
 
-        if (!eKingAlive) pCrowns = 3;
-        else pCrowns = 2 - eTowersAlive;
+        // Ensure bounds
+        pCrowns = Math.max(0, Math.min(3, pCrowns));
+        eCrowns = Math.max(0, Math.min(3, eCrowns));
 
         document.getElementById('go-p-score').innerText = pCrowns;
         document.getElementById('go-e-score').innerText = eCrowns;
@@ -564,7 +528,6 @@
     function draw() {
         ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,H);
         ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, W, 35);
-        
         ctx.fillStyle = '#8d6e63';
         ctx.fillRect(BRIDGE_L-20, RIVER_Y-12, 40, 58);
         ctx.fillRect(BRIDGE_R-20, RIVER_Y-12, 40, 58);
@@ -652,8 +615,7 @@
             }
 
             if(target) {
-                // Modified Range Check using radius to allow hitting over traffic
-                let reach = this.range + target.radius + this.radius; 
+                let reach = this.range + target.radius + this.radius;
                 if(safeDist(target.x-this.x, target.y-this.y) <= reach) {
                     if(this.cooldown <= 0) {
                         this.attack(target);
@@ -767,10 +729,6 @@
         draw(ctx) {
             ctx.fillStyle = 'yellow'; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
         }
-    }
-
-    function spawnEntity(e) {
-        if(entities.length < MAX_UNITS) entities.push(e);
     }
 
     initGame();
