@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Extended</title>
+    <title>Clash Clone - Balanced Map</title>
     <style>
         /* --- CORE STYLES --- */
         body {
@@ -26,28 +26,28 @@
 
         /* TOP BAR */
         #top-bar {
-            position: absolute; top: 15px; width: 100%; display: flex; 
-            justify-content: space-between; padding: 0 20px; box-sizing: border-box;
+            position: absolute; top: 10px; width: 100%; display: flex; 
+            justify-content: space-between; padding: 0 15px; box-sizing: border-box;
             z-index: 10;
         }
         #timer {
-            background: rgba(0,0,0,0.5); color: #fff; padding: 5px 12px;
-            border-radius: 6px; font-weight: bold; font-size: 20px; 
+            background: rgba(0,0,0,0.5); color: #fff; padding: 4px 10px;
+            border-radius: 6px; font-weight: bold; font-size: 18px; 
             border: 2px solid #ddd; text-shadow: 1px 1px 2px black;
         }
-        .crown-score { font-size: 24px; font-weight: 900; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        .crown-score { font-size: 22px; font-weight: 900; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
         .blue { color: #64b5f6; } .red { color: #e57373; }
 
         /* BOTTOM DASHBOARD */
         #dashboard {
-            position: absolute; bottom: 0; width: 100%; height: 160px;
+            position: absolute; bottom: 0; width: 100%; height: 140px; /* Reduced height */
             background: linear-gradient(to top, #263238, #37474f);
             border-top: 4px solid #111; pointer-events: auto;
             display: flex; flex-direction: column; align-items: center;
         }
 
         #elixir-wrapper {
-            width: 85%; height: 22px; margin-top: 8px; margin-bottom: 5px;
+            width: 85%; height: 20px; margin-top: 6px; margin-bottom: 4px;
             background: #111; border: 2px solid #555; border-radius: 10px; 
             overflow: hidden; position: relative; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
         }
@@ -56,8 +56,8 @@
             transition: width 0.1s linear;
         }
         #elixir-text {
-            position: absolute; top: 0; width: 100%; text-align: center; line-height: 22px;
-            color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 0 #000;
+            position: absolute; top: 0; width: 100%; text-align: center; line-height: 20px;
+            color: white; font-weight: bold; font-size: 12px; text-shadow: 1px 1px 0 #000;
         }
 
         #controls-hint {
@@ -66,12 +66,12 @@
 
         /* CARDS */
         #hand {
-            display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; height: 120px;
+            display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; height: 100px;
             position: relative;
         }
         .card {
-            width: 70px; height: 94px; background: #2b3a42; border: 3px solid #546e7a;
-            border-radius: 8px; position: relative; cursor: grab; transition: transform 0.1s;
+            width: 64px; height: 86px; background: #2b3a42; border: 3px solid #546e7a;
+            border-radius: 6px; position: relative; cursor: grab; transition: transform 0.1s;
             display: flex; flex-direction: column; align-items: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.5);
             touch-action: none;
@@ -87,19 +87,19 @@
         /* GHOST CARD FOR DRAGGING */
         .card-ghost {
             position: fixed; pointer-events: none; z-index: 1000;
-            width: 70px; height: 94px; background: #2b3a42; border: 3px solid #ffd700;
-            border-radius: 8px; display: flex; flex-direction: column; align-items: center;
+            width: 64px; height: 86px; background: #2b3a42; border: 3px solid #ffd700;
+            border-radius: 6px; display: flex; flex-direction: column; align-items: center;
             box-shadow: 0 10px 20px rgba(0,0,0,0.5); opacity: 0.8; transform: scale(1.1);
         }
 
         .cost {
-            position: absolute; top: -6px; left: -6px; width: 22px; height: 22px;
+            position: absolute; top: -5px; left: -5px; width: 20px; height: 20px;
             border-radius: 50%; background: #d500f9; border: 2px solid #fff;
-            color: white; font-weight: bold; font-size: 12px;
+            color: white; font-weight: bold; font-size: 11px;
             display: flex; justify-content: center; align-items: center;
         }
-        .icon { font-size: 38px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
-        .name { font-size: 9px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
+        .icon { font-size: 34px; margin-top: 10px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
+        .name { font-size: 8px; color: #cfd8dc; margin-top: 2px; font-weight: bold; text-transform: uppercase; }
 
         /* GAME OVER OVERLAY */
         #game-over {
@@ -186,10 +186,20 @@
 
     // --- CONFIG ---
     const W = 420, H = 720;
-    const RIVER_Y = H/2 - 40;
+    const DASHBOARD_H = 140; // Height of the dashboard overlay
+    const PLAY_H = H - DASHBOARD_H; // Playable height (0 to 580)
+    const RIVER_Y = PLAY_H / 2; // Center river in the playable area (290)
+    
     const BRIDGE_L = 90, BRIDGE_R = W - 90;
     const MAX_UNITS = 200; 
     const MATCH_TIME = 180;
+
+    // --- COORDINATES ---
+    // Recalculated to fit within PLAY_H (0-580) with symmetry
+    const E_KING_Y = 50;
+    const E_TOWER_Y = 110;
+    const P_TOWER_Y = 470;
+    const P_KING_Y = 530; // 50px buffer from dashboard (580)
 
     // --- CARDS ---
     const CARDS = {
@@ -213,11 +223,8 @@
         'freeze': { name: 'Freeze', cost: 4, icon: '❄️', type: 'spell', radius: 100, duration: 4.0, aiRole: 'spell' },
         'heal':   { name: 'Heal', cost: 3, icon: '💖', type: 'spell', radius: 85, heal: 600, aiRole: 'spell' }
     };
-    
-    // Internal card for Witch Summon
     CARDS['skarmy_unit'] = { name: 'Skeleton', icon: '💀', hp: 60, dmg: 35, speed: 70, range: 30, type: 'ground', target: 'ground', size: 7 };
-
-    const DECK_KEYS = Object.keys(CARDS).filter(k => k !== 'skarmy_unit'); // Exclude internal units
+    const DECK_KEYS = Object.keys(CARDS).filter(k => k !== 'skarmy_unit');
 
     // --- GAME STATE ---
     let elixir = 5;
@@ -229,15 +236,11 @@
     let gameTime = MATCH_TIME;
     let gameOver = false;
     let leftEnemyDead = false, rightEnemyDead = false;
-    
-    // Global Tower States
     let pLeftT = true, pRightT = true;
     let eLeftT = true, eRightT = true;
 
     let deckQueue = [], hand = [];
     let selectedIdx = null;
-
-    // Drag State
     let dragItem = null;
     let ghostEl = null;
 
@@ -253,7 +256,6 @@
         eLeftT = true; eRightT = true;
 
         lastTime = performance.now();
-        
         document.getElementById('game-over').classList.remove('active');
         updateScoreUI(0, 0);
 
@@ -263,13 +265,13 @@
         renderHand();
 
         // Towers
-        spawnEntity(new Entity(90, 520, true, 'tower'));
-        spawnEntity(new Entity(W-90, 520, true, 'tower'));
-        spawnEntity(new Entity(W/2, 580, true, 'king'));
+        spawnEntity(new Entity(90, P_TOWER_Y, true, 'tower'));
+        spawnEntity(new Entity(W-90, P_TOWER_Y, true, 'tower'));
+        spawnEntity(new Entity(W/2, P_KING_Y, true, 'king'));
         
-        spawnEntity(new Entity(90, 120, false, 'tower'));
-        spawnEntity(new Entity(W-90, 120, false, 'tower'));
-        spawnEntity(new Entity(W/2, 60, false, 'king'));
+        spawnEntity(new Entity(90, E_TOWER_Y, false, 'tower'));
+        spawnEntity(new Entity(W-90, E_TOWER_Y, false, 'tower'));
+        spawnEntity(new Entity(W/2, E_KING_Y, false, 'king'));
 
         requestAnimationFrame(loop);
     }
@@ -289,8 +291,8 @@
                     document.body.appendChild(ghostEl);
                     if(dragItem.el) dragItem.el.classList.add('dragging-hidden');
                 }
-                ghostEl.style.left = (e.clientX - 35) + 'px';
-                ghostEl.style.top = (e.clientY - 47) + 'px';
+                ghostEl.style.left = (e.clientX - 32) + 'px';
+                ghostEl.style.top = (e.clientY - 43) + 'px';
             }
         }
     });
@@ -346,6 +348,10 @@
         if (card.type !== 'spell') {
             const validY = getValidSpawnY(x);
             if (y < validY) { showToast("Enemy Territory!"); return; }
+            if (y > PLAY_H && !card.type === 'spell') { 
+                // Allow dropping 'near' edge, clamp it
+                y = PLAY_H - 10;
+            }
         }
 
         if (entities.length >= MAX_UNITS) { showToast("Too many units!"); return; }
@@ -369,15 +375,15 @@
     // --- GAME LOGIC ---
     function getValidSpawnY(x) {
         let limit = RIVER_Y; 
-        if (x < W/2 && leftEnemyDead) limit = 180;
-        if (x > W/2 && rightEnemyDead) limit = 180;
+        if (x < W/2 && leftEnemyDead) limit = E_TOWER_Y + 40; // Approx 150
+        if (x > W/2 && rightEnemyDead) limit = E_TOWER_Y + 40;
         return limit;
     }
 
     function getValidEnemySpawnY(x) {
         let limit = RIVER_Y;
-        if (x < W/2 && !pLeftT) limit = H - 180;
-        if (x > W/2 && !pRightT) limit = H - 180;
+        if (x < W/2 && !pLeftT) limit = P_TOWER_Y - 40; // Approx 430
+        if (x > W/2 && !pRightT) limit = P_TOWER_Y - 40;
         return limit;
     }
 
@@ -401,10 +407,13 @@
             const spread = (count > 1) ? 20 : 0;
             const ox = (Math.random()-0.5)*spread;
             const oy = (Math.random()-0.5)*spread;
+            // Clamp spawn to board
+            let sy = Math.max(10, Math.min(PLAY_H - 10, y + oy));
+            
             if(card.type === 'building') {
-                spawnEntity(new Entity(x, y, isPlayer, 'building', card));
+                spawnEntity(new Entity(x, sy, isPlayer, 'building', card));
             } else {
-                spawnEntity(new DeployTimer(x+ox, y+oy, isPlayer, card));
+                spawnEntity(new DeployTimer(x+ox, sy, isPlayer, card));
             }
         }
     }
@@ -445,7 +454,6 @@
                     for(let k=0; k<3; k++) particles.push({ x:e.x, y:e.y, vx:0, vy:-50, life:0.5, color: '#e91e63' });
                 }
             } else {
-                // Damage Spells
                 if(e.isPlayer !== isPlayer) {
                     if(dist < card.radius) e.takeDamage(card.dmg);
                 }
@@ -480,8 +488,7 @@
                 const ox = (Math.random()-0.5)*50;
                 
                 let spawnY = Math.min(getValidEnemySpawnY(threat.x), threat.y - 100); 
-                if (spawnY < 120) spawnY = 120;
-                if (threat.y < 200) spawnY = 100;
+                if (spawnY < E_TOWER_Y) spawnY = E_TOWER_Y;
 
                 const c = CARDS[bestKey];
                 if(c.type === 'spell') {
@@ -495,7 +502,7 @@
                 if (cheap.length > 0) {
                     const k = cheap[Math.floor(Math.random()*cheap.length)];
                     enemyElixir -= CARDS[k].cost;
-                    spawnCard(threat.x, 150, false, CARDS[k]);
+                    spawnCard(threat.x, E_TOWER_Y + 40, false, CARDS[k]);
                     played = true;
                 }
             }
@@ -628,7 +635,7 @@
         for(let i=0; i<entities.length; i++) {
             let e1 = entities[i];
             if(e1 instanceof DeployTimer || e1 instanceof Projectile) continue;
-            if(Math.abs(e1.y - RIVER_Y) < 55) continue;
+            if(Math.abs(e1.y - RIVER_Y) < 40) continue; // Looser bridge choke
 
             for(let j=i+1; j<entities.length; j++) {
                 if (checks++ > checkLimit) break;
@@ -656,32 +663,27 @@
     }
 
     function draw() {
-        ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,H);
-        ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, W, 35);
-        ctx.fillStyle = '#8d6e63';
-        ctx.fillRect(BRIDGE_L-20, RIVER_Y-12, 40, 58);
-        ctx.fillRect(BRIDGE_R-20, RIVER_Y-12, 40, 58);
+        ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,PLAY_H);
         
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        // Draw River
+        ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y - 18, W, 36);
+        
+        // Bridges
+        ctx.fillStyle = '#8d6e63';
+        ctx.fillRect(BRIDGE_L-20, RIVER_Y - 22, 40, 44);
+        ctx.fillRect(BRIDGE_R-20, RIVER_Y - 22, 40, 44);
+        
+        // Lane Lines (Debugging help / visual guide)
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
         ctx.setLineDash([10,10]);
         ctx.lineWidth = 2;
-        let ly = leftEnemyDead ? 180 : RIVER_Y+40;
-        let ry = rightEnemyDead ? 180 : RIVER_Y+40;
-        ctx.beginPath();
-        ctx.moveTo(0, ly); ctx.lineTo(W/2, ly);
-        if (ly !== ry) ctx.lineTo(W/2, ry);
-        ctx.lineTo(W/2, ry); ctx.lineTo(W, ry);
-        ctx.stroke();
-        ctx.setLineDash([]);
         
-        ctx.strokeStyle = 'rgba(255,100,100,0.2)';
-        let ely = (!pLeftT) ? H-180 : RIVER_Y;
-        let ery = (!pRightT) ? H-180 : RIVER_Y;
-        ctx.beginPath();
-        ctx.moveTo(0, ely); ctx.lineTo(W/2, ely);
-        if (ely !== ery) ctx.lineTo(W/2, ery);
-        ctx.lineTo(W/2, ery); ctx.lineTo(W, ery);
-        ctx.stroke();
+        // Territory Lines
+        let ly = leftEnemyDead ? 150 : RIVER_Y;
+        let ry = rightEnemyDead ? 150 : RIVER_Y;
+        if(leftEnemyDead || rightEnemyDead) {
+           // Logic to draw dynamic lines if needed, for now keep simple river
+        }
 
         entities.forEach(e => e.draw(ctx));
         particles.forEach(p => {
@@ -689,6 +691,9 @@
             ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
         });
         ctx.globalAlpha = 1;
+        
+        // Darken the UI area slightly if cards are dragged over?
+        // ctx.fillStyle = '#222'; ctx.fillRect(0, PLAY_H, W, DASHBOARD_H);
     }
 
     // --- CLASSES ---
@@ -761,7 +766,7 @@
             }
 
             let target = null;
-            let minD = 300; 
+            let minD = 350; 
 
             for(let e of entities) {
                 if(e === this || e.isPlayer === this.isPlayer || e.remove || e instanceof DeployTimer || e instanceof Projectile) continue;
@@ -785,14 +790,15 @@
                 }
             } else if(this.speed > 0) {
                 let tx = W/2; 
-                let ty = this.isPlayer ? 60 : H-60; 
+                // Updated Logic for new Coordinates
+                let ty = this.isPlayer ? E_KING_Y : P_KING_Y; 
                 if(this.x < 150) { 
-                    if (this.isPlayer) { if (eLeftT) { tx = 90; ty = 120; } } 
-                    else { if (pLeftT) { tx = 90; ty = 520; } }
+                    if (this.isPlayer) { if (eLeftT) { tx = 90; ty = E_TOWER_Y; } } 
+                    else { if (pLeftT) { tx = 90; ty = P_TOWER_Y; } }
                 }
                 else if (this.x > 270) { 
-                    if (this.isPlayer) { if (eRightT) { tx = W-90; ty = 120; } } 
-                    else { if (pRightT) { tx = W-90; ty = 520; } }
+                    if (this.isPlayer) { if (eRightT) { tx = W-90; ty = E_TOWER_Y; } } 
+                    else { if (pRightT) { tx = W-90; ty = P_TOWER_Y; } }
                 }
                 this.move(dt, tx, ty);
             }
@@ -804,7 +810,7 @@
             
             if(this.type === 'ground' && !this.jump) {
                 let rDist = Math.abs(this.y - RIVER_Y);
-                if(rDist < 50 && ((this.isPlayer && this.y > RIVER_Y) || (!this.isPlayer && this.y < RIVER_Y))) {
+                if(rDist < 40 && ((this.isPlayer && this.y > RIVER_Y) || (!this.isPlayer && this.y < RIVER_Y))) {
                     let bx = Math.abs(this.x - BRIDGE_L) < Math.abs(this.x - BRIDGE_R) ? BRIDGE_L : BRIDGE_R;
                     if(Math.abs(this.x - bx) > 5) { dx = bx - this.x; dy = 0; }
                 }
@@ -839,7 +845,6 @@
             let sy = this.flying ? this.y+20 : this.y;
             ctx.beginPath(); ctx.arc(this.x, sy, this.radius, 0, Math.PI*2); ctx.fill();
 
-            // Frozen effect
             if(this.freezeTimer > 0) {
                 ctx.fillStyle = 'rgba(0,255,255,0.4)';
                 ctx.beginPath(); ctx.arc(this.x, this.y, this.radius+5, 0, Math.PI*2); ctx.fill();
