@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Competitive</title>
+    <title>Clash Clone - Ironclad</title>
     <style>
+        /* GLOBAL STYLES */
         body {
             background-color: #121212; display: flex; justify-content: center; 
             align-items: center; height: 100vh; margin: 0; overflow: hidden; 
-            font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-user-select: none;
+            font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; -webkit-user-select: none;
             touch-action: none;
         }
 
@@ -20,42 +21,21 @@
 
         canvas { display: block; width: 100%; height: 100%; }
 
+        /* UI LAYERS */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
-        /* TOP BAR (Timer) */
+        /* TOP INFO BAR */
         #top-bar {
             position: absolute; top: 10px; width: 100%; display: flex; justify-content: center;
-            pointer-events: none;
+            pointer-events: none; z-index: 10;
         }
         #timer {
-            background: rgba(0,0,0,0.6); color: white; padding: 5px 15px;
+            background: rgba(0,0,0,0.6); color: white; padding: 6px 16px;
             border-radius: 20px; font-weight: bold; font-size: 20px; border: 2px solid #fff;
-            text-shadow: 1px 1px 2px black;
+            text-shadow: 1px 1px 2px black; letter-spacing: 1px;
         }
 
-        /* GAME OVER SCREEN */
-        #game-over {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 1000;
-            opacity: 0; pointer-events: none; transition: opacity 0.3s;
-        }
-        #go-title {
-            font-size: 56px; font-weight: 900; margin-bottom: 10px;
-            text-transform: uppercase; text-shadow: 0 0 20px rgba(0,0,0,0.8);
-        }
-        #go-subtitle {
-            font-size: 20px; color: #ccc; margin-bottom: 30px; font-weight: bold;
-        }
-        #restart-btn {
-            padding: 15px 40px; font-size: 22px; font-weight: bold;
-            background: #2196f3; color: white; border: none; border-radius: 50px;
-            cursor: pointer; pointer-events: auto; box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
-            transition: transform 0.1s, background 0.2s;
-        }
-        #restart-btn:active { transform: scale(0.95); background: #1976d2; }
-
-        /* DASHBOARD */
+        /* BOTTOM DASHBOARD */
         #dashboard {
             position: absolute; bottom: 0; width: 100%; height: 160px;
             background: linear-gradient(to top, #263238, #37474f);
@@ -63,8 +43,9 @@
             display: flex; flex-direction: column; align-items: center;
         }
 
+        /* ELIXIR BAR */
         #elixir-wrapper {
-            width: 85%; height: 20px; margin-top: 8px; margin-bottom: 5px;
+            width: 85%; height: 22px; margin-top: 8px; margin-bottom: 5px;
             background: #111; border: 2px solid #777; border-radius: 10px; overflow: hidden; position: relative;
         }
         #elixir-bar {
@@ -72,24 +53,25 @@
             transition: width 0.1s linear;
         }
         #elixir-text {
-            position: absolute; top: 0; width: 100%; text-align: center; line-height: 20px;
+            position: absolute; top: 0; width: 100%; text-align: center; line-height: 22px;
             color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 0 #000;
         }
 
-        /* HAND */
+        /* CARD HAND */
         #hand {
             display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; height: 120px;
         }
 
         .card {
-            width: 70px; height: 94px; background: #2b3a42; border: 3px solid #546e7a;
+            width: 72px; height: 96px; background: #2b3a42; border: 3px solid #546e7a;
             border-radius: 8px; position: relative; cursor: pointer; transition: transform 0.1s;
             display: flex; flex-direction: column; align-items: center;
-            box-shadow: 0 4px 5px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
         }
+        .card:active { transform: scale(0.95); }
         .card.selected {
             border-color: #ffd700; transform: translateY(-12px) scale(1.05);
-            background: #455a64; box-shadow: 0 0 15px #ffd700; z-index: 10;
+            background: #455a64; box-shadow: 0 0 15px #ffd700; z-index: 20;
         }
         .card.disabled { filter: grayscale(1) brightness(0.5); }
 
@@ -99,14 +81,35 @@
             color: white; font-weight: bold; font-size: 12px;
             display: flex; justify-content: center; align-items: center;
         }
-        .icon { font-size: 36px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
+        .icon { font-size: 38px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
         .name { font-size: 9px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
 
+        /* GAME OVER OVERLAY */
+        #game-over {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 100;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #go-title {
+            font-size: 50px; font-weight: 900; margin-bottom: 10px;
+            text-transform: uppercase; text-shadow: 0 0 20px rgba(0,0,0,0.8); letter-spacing: 2px;
+        }
+        #go-sub { font-size: 18px; color: #eee; margin-bottom: 30px; font-weight: bold; }
+        #restart-btn {
+            padding: 15px 40px; font-size: 22px; font-weight: bold;
+            background: #2196f3; color: white; border: none; border-radius: 50px;
+            cursor: pointer; pointer-events: auto; box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
+            transition: transform 0.1s;
+        }
+        #restart-btn:active { transform: scale(0.95); }
+
+        /* NOTIFICATIONS */
         #toast {
             position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
             border-radius: 20px; font-weight: bold; opacity: 0; transition: opacity 0.3s;
-            pointer-events: none;
+            pointer-events: none; z-index: 50; white-space: nowrap;
         }
     </style>
 </head>
@@ -120,12 +123,12 @@
             <div id="timer">3:00</div>
         </div>
 
-        <div id="toast">Not Enough Elixir!</div>
+        <div id="toast"></div>
         
         <div id="game-over">
             <div id="go-title">VICTORY</div>
-            <div id="go-subtitle">Three Crowns!</div>
-            <button id="restart-btn" onclick="init()">Play Again</button>
+            <div id="go-sub">Match Complete</div>
+            <button id="restart-btn" onclick="initGame()">Play Again</button>
         </div>
 
         <div id="dashboard">
@@ -142,33 +145,33 @@
     const cvs = document.getElementById('cvs');
     const ctx = cvs.getContext('2d');
 
-    // --- CONFIG ---
-    const W = 420, H = 720;
-    const RIVER_Y = H/2 - 40;
-    const BRIDGE_L = 90, BRIDGE_R = W - 90;
-    const MAX_UNITS = 100;
-    const MATCH_TIME = 180; // 3 Minutes
+    // --- GAME CONSTANTS ---
+    const W = 420;
+    const H = 720;
+    const RIVER_Y = H / 2 - 40;
+    const BRIDGE_L = 90;
+    const BRIDGE_R = W - 90;
+    const MAX_UNITS = 120; // Hard Cap to protect browser
+    const MATCH_TIME = 180; // 3 minutes
 
-    // --- CARDS ---
+    // --- CARD DATABASE ---
     const CARDS = {
-        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 140, speed: 30, range: 5, type: 'ground', target: 'building', size: 24 },
-        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 400, speed: 35, range: 5, type: 'ground', target: 'ground', size: 20 },
-        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1000, dmg: 170, speed: 95, range: 5, type: 'ground', target: 'building', jump: true, size: 14 },
         'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 100, speed: 50, range: 5, type: 'ground', target: 'ground', size: 12 },
-        'valk':   { name: 'Valkyrie', cost: 4, icon: '🪓', hp: 1100, dmg: 120, speed: 50, range: 5, type: 'ground', target: 'ground', area: true, size: 14 },
-        'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 250, dmg: 60, speed: 60, range: 150, type: 'ground', target: 'any', count: 2, size: 10 },
-        'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 550, dmg: 150, speed: 50, range: 170, type: 'ground', target: 'any', size: 12 },
-        'wizard': { name: 'Wizard', cost: 5, icon: '🧙‍♂️', hp: 500, dmg: 130, speed: 50, range: 140, type: 'ground', target: 'any', area: true, size: 12 },
-        'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 100, speed: 65, range: 90, type: 'air', target: 'any', area: true, size: 15 },
+        'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 280, dmg: 70, speed: 60, range: 140, type: 'ground', target: 'any', count: 2, size: 10 },
+        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 150, speed: 30, range: 5, type: 'ground', target: 'building', size: 24 },
+        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1100, dmg: 180, speed: 95, range: 5, type: 'ground', target: 'building', jump: true, size: 14 },
+        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 450, speed: 35, range: 5, type: 'ground', target: 'ground', size: 20 },
+        'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 600, dmg: 160, speed: 50, range: 170, type: 'ground', target: 'any', size: 12 },
+        'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 110, speed: 65, range: 90, type: 'air', target: 'any', area: true, size: 15 },
         'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 160, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3, size: 8 },
-        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 50, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 5, size: 6 },
-        'goblin': { name: 'Goblins', cost: 2, icon: '👺', hp: 100, dmg: 60, speed: 90, range: 5, type: 'ground', target: 'ground', count: 3, size: 8 },
-        'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 700, dmg: 100, speed: 0, range: 140, type: 'building', target: 'ground', size: 20 },
-        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450 }
+        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 60, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 5, size: 7 },
+        'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 750, dmg: 110, speed: 0, range: 140, type: 'building', target: 'ground', size: 20 },
+        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450 },
+        'zap':    { name: 'Zap', cost: 2, icon: '⚡', type: 'spell', radius: 60, dmg: 140 }
     };
-    const ALL_KEYS = Object.keys(CARDS);
+    const DECK_KEYS = Object.keys(CARDS);
 
-    // --- STATE ---
+    // --- GAME STATE ---
     let elixir = 5;
     let enemyElixir = 5;
     let entities = [];
@@ -178,14 +181,14 @@
     let gameTime = MATCH_TIME;
     let gameOver = false;
     
-    // Cycle Logic
+    // Hand Logic
     let deckQueue = [];
-    let hand = []; 
-    let selectedIdx = null; 
+    let hand = [];
+    let selectedIdx = null;
 
-    // --- SETUP ---
-    function init() {
-        // Reset State
+    // --- INITIALIZATION ---
+    function initGame() {
+        // Reset Variables
         entities = [];
         particles = [];
         elixir = 5;
@@ -196,17 +199,16 @@
         lastTime = performance.now();
         
         // Hide Game Over
-        const goScreen = document.getElementById('game-over');
-        goScreen.style.opacity = 0;
-        goScreen.style.pointerEvents = 'none';
+        document.getElementById('game-over').style.opacity = 0;
+        document.getElementById('game-over').style.pointerEvents = 'none';
 
-        // Init Deck
-        deckQueue = [...ALL_KEYS].sort(() => Math.random() - 0.5);
+        // Initialize Deck
+        deckQueue = [...DECK_KEYS].sort(() => Math.random() - 0.5);
         hand = [];
         for(let i=0; i<4; i++) hand.push(deckQueue.shift());
         renderHand();
 
-        // Towers
+        // Spawn Towers
         spawnEntity(new Entity(90, 520, true, 'tower'));
         spawnEntity(new Entity(W-90, 520, true, 'tower'));
         spawnEntity(new Entity(W/2, 580, true, 'king'));
@@ -215,6 +217,7 @@
         spawnEntity(new Entity(W-90, 120, false, 'tower'));
         spawnEntity(new Entity(W/2, 60, false, 'king'));
 
+        // Start Loop
         requestAnimationFrame(loop);
     }
 
@@ -239,35 +242,29 @@
         renderHand();
     }
 
-    // --- GAME OVER LOGIC ---
-    function checkTimeWin() {
-        let playerTowers = entities.filter(e => e.isPlayer && (e.role==='tower'||e.role==='king')).length;
-        let enemyTowers = entities.filter(e => !e.isPlayer && (e.role==='tower'||e.role==='king')).length;
-        
-        if (playerTowers > enemyTowers) endGame('VICTORY', 'Time Expired!');
-        else if (enemyTowers > playerTowers) endGame('DEFEAT', 'Time Expired!');
-        else endGame('DRAW', 'Time Expired!');
-    }
-
-    function endGame(title, subtitle) {
+    // --- END GAME ---
+    function endGame(playerWon, msg) {
         if(gameOver) return;
         gameOver = true;
-        const goScreen = document.getElementById('game-over');
-        const t = document.getElementById('go-title');
-        const s = document.getElementById('go-subtitle');
         
-        t.innerText = title;
-        s.innerText = subtitle;
+        const go = document.getElementById('game-over');
+        const title = document.getElementById('go-title');
+        const sub = document.getElementById('go-sub');
         
-        goScreen.style.opacity = 1;
-        goScreen.style.pointerEvents = 'auto';
+        go.style.opacity = 1; 
+        go.style.pointerEvents = 'auto';
         
-        if (title === "VICTORY") t.style.color = "#4caf50";
-        else if (title === "DEFEAT") t.style.color = "#f44336";
-        else t.style.color = "#fff";
+        if (playerWon) {
+            title.innerText = "VICTORY!";
+            title.style.color = "#4caf50";
+        } else {
+            title.innerText = "DEFEAT!";
+            title.style.color = "#f44336";
+        }
+        sub.innerText = msg;
     }
 
-    // --- INPUT ---
+    // --- INPUT HANDLING ---
     cvs.addEventListener('pointerdown', e => {
         if(gameOver) return;
         e.preventDefault();
@@ -284,23 +281,22 @@
 
         if (elixir < card.cost) { showToast("Not Enough Elixir!"); return; }
         if (card.type !== 'spell' && y < RIVER_Y) { showToast("Enemy Territory!"); return; }
-
-        if (entities.length >= MAX_UNITS) { showToast("Unit Limit Reached!"); return; }
+        if (entities.length >= MAX_UNITS) { showToast("Too many units!"); return; }
 
         // Play Card
         elixir -= card.cost;
         if (card.type === 'spell') {
             castSpell(x, y, true, card);
         } else {
-            spawnCardUnits(x, y, true, card);
+            spawnCard(x, y, true, card);
         }
         cycleCard(selectedIdx);
     });
 
-    function spawnCardUnits(x, y, isPlayer, card) {
+    function spawnCard(x, y, isPlayer, card) {
         const count = card.count || 1;
         for(let i=0; i<count; i++) {
-            const spread = (count > 1) ? 25 : 0;
+            const spread = (count > 1) ? 20 : 0;
             const ox = (Math.random()-0.5)*spread;
             const oy = (Math.random()-0.5)*spread;
             
@@ -323,7 +319,15 @@
     }
 
     function castSpell(x, y, isPlayer, card) {
-        for(let i=0; i<12; i++) particles.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, life:0.6, color:'orange'});
+        // Visual
+        for(let i=0; i<12; i++) {
+            particles.push({
+                x:x, y:y, 
+                vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, 
+                life:0.6, color: card.icon==='⚡' ? 'cyan' : 'orange'
+            });
+        }
+        // Logic
         entities.forEach(e => {
             if(e.isPlayer !== isPlayer && !e.remove && !(e instanceof DeployTimer)) {
                 if(safeDist(e.x-x, e.y-y) < card.radius) e.takeDamage(card.dmg);
@@ -336,81 +340,94 @@
         return d < 0.1 ? 0.1 : d;
     }
 
-    // --- LOOP ---
+    // --- MAIN GAME LOOP ---
     function loop(now) {
-        if(gameOver) return;
-
-        const dt = Math.min((now - lastTime) / 1000, 0.1);
-        lastTime = now;
-
-        // Timer
-        gameTime -= dt;
-        if(gameTime <= 0) {
-            gameTime = 0;
-            checkTimeWin();
-        }
-        
-        let mins = Math.floor(gameTime/60);
-        let secs = Math.floor(gameTime%60);
-        document.getElementById('timer').innerText = `${mins}:${secs<10?'0':''}${secs}`;
-
-        // Cleanup
-        for(let i=entities.length-1; i>=0; i--) {
-            let e = entities[i];
-            if(e.remove || isNaN(e.x)) entities.splice(i, 1);
-        }
-
-        // Elixir Regen (Both sides equal)
-        if(elixir < 10) elixir += 0.5 * dt;
-        if(enemyElixir < 10) enemyElixir += 0.5 * dt;
-
-        document.getElementById('elixir-bar').style.width = (elixir*10) + '%';
-        document.getElementById('elixir-text').innerText = Math.floor(elixir);
-        
-        // Hand UI
-        hand.forEach((k, i) => {
-            let el = document.getElementById(`card-${i}`);
-            if(el) {
-                if(CARDS[k].cost > elixir) el.classList.add('disabled');
-                else el.classList.remove('disabled');
+        // Safety wrap
+        try {
+            if(gameOver) {
+                draw(); // Keep drawing last frame
+                return;
             }
-        });
 
-        // --- SMART AI LOGIC ---
-        spawnTimer -= dt;
-        if(spawnTimer <= 0) {
-            const rk = ALL_KEYS[Math.floor(Math.random() * ALL_KEYS.length)];
-            const aiCard = CARDS[rk];
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
 
-            if (enemyElixir >= aiCard.cost && entities.length < MAX_UNITS) {
-                if (aiCard.type === 'spell') {
-                    enemyElixir -= aiCard.cost;
-                    castSpell(W/2, 580, false, aiCard);
-                } else {
-                    const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                    const spawnX = lane + (Math.random()-0.5)*30;
-                    enemyElixir -= aiCard.cost; 
-                    spawnCardUnits(spawnX, 100, false, aiCard);
+            // Update Time
+            gameTime -= dt;
+            if(gameTime <= 0) {
+                gameTime = 0;
+                // Time Limit Check
+                let pScore = entities.filter(e => e.isPlayer && (e.role==='tower'||e.role==='king')).length;
+                let eScore = entities.filter(e => !e.isPlayer && (e.role==='tower'||e.role==='king')).length;
+                if(pScore > eScore) endGame(true, "Time's Up!");
+                else if(eScore > pScore) endGame(false, "Time's Up!");
+                else endGame(false, "Draw!");
+            }
+            let mins = Math.floor(gameTime/60);
+            let secs = Math.floor(gameTime%60);
+            document.getElementById('timer').innerText = `${mins}:${secs<10?'0':''}${secs}`;
+
+            // Cleanup
+            for(let i=entities.length-1; i>=0; i--) {
+                if(entities[i].remove || isNaN(entities[i].x)) entities.splice(i, 1);
+            }
+
+            // Elixir
+            if(elixir < 10) elixir += 0.5 * dt;
+            if(enemyElixir < 10) enemyElixir += 0.5 * dt;
+
+            document.getElementById('elixir-bar').style.width = (elixir*10) + '%';
+            document.getElementById('elixir-text').innerText = Math.floor(elixir);
+            
+            // Hand UI
+            hand.forEach((k, i) => {
+                let el = document.getElementById(`card-${i}`);
+                if(el) {
+                    if(CARDS[k].cost > elixir) el.classList.add('disabled');
+                    else el.classList.remove('disabled');
                 }
-                spawnTimer = 2.0 + Math.random() * 2.0; 
-            } else {
-                spawnTimer = 0.5;
+            });
+
+            // AI Logic
+            spawnTimer -= dt;
+            if(spawnTimer <= 0) {
+                // Try random card
+                const rk = DECK_KEYS[Math.floor(Math.random()*DECK_KEYS.length)];
+                const c = CARDS[rk];
+                
+                if (enemyElixir >= c.cost && entities.length < MAX_UNITS) {
+                    enemyElixir -= c.cost;
+                    if(c.type === 'spell') {
+                        castSpell(W/2, 580, false, c);
+                    } else {
+                        const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
+                        const sx = lane + (Math.random()-0.5)*30;
+                        spawnCard(sx, 120, false, c);
+                    }
+                    spawnTimer = 2.5 + Math.random()*2.5; 
+                } else {
+                    spawnTimer = 0.5; // Retry soon
+                }
             }
+
+            // Physics & Updates
+            resolveCollisions();
+            entities.sort((a,b) => a.y - b.y);
+            
+            for(let i=0; i<entities.length; i++) entities[i].update(dt);
+
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt;
+                if(p.life <= 0) particles.splice(i,1);
+            }
+
+            draw();
+        } catch(e) {
+            console.error("Game Loop Error:", e);
         }
-
-        // Physics
-        resolveCollisions();
-        entities.sort((a,b) => a.y - b.y);
-        for(let i=entities.length-1; i>=0; i--) entities[i].update(dt);
-
-        // Particles
-        for(let i=particles.length-1; i>=0; i--) {
-            let p = particles[i];
-            p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt;
-            if(p.life <= 0) particles.splice(i,1);
-        }
-
-        draw();
+        
         requestAnimationFrame(loop);
     }
 
@@ -418,6 +435,7 @@
         for(let i=0; i<entities.length; i++) {
             let e1 = entities[i];
             if(e1 instanceof DeployTimer || e1 instanceof Projectile) continue;
+            // No collision on bridge
             if(Math.abs(e1.y - RIVER_Y) < 55) continue; 
 
             for(let j=i+1; j<entities.length; j++) {
@@ -440,11 +458,11 @@
         }
     }
 
-    // --- DRAW ---
+    // --- DRAWING ---
     function draw() {
+        // Map
         ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,H);
         ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, W, 35);
-        
         ctx.fillStyle = '#8d6e63';
         ctx.fillRect(BRIDGE_L-20, RIVER_Y-12, 40, 58);
         ctx.fillRect(BRIDGE_R-20, RIVER_Y-12, 40, 58);
@@ -467,7 +485,7 @@
         ctx.globalAlpha = 1;
     }
 
-    // --- CLASSES ---
+    // --- ENTITY CLASSES ---
 
     class DeployTimer {
         constructor(x, y, isPlayer, card) {
@@ -497,7 +515,7 @@
     class Entity {
         constructor(x, y, isPlayer, role, stats) {
             this.x = x; this.y = y; this.isPlayer = isPlayer; this.role = role;
-            this.remove = false; 
+            this.remove = false;
             
             if (role === 'unit' || role === 'building') {
                 this.hp = stats.hp; this.maxHp = stats.hp;
@@ -522,6 +540,7 @@
         update(dt) {
             if(this.cooldown > 0) this.cooldown -= dt;
 
+            // Target
             let target = null;
             let minD = 300; 
 
@@ -554,7 +573,6 @@
 
         move(dt, tx, ty) {
             if(this.speed === 0) return;
-
             let dx = tx - this.x; let dy = ty - this.y;
             
             if(this.targetType === 'ground' && !this.jump) {
@@ -586,14 +604,17 @@
             this.hp -= n;
             if(this.hp <= 0) {
                 this.remove = true;
-                if(this.role === 'king') endGame(!this.isPlayer ? "VICTORY" : "DEFEAT", "King Tower Destroyed!");
+                if(this.role === 'king') endGame(!this.isPlayer, "King Tower Destroyed!");
             }
         }
 
         draw(ctx) {
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            let sy = this.flying ? this.y+20 : this.y;
-            ctx.beginPath(); ctx.ellipse(this.x, sy, this.radius, this.radius*0.6, 0, 0, Math.PI*2); ctx.fill();
+            ctx.save();
+            ctx.translate(this.x, this.flying ? this.y+20 : this.y);
+            ctx.scale(1, 0.6);
+            ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
 
             let fs = Math.max(16, this.radius * 2);
             ctx.font = fs + 'px Arial';
@@ -621,15 +642,13 @@
 
     class Projectile {
         constructor(x, y, t, dmg, area) {
-            this.x = x; this.y = y; this.target = t; this.dmg = dmg; this.area = area;
-            this.speed = 350;
-            this.remove = false;
-            this.life = 2.0; 
+            this.x = x; this.y = y; this.target = t; 
+            this.dmg = dmg; this.area = area; this.speed = 350;
+            this.remove = false; this.life = 2.0;
         }
         update(dt) {
             this.life -= dt;
             if(this.target.remove || this.life <= 0) { this.remove = true; return; }
-            
             let dx = this.target.x - this.x;
             let dy = (this.target.y-10) - this.y;
             let d = safeDist(dx, dy);
@@ -656,8 +675,7 @@
         }
     }
 
-    init();
-
+    initGame();
 </script>
 </body>
 </html>
