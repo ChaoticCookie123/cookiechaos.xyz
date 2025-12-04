@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - King Rush</title>
+    <title>Clash Clone - Fixed</title>
     <style>
-        /* STYLES */
+        /* BASE STYLES */
         body {
             background-color: #121212; display: flex; justify-content: center; 
             align-items: center; height: 100vh; margin: 0; overflow: hidden; 
-            font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-user-select: none;
-            touch-action: none;
+            font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; 
+            -webkit-user-select: none; touch-action: none;
         }
 
         #game-frame {
@@ -21,6 +21,7 @@
 
         canvas { display: block; width: 100%; height: 100%; }
 
+        /* UI LAYER */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
         /* TOP BAR */
@@ -61,7 +62,7 @@
             color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 0 #000;
         }
 
-        /* HAND */
+        /* CARD HAND */
         #hand {
             display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; height: 120px;
         }
@@ -87,7 +88,7 @@
         .icon { font-size: 38px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
         .name { font-size: 9px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
 
-        /* GAME OVER */
+        /* ROYAL GAME OVER SCREEN */
         #game-over {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
@@ -97,14 +98,21 @@
         }
         
         .result-banner {
-            font-size: 50px; font-weight: 900; text-transform: uppercase; 
-            text-shadow: 0 4px 0px rgba(0,0,0,0.5); margin-bottom: 20px;
+            font-size: 50px; font-weight: 900; 
+            text-transform: uppercase; 
+            text-shadow: 0 4px 0px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
             animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .win-text { color: #ffca28; text-shadow: 2px 2px 0 #d32f2f; }
+        .win-text { 
+            color: #ffca28; /* Gold */
+            text-shadow: 2px 2px 0 #d32f2f, -1px -1px 0 #d32f2f, 1px -1px 0 #d32f2f, -1px 1px 0 #d32f2f, 1px 1px 0 #d32f2f;
+        }
         .lose-text { color: #ef5350; text-shadow: 2px 2px 0 #b71c1c; }
         
-        .crown-display { display: flex; gap: 20px; margin-bottom: 40px; }
+        .crown-display {
+            display: flex; gap: 20px; margin-bottom: 40px;
+        }
         .crown-box {
             display: flex; flex-direction: column; align-items: center;
             background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px;
@@ -123,7 +131,11 @@
         }
         #restart-btn:active { transform: translateY(4px); border-bottom-width: 0; }
 
-        @keyframes popIn { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes popIn {
+            0% { transform: scale(0); }
+            80% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
 
         #toast {
             position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
@@ -149,6 +161,7 @@
         
         <div id="game-over">
             <div id="go-banner" class="result-banner">VICTORY!</div>
+            
             <div class="crown-display">
                 <div class="crown-box">
                     <div class="crown-icon">👑</div>
@@ -161,6 +174,7 @@
                     <div class="crown-label">Enemy</div>
                 </div>
             </div>
+
             <button id="restart-btn" onclick="initGame()">Battle Again</button>
         </div>
 
@@ -185,19 +199,22 @@
     const MAX_UNITS = 120; 
     const MATCH_TIME = 180;
 
+    // --- CARDS (Optimized Ranges) ---
     const CARDS = {
-        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 150, speed: 30, range: 5, type: 'ground', target: 'building', size: 24, aiRole: 'tank' },
-        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 450, speed: 35, range: 5, type: 'ground', target: 'ground', size: 20, aiRole: 'killer' },
-        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1100, dmg: 180, speed: 95, range: 5, type: 'ground', target: 'building', jump: true, size: 14, aiRole: 'wincon' },
-        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 100, speed: 50, range: 5, type: 'ground', target: 'ground', size: 12, aiRole: 'defense' },
-        'valk':   { name: 'Valkyrie', cost: 4, icon: '🪓', hp: 1200, dmg: 130, speed: 50, range: 5, type: 'ground', target: 'ground', area: true, size: 14, aiRole: 'splash' },
+        // Range increased to 40 for melee to prevent block-fail
+        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 150, speed: 30, range: 40, type: 'ground', target: 'building', size: 18, aiRole: 'tank' },
+        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 450, speed: 35, range: 40, type: 'ground', target: 'ground', size: 18, aiRole: 'killer' },
+        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1100, dmg: 180, speed: 95, range: 40, type: 'ground', target: 'building', jump: true, size: 14, aiRole: 'wincon' },
+        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 100, speed: 50, range: 40, type: 'ground', target: 'ground', size: 12, aiRole: 'defense' },
+        'valk':   { name: 'Valkyrie', cost: 4, icon: '🪓', hp: 1200, dmg: 130, speed: 50, range: 40, type: 'ground', target: 'ground', area: true, size: 14, aiRole: 'splash' },
+        
         'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 280, dmg: 70, speed: 60, range: 140, type: 'ground', target: 'any', count: 2, size: 10, aiRole: 'support' },
         'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 600, dmg: 160, speed: 50, range: 170, type: 'ground', target: 'any', size: 12, aiRole: 'support' },
         'wizard': { name: 'Wizard', cost: 5, icon: '🧙‍♂️', hp: 500, dmg: 130, speed: 50, range: 140, type: 'ground', target: 'any', area: true, size: 12, aiRole: 'splash' },
         'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 110, speed: 65, range: 90, type: 'air', target: 'any', area: true, size: 15, aiRole: 'splash' },
-        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 160, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3, size: 8, aiRole: 'dps' },
-        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 60, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 5, size: 7, aiRole: 'swarm' },
-        'goblin': { name: 'Goblins', cost: 2, icon: '👺', hp: 100, dmg: 60, speed: 90, range: 5, type: 'ground', target: 'ground', count: 3, size: 8, aiRole: 'cycle' },
+        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 160, dmg: 50, speed: 80, range: 40, type: 'air', target: 'any', count: 3, size: 8, aiRole: 'dps' },
+        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 60, dmg: 35, speed: 70, range: 30, type: 'ground', target: 'ground', count: 5, size: 7, aiRole: 'swarm' },
+        'goblin': { name: 'Goblins', cost: 2, icon: '👺', hp: 100, dmg: 60, speed: 90, range: 30, type: 'ground', target: 'ground', count: 3, size: 8, aiRole: 'cycle' },
         'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 750, dmg: 110, speed: 0, range: 140, type: 'building', target: 'ground', size: 20, aiRole: 'building' },
         'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450, aiRole: 'spell' }
     };
@@ -213,9 +230,9 @@
     let gameTime = MATCH_TIME;
     let gameOver = false;
     
-    // Tower Status (Tracks ALIVE status)
-    let pLeftT = true, pRightT = true;
-    let eLeftT = true, eRightT = true;
+    // Tower Status
+    let leftEnemyDead = false;
+    let rightEnemyDead = false;
 
     // Cycle
     let deckQueue = [];
@@ -228,12 +245,12 @@
         elixir = 5; enemyElixir = 5;
         gameOver = false; selectedIdx = null;
         gameTime = MATCH_TIME;
-        pLeftT = true; pRightT = true;
-        eLeftT = true; eRightT = true;
+        leftEnemyDead = false; rightEnemyDead = false;
         lastTime = performance.now();
         
         const go = document.getElementById('game-over');
-        go.style.opacity = 0; go.style.pointerEvents = 'none'; 
+        go.style.opacity = 0;
+        go.style.pointerEvents = 'none'; 
         
         updateScoreUI(0, 0);
 
@@ -278,10 +295,8 @@
     // --- INPUT ---
     function getValidSpawnY(x) {
         let limit = RIVER_Y; 
-        // If enemy left tower dead, expand left
-        if (x < W/2 && !eLeftT) limit = 180;
-        // If enemy right tower dead, expand right
-        if (x > W/2 && !eRightT) limit = 180;
+        if (x < W/2 && leftEnemyDead) limit = 180;
+        if (x > W/2 && rightEnemyDead) limit = 180;
         return limit;
     }
 
@@ -428,9 +443,8 @@
 
             aiThink(dt);
 
-            // Update Tower State
-            let curPLeft = false, curPRight = false;
-            let curELeft = false, curERight = false;
+            // Cleanup & Map & Score
+            let eLeft = false, eRight = false;
             let pTowers = 0, eTowers = 0;
 
             for(let i=entities.length-1; i>=0; i--) {
@@ -441,19 +455,17 @@
                     if (e.role === 'tower') {
                         if (e.isPlayer) {
                             pTowers++;
-                            if (e.x < W/2) curPLeft = true; else curPRight = true;
                         } else {
                             eTowers++;
-                            if (e.x < W/2) curELeft = true; else curERight = true;
+                            if (e.x < W/2) eLeft = true; else eRight = true;
                         }
                     }
                 }
             }
-            // Update Globals for Pathing
-            pLeftT = curPLeft; pRightT = curPRight;
-            eLeftT = curELeft; eRightT = curERight;
+            leftEnemyDead = !eLeft;
+            rightEnemyDead = !eRight;
             
-            // Score UI
+            // Calc Score
             let pScore = 2 - eTowers;
             let eScore = 2 - pTowers;
             updateScoreUI(pScore, eScore);
@@ -485,11 +497,12 @@
         
         go.style.opacity = 1; go.style.pointerEvents = 'auto';
 
-        // Final Score Logic
-        let pKingAlive = entities.some(e => e.isPlayer && e.role === 'king');
-        let eKingAlive = entities.some(e => !e.isPlayer && e.role === 'king');
-        let pTowersAlive = entities.filter(e => e.isPlayer && e.role === 'tower').length;
-        let eTowersAlive = entities.filter(e => !e.isPlayer && e.role === 'tower').length;
+        // Filter out any "dead" marked units from count
+        let pKingAlive = entities.some(e => e.isPlayer && e.role === 'king' && !e.remove);
+        let eKingAlive = entities.some(e => !e.isPlayer && e.role === 'king' && !e.remove);
+        
+        let pTowersAlive = entities.filter(e => e.isPlayer && e.role === 'tower' && !e.remove).length;
+        let eTowersAlive = entities.filter(e => !e.isPlayer && e.role === 'tower' && !e.remove).length;
 
         let pCrowns = 0;
         let eCrowns = 0;
@@ -551,6 +564,7 @@
     function draw() {
         ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,H);
         ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, W, 35);
+        
         ctx.fillStyle = '#8d6e63';
         ctx.fillRect(BRIDGE_L-20, RIVER_Y-12, 40, 58);
         ctx.fillRect(BRIDGE_R-20, RIVER_Y-12, 40, 58);
@@ -558,8 +572,8 @@
         ctx.strokeStyle = 'rgba(255,255,255,0.3)';
         ctx.setLineDash([10,10]);
         ctx.lineWidth = 2;
-        let ly = !eLeftT ? 180 : RIVER_Y+40;
-        let ry = !eRightT ? 180 : RIVER_Y+40;
+        let ly = leftEnemyDead ? 180 : RIVER_Y+40;
+        let ry = rightEnemyDead ? 180 : RIVER_Y+40;
         ctx.beginPath();
         ctx.moveTo(0, ly); ctx.lineTo(W/2, ly);
         if (ly !== ry) ctx.lineTo(W/2, ry);
@@ -638,7 +652,8 @@
             }
 
             if(target) {
-                let reach = this.range + target.radius + this.radius;
+                // Modified Range Check using radius to allow hitting over traffic
+                let reach = this.range + target.radius + this.radius; 
                 if(safeDist(target.x-this.x, target.y-this.y) <= reach) {
                     if(this.cooldown <= 0) {
                         this.attack(target);
@@ -648,25 +663,16 @@
                     this.move(dt, target.x, target.y);
                 }
             } else if(this.speed > 0) {
-                // PATHING UPDATE: Check if local lane tower is dead to rush king
                 let tx = W/2; 
-                let ty = this.isPlayer ? 60 : H-60; // King
+                let ty = this.isPlayer ? 60 : H-60; 
                 
-                if(this.x < 150) { // Left Lane
-                    // If player, target enemy left tower if alive
-                    if (this.isPlayer) {
-                        if (eLeftT) { tx = 90; ty = 120; } // Princess
-                    } else {
-                        // Enemy targeting player left
-                        if (pLeftT) { tx = 90; ty = 520; } // Princess
-                    }
+                if(this.x < 150) { 
+                    if (this.isPlayer) { if (eLeftT) { tx = 90; ty = 120; } } 
+                    else { if (pLeftT) { tx = 90; ty = 520; } }
                 }
-                else if (this.x > 270) { // Right Lane
-                    if (this.isPlayer) {
-                        if (eRightT) { tx = W-90; ty = 120; }
-                    } else {
-                        if (pRightT) { tx = W-90; ty = 520; }
-                    }
+                else if (this.x > 270) { 
+                    if (this.isPlayer) { if (eRightT) { tx = W-90; ty = 120; } } 
+                    else { if (pRightT) { tx = W-90; ty = 520; } }
                 }
                 
                 this.move(dt, tx, ty);
