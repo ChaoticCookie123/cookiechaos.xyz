@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Royal Update</title>
+    <title>Clash Clone - Final Fix</title>
     <style>
         /* BASE STYLES */
         body {
@@ -88,7 +88,7 @@
         .icon { font-size: 38px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
         .name { font-size: 9px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
 
-        /* ROYAL GAME OVER SCREEN */
+        /* GAME OVER SCREEN */
         #game-over {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
@@ -126,8 +126,9 @@
             padding: 15px 50px; font-size: 20px; font-weight: bold; text-transform: uppercase;
             background: linear-gradient(to bottom, #4fc3f7, #2196f3); 
             color: white; border: none; border-radius: 8px; border-bottom: 4px solid #1565c0;
-            cursor: pointer; pointer-events: auto; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            cursor: pointer; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
             transition: transform 0.1s;
+            /* FIXED: Removed pointer-events: auto so it doesn't block clicks when invisible */
         }
         #restart-btn:active { transform: translateY(4px); border-bottom-width: 0; }
 
@@ -217,7 +218,7 @@
     };
     const DECK_KEYS = Object.keys(CARDS);
 
-    // --- STATE ---
+    // --- GAME STATE ---
     let elixir = 5;
     let enemyElixir = 5;
     let entities = [];
@@ -234,7 +235,7 @@
     let hand = [];
     let selectedIdx = null;
 
-    // --- SETUP ---
+    // --- INITIALIZATION ---
     function initGame() {
         entities = []; particles = [];
         elixir = 5; enemyElixir = 5;
@@ -243,8 +244,10 @@
         leftEnemyDead = false; rightEnemyDead = false;
         lastTime = performance.now();
         
-        document.getElementById('game-over').style.opacity = 0;
-        document.getElementById('game-over').style.pointerEvents = 'none';
+        const go = document.getElementById('game-over');
+        go.style.opacity = 0;
+        go.style.pointerEvents = 'none'; // CRITICAL FIX: Make unclickable when hidden
+        
         updateScoreUI(0, 0);
 
         deckQueue = [...DECK_KEYS].sort(() => Math.random() - 0.5);
@@ -331,7 +334,6 @@
             const spread = (count > 1) ? 20 : 0;
             const ox = (Math.random()-0.5)*spread;
             const oy = (Math.random()-0.5)*spread;
-            // FIXED: Cannons are 'building' role, not 'tower' role
             if(card.type === 'building') {
                 spawnEntity(new Entity(x, y, isPlayer, 'building', card));
             } else {
@@ -364,6 +366,7 @@
         });
     }
 
+    // --- AI LOGIC ---
     function aiThink(dt) {
         aiTimer -= dt;
         if (aiTimer > 0) return;
@@ -408,7 +411,7 @@
         aiTimer = played ? (2.0 + Math.random()) : 0.5;
     }
 
-    // --- GAME LOOP ---
+    // --- MAIN LOOP ---
     function loop(now) {
         try {
             if(gameOver) { draw(); return; }
@@ -416,7 +419,7 @@
             lastTime = now;
 
             gameTime -= dt;
-            if(gameTime <= 0) endGame(false); // Time Limit
+            if(gameTime <= 0) endGame(false); 
             let mins = Math.floor(gameTime/60);
             let secs = Math.floor(gameTime%60);
             document.getElementById('timer').innerText = `${mins}:${secs<10?'0':''}${secs}`;
@@ -436,35 +439,30 @@
 
             aiThink(dt);
 
-            // Calculate Dead Towers for Map/Score
             let eLeft = false, eRight = false;
             let pTowers = 0, eTowers = 0;
-            let pKing = false, eKing = false;
 
             for(let i=entities.length-1; i>=0; i--) {
                 let e = entities[i];
                 if(e.remove || isNaN(e.x)) {
                     entities.splice(i, 1);
                 } else {
-                    // Only check original towers and kings
+                    if (!e.isPlayer && e.role === 'tower') {
+                        if (e.x < W/2) eLeft = true;
+                        else eRight = true;
+                    }
+                    // Simple Tower Counting
                     if (e.role === 'tower') {
                         if (e.isPlayer) pTowers++; else eTowers++;
-                        if (!e.isPlayer) {
-                            if (e.x < W/2) eLeft = true;
-                            else eRight = true;
-                        }
-                    } else if (e.role === 'king') {
-                        if (e.isPlayer) pKing = true; else eKing = true;
                     }
                 }
             }
             leftEnemyDead = !eLeft;
             rightEnemyDead = !eRight;
             
-            // Calc Score: 3 start towers - alive towers
-            // (Assumes King counts as 1 for UI score until destroyed = 3)
-            // Clash Logic: Princess = 1, King = 1. But if King dies = 3.
-            // Simplified: Current Score = Dead Princess Towers
+            // Score Logic: Max is 3. 
+            // 2 Princess + 1 King = 3 Total Alive.
+            // Crowns = 3 - Alive Count (Except king death is instant win)
             let pScore = 2 - eTowers;
             let eScore = 2 - pTowers;
             updateScoreUI(pScore, eScore);
@@ -496,8 +494,6 @@
         
         go.style.opacity = 1; go.style.pointerEvents = 'auto';
 
-        // Calculate Final Crowns
-        // Count alive entities
         let pKingAlive = entities.some(e => e.isPlayer && e.role === 'king');
         let eKingAlive = entities.some(e => !e.isPlayer && e.role === 'king');
         
@@ -564,6 +560,7 @@
     function draw() {
         ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,H);
         ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, W, 35);
+        
         ctx.fillStyle = '#8d6e63';
         ctx.fillRect(BRIDGE_L-20, RIVER_Y-12, 40, 58);
         ctx.fillRect(BRIDGE_R-20, RIVER_Y-12, 40, 58);
@@ -598,7 +595,6 @@
             this.timer -= dt;
             if(this.timer <= 0) {
                 this.remove = true;
-                // If it's a building card, it's ROLE is 'building', NOT 'tower'
                 if(this.card.type === 'building') {
                     spawnEntity(new Entity(this.x, this.y, this.isPlayer, 'building', this.card));
                 } else {
@@ -617,14 +613,14 @@
             this.x = x; this.y = y; this.isPlayer = isPlayer; this.role = role;
             this.remove = false;
             
-            if (role === 'unit' || role === 'building') { // Cannons/Giants
+            if (role === 'unit' || role === 'building') { 
                 this.hp = stats.hp; this.maxHp = stats.hp;
                 this.dmg = stats.dmg; this.speed = stats.speed;
                 this.range = stats.range; this.icon = stats.icon;
                 this.targetType = stats.type; this.targetPref = stats.target;
                 this.flying = (stats.type === 'air'); this.area = stats.area || false;
                 this.jump = stats.jump || false; this.radius = stats.size || 12; 
-            } else { // King/Princess Towers
+            } else { 
                 this.hp = role==='king'?3500:2000; this.maxHp = this.hp;
                 this.dmg = 90; this.speed = 0; this.range = 150;
                 this.icon = role==='king'?'👑':'🏰';
@@ -642,8 +638,7 @@
 
             for(let e of entities) {
                 if(e === this || e.isPlayer === this.isPlayer || e.remove || e instanceof DeployTimer || e instanceof Projectile) continue;
-                if(this.targetPref === 'building' && (e.role === 'unit')) continue; // Giant ignores units
-                // Note: Giant SHOULD target 'building' roles (Cannons) AND 'tower'/'king' roles
+                if(this.targetPref === 'building' && (e.role === 'unit')) continue; 
                 if(this.targetPref === 'building' && e.type !== 'building') continue; 
 
                 if(this.targetPref === 'ground' && e.type === 'air') continue;
@@ -703,7 +698,7 @@
             this.hp -= n;
             if(this.hp <= 0) {
                 this.remove = true;
-                if(this.role === 'king') endGame(true); // Trigger instant logic
+                if(this.role === 'king') endGame(true); 
             }
         }
 
@@ -758,10 +753,6 @@
         draw(ctx) {
             ctx.fillStyle = 'yellow'; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
         }
-    }
-
-    function spawnEntity(e) {
-        if(entities.length < MAX_UNITS) entities.push(e);
     }
 
     initGame();
