@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - AI Upgrade</title>
+    <title>Clash Clone - Fair AI</title>
     <style>
         /* --- CORE STYLES --- */
         body {
@@ -176,7 +176,7 @@
     const W = 420, H = 720;
     const RIVER_Y = H/2 - 40;
     const BRIDGE_L = 90, BRIDGE_R = W - 90;
-    const MAX_UNITS = 200; // Keep this high to prevent spawn lock
+    const MAX_UNITS = 200; 
     const MATCH_TIME = 180;
 
     // --- CARDS ---
@@ -209,7 +209,7 @@
     let gameOver = false;
     let leftEnemyDead = false, rightEnemyDead = false;
     
-    // Global Tower States (Pathfinding Fix)
+    // Global Tower States
     let pLeftT = true, pRightT = true;
     let eLeftT = true, eRightT = true;
 
@@ -348,37 +348,37 @@
         });
     }
 
-    // --- UPDATED AI LOGIC ---
+    // --- AI LOGIC (WITH ELIXIR ENFORCEMENT) ---
     function aiThink(dt) {
         aiTimer -= dt;
         if (aiTimer > 0) return;
+
+        // **ENFORCEMENT:** Filter cards we can afford immediately.
+        // If a card costs 5 and we have 4, it is REMOVED from the list of options.
+        const affordableCards = DECK_KEYS.filter(k => CARDS[k].cost <= enemyElixir);
 
         // 1. Check for threats
         const threats = entities.filter(e => e.isPlayer && e.y < RIVER_Y + 120 && !e.remove && !(e instanceof DeployTimer));
         let played = false;
 
-        if (threats.length > 0) {
+        if (threats.length > 0 && affordableCards.length > 0) {
             // DEFENSE: Pick a random threat
             threats.sort((a,b) => a.y - b.y);
             const threat = threats[0]; // Most advanced threat
 
-            // Build list of valid counters
-            const candidates = DECK_KEYS.filter(k => {
+            // Build list of valid counters ONLY from affordable cards
+            const candidates = affordableCards.filter(k => {
                 const c = CARDS[k];
-                if (c.cost > enemyElixir) return false;
+                // Note: cost check already done in affordableCards filter above
                 
-                // If threat is flying, we need air targeting
                 if (threat.flying) {
                     if (c.target === 'ground' && c.type !== 'spell') return false;
                 }
                 
-                // If threat is swarm, prefer splash (but allow others for variety)
                 if ((threat.count && threat.count > 1) || threat.hp < 200) {
-                     // Prefer splash, but 30% chance to just pick any cheap DPS
                      if (!c.area && Math.random() > 0.3) return false;
                 }
 
-                // If threat is tank, prefer killers/swarms
                 if (threat.hp > 1200) {
                     if (c.aiRole !== 'killer' && c.aiRole !== 'swarm' && Math.random() > 0.2) return false;
                 }
@@ -387,47 +387,43 @@
             });
 
             if (candidates.length > 0) {
-                // Randomly pick one of the valid counters
                 const bestKey = candidates[Math.floor(Math.random() * candidates.length)];
-                enemyElixir -= CARDS[bestKey].cost;
-                // Vary spawn position slightly
+                enemyElixir -= CARDS[bestKey].cost; // Deduct Elixir
                 const ox = (Math.random()-0.5)*50;
                 spawnCard(threat.x + ox, 180, false, CARDS[bestKey]);
                 played = true;
             } else {
-                // No perfect counter? Panic play cheap card
-                const cheap = DECK_KEYS.filter(k => CARDS[k].cost <= enemyElixir && CARDS[k].type !== 'spell');
+                // Panic play: any affordable card (except spells usually)
+                const cheap = affordableCards.filter(k => CARDS[k].type !== 'spell');
                 if (cheap.length > 0) {
                     const k = cheap[Math.floor(Math.random()*cheap.length)];
-                    enemyElixir -= CARDS[k].cost;
+                    enemyElixir -= CARDS[k].cost; // Deduct Elixir
                     spawnCard(threat.x, 180, false, CARDS[k]);
                     played = true;
                 }
             }
         } 
         
-        // OFFENSE: If no immediate threat, maybe attack?
-        if (!played) {
-            // High elixir OR random aggression (10% chance if elixir > 4)
+        // OFFENSE
+        if (!played && affordableCards.length > 0) {
             if (enemyElixir > 9 || (enemyElixir > 4 && Math.random() < 0.1)) {
-                // Look for offensive cards
-                const attackers = DECK_KEYS.filter(k => {
+                // Filter attacking options from affordable list
+                const attackers = affordableCards.filter(k => {
                     const c = CARDS[k];
-                    return (c.aiRole === 'tank' || c.aiRole === 'wincon' || c.aiRole === 'cycle' || c.aiRole === 'swarm') && c.cost <= enemyElixir;
+                    return (c.aiRole === 'tank' || c.aiRole === 'wincon' || c.aiRole === 'cycle' || c.aiRole === 'swarm');
                 });
 
                 if (attackers.length > 0) {
                     const key = attackers[Math.floor(Math.random() * attackers.length)];
                     const c = CARDS[key];
                     const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                    enemyElixir -= c.cost;
+                    enemyElixir -= c.cost; // Deduct Elixir
                     spawnCard(lane, 110, false, c);
                     played = true;
                 }
             }
         }
         
-        // Randomize thinking speed
         aiTimer = played ? (1.5 + Math.random() * 2.0) : 0.6;
     }
 
@@ -459,7 +455,7 @@
 
             aiThink(dt);
 
-            // Updated Pathfinding Logic
+            // Pathfinding Logic
             let eLeft = false, eRight = false;
             let pTowers = 0, eTowers = 0;
             pLeftT = false; pRightT = false;
