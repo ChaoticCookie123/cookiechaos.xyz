@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Bulletproof</title>
+    <title>Clash Clone - Fair AI</title>
     <style>
         body {
             background-color: #121212; display: flex; justify-content: center; 
@@ -14,15 +14,15 @@
 
         #game-frame {
             position: relative; width: 420px; height: 720px; background: #3b8c3b;
-            border-radius: 12px; overflow: hidden; border: 4px solid #3e2723;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+            border-radius: 12px; overflow: hidden; border: 4px solid #4e342e;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
         }
 
         canvas { display: block; width: 100%; height: 100%; }
 
-        /* UI */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
+        /* DASHBOARD */
         #dashboard {
             position: absolute; bottom: 0; width: 100%; height: 160px;
             background: linear-gradient(to top, #263238, #37474f);
@@ -30,28 +30,29 @@
             display: flex; flex-direction: column; align-items: center;
         }
 
-        #elixir-bar-container {
-            width: 85%; height: 22px; margin-top: 8px; margin-bottom: 5px;
+        #elixir-wrapper {
+            width: 85%; height: 20px; margin-top: 8px; margin-bottom: 5px;
             background: #111; border: 2px solid #777; border-radius: 10px; overflow: hidden; position: relative;
         }
-        #elixir-fill {
+        #elixir-bar {
             height: 100%; width: 50%; background: linear-gradient(90deg, #d500f9, #aa00ff);
             transition: width 0.1s linear;
         }
         #elixir-text {
-            position: absolute; top: 0; width: 100%; text-align: center; line-height: 22px;
+            position: absolute; top: 0; width: 100%; text-align: center; line-height: 20px;
             color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 0 #000;
         }
 
+        /* HAND */
         #hand {
             display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; height: 120px;
         }
 
         .card {
-            width: 72px; height: 96px; background: #2b3a42; border: 3px solid #546e7a;
+            width: 70px; height: 94px; background: #2b3a42; border: 3px solid #546e7a;
             border-radius: 8px; position: relative; cursor: pointer; transition: transform 0.1s;
             display: flex; flex-direction: column; align-items: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 5px rgba(0,0,0,0.5);
         }
         .card.selected {
             border-color: #ffd700; transform: translateY(-12px) scale(1.05);
@@ -65,26 +66,14 @@
             color: white; font-weight: bold; font-size: 12px;
             display: flex; justify-content: center; align-items: center;
         }
-        .icon { font-size: 38px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
+        .icon { font-size: 36px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
         .name { font-size: 9px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
 
         #toast {
             position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
             border-radius: 20px; font-weight: bold; opacity: 0; transition: opacity 0.3s;
-            pointer-events: none; z-index: 999;
-        }
-        
-        #game-over {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; opacity: 0; pointer-events: none;
-            transition: opacity 0.5s; z-index: 1000;
-        }
-        #go-msg { font-size: 40px; font-weight: bold; margin-bottom: 20px; color: white; }
-        #replay-btn {
-            padding: 12px 30px; font-size: 20px; background: #03a9f4; color: white;
-            border: none; border-radius: 5px; cursor: pointer;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -93,14 +82,10 @@
 <div id="game-frame">
     <canvas id="cvs" width="420" height="720"></canvas>
     <div id="ui-layer">
-        <div id="toast"></div>
-        <div id="game-over">
-            <div id="go-msg">GAME OVER</div>
-            <button id="replay-btn" onclick="init()">Play Again</button>
-        </div>
+        <div id="toast">Not Enough Elixir!</div>
         <div id="dashboard">
-            <div id="elixir-bar-container">
-                <div id="elixir-fill"></div>
+            <div id="elixir-wrapper">
+                <div id="elixir-bar"></div>
                 <div id="elixir-text">5</div>
             </div>
             <div id="hand"></div>
@@ -116,60 +101,54 @@
     const W = 420, H = 720;
     const RIVER_Y = H/2 - 40;
     const BRIDGE_L = 90, BRIDGE_R = W - 90;
-    const BRIDGE_W = 50;
-    const MAX_UNITS = 100; // Only counts units, not bullets
+    const MAX_UNITS = 100; // Cap to prevent crash
 
     // --- CARDS ---
     const CARDS = {
-        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 800, dmg: 85, speed: 50, range: 5, type: 'ground', target: 'ground' },
-        'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 250, dmg: 60, speed: 55, range: 120, type: 'ground', target: 'any', count: 2 },
-        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2200, dmg: 140, speed: 30, range: 5, type: 'ground', target: 'building' },
-        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 900, dmg: 160, speed: 90, range: 5, type: 'ground', target: 'building', jump: true },
-        'musk':   { name: 'Musk', cost: 4, icon: '👒', hp: 550, dmg: 150, speed: 50, range: 160, type: 'ground', target: 'any' },
-        'baby':   { name: 'Baby D', cost: 4, icon: '🐲', hp: 900, dmg: 100, speed: 65, range: 80, type: 'air', target: 'any', area: true },
-        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 160, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3 },
-        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 50, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 5 },
-        'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 700, dmg: 100, speed: 0, range: 140, type: 'building', target: 'ground' },
-        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 400 },
-        'zap':    { name: 'Zap', cost: 2, icon: '⚡', type: 'spell', radius: 60, dmg: 120 }
+        'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 90, speed: 50, range: 5, type: 'ground', target: 'ground', size: 12 },
+        'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 300, dmg: 60, speed: 60, range: 120, type: 'ground', target: 'any', count: 2, size: 10 },
+        'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 140, speed: 30, range: 5, type: 'ground', target: 'building', size: 22 },
+        'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1000, dmg: 170, speed: 95, range: 5, type: 'ground', target: 'building', jump: true, size: 14 },
+        'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 650, dmg: 160, speed: 50, range: 160, type: 'ground', target: 'any', size: 12 },
+        'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 950, dmg: 110, speed: 65, range: 80, type: 'air', target: 'any', area: true, size: 15 },
+        'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 180, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3, size: 8 },
+        'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 50, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 4, size: 7 },
+        'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 750, dmg: 110, speed: 0, range: 140, type: 'building', target: 'ground', size: 20 },
+        'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 3000, dmg: 400, speed: 35, range: 5, type: 'ground', target: 'ground', size: 20 },
+        'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450 },
+        'zap':    { name: 'Zap', cost: 2, icon: '⚡', type: 'spell', radius: 60, dmg: 140 }
     };
     const ALL_KEYS = Object.keys(CARDS);
 
-    // --- GAME ARRAYS ---
-    let units = [];
-    let projectiles = [];
-    let particles = [];
-    
     // --- STATE ---
     let elixir = 5;
+    let enemyElixir = 5; // HIDDEN AI ELIXIR
+    let aiTimer = 2.0;   // AI Reaction time
+
+    let entities = [];
+    let particles = [];
     let lastTime = 0;
-    let spawnTimer = 4.0;
+    
+    // Cycle Logic
     let deckQueue = [];
-    let hand = [];
-    let selectedIdx = null;
-    let gameOver = false;
+    let hand = []; 
+    let selectedIdx = null; 
 
-    // --- INIT ---
+    // --- SETUP ---
     function init() {
-        units = []; projectiles = []; particles = [];
-        elixir = 5; gameOver = false;
-        document.getElementById('game-over').style.opacity = 0;
-        document.getElementById('game-over').style.pointerEvents = 'none';
-
-        // Setup Deck
+        // Init Deck
         deckQueue = [...ALL_KEYS].sort(() => Math.random() - 0.5);
-        hand = [];
         for(let i=0; i<4; i++) hand.push(deckQueue.shift());
         renderHand();
 
         // Towers
-        spawnUnit(new Unit(90, 520, true, 'tower'));
-        spawnUnit(new Unit(W-90, 520, true, 'tower'));
-        spawnUnit(new Unit(W/2, 580, true, 'king'));
+        spawnEntity(new Entity(90, 520, true, 'tower'));
+        spawnEntity(new Entity(W-90, 520, true, 'tower'));
+        spawnEntity(new Entity(W/2, 580, true, 'king'));
         
-        spawnUnit(new Unit(90, 120, false, 'tower'));
-        spawnUnit(new Unit(W-90, 120, false, 'tower'));
-        spawnUnit(new Unit(W/2, 60, false, 'king'));
+        spawnEntity(new Entity(90, 120, false, 'tower'));
+        spawnEntity(new Entity(W-90, 120, false, 'tower'));
+        spawnEntity(new Entity(W/2, 60, false, 'king'));
 
         requestAnimationFrame(loop);
     }
@@ -183,7 +162,7 @@
             el.className = 'card' + (idx === selectedIdx ? ' selected' : '');
             el.id = `card-${idx}`;
             el.innerHTML = `<div class="cost">${c.cost}</div><div class="icon">${c.icon}</div><div class="name">${c.name}</div>`;
-            el.onclick = () => { if(!gameOver) { selectedIdx = idx; renderHand(); } };
+            el.onclick = () => { selectedIdx = idx; renderHand(); };
             div.appendChild(el);
         });
     }
@@ -197,122 +176,141 @@
 
     // --- INPUT ---
     cvs.addEventListener('pointerdown', e => {
-        if(gameOver) return;
         e.preventDefault();
         const rect = cvs.getBoundingClientRect();
-        const x = (e.clientX - rect.left) * (W / rect.width);
-        const y = (e.clientY - rect.top) * (H / rect.height);
+        const scaleX = W / rect.width;
+        const scaleY = H / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
 
-        if(selectedIdx === null) return msg("Select a card!");
-        const card = CARDS[hand[selectedIdx]];
-
-        if(elixir < card.cost) return msg("Not enough Elixir!");
-        if(card.type !== 'spell' && y < RIVER_Y) return msg("Enemy Territory!");
-        if(units.length >= MAX_UNITS) return msg("Too many units!");
-
-        // Play
-        elixir -= card.cost;
+        if (selectedIdx === null) { showToast("Select a Card!"); return; }
         
-        if(card.type === 'spell') {
+        const key = hand[selectedIdx];
+        const card = CARDS[key];
+
+        if (elixir < card.cost) { showToast("Not Enough Elixir!"); return; }
+        if (card.type !== 'spell' && y < RIVER_Y) { showToast("Enemy Territory!"); return; }
+
+        if (entities.length >= MAX_UNITS) { showToast("Unit Limit Reached!"); return; }
+
+        // Play Card
+        elixir -= card.cost;
+        if (card.type === 'spell') {
             castSpell(x, y, true, card);
         } else {
-            const count = card.count || 1;
-            for(let i=0; i<count; i++) {
-                const spread = (count > 1) ? 25 : 0;
-                const ox = (Math.random()-0.5)*spread;
-                const oy = (Math.random()-0.5)*spread;
-                // Units spawn with a 1s delay (handled in Unit class)
-                if(card.type === 'building') {
-                    spawnUnit(new Unit(x, y, true, 'building', card));
-                } else {
-                    spawnUnit(new Unit(x+ox, y+oy, true, 'unit', card));
-                }
-            }
+            spawnCardUnits(x, y, true, card);
         }
         cycleCard(selectedIdx);
     });
 
-    function msg(txt) {
+    function spawnCardUnits(x, y, isPlayer, card) {
+        const count = card.count || 1;
+        for(let i=0; i<count; i++) {
+            const spread = (count > 1) ? 25 : 0;
+            const ox = (Math.random()-0.5)*spread;
+            const oy = (Math.random()-0.5)*spread;
+            
+            if(card.type === 'building') {
+                spawnEntity(new Tower(x, y, isPlayer, false, card));
+            } else {
+                spawnEntity(new DeployTimer(x+ox, y+oy, isPlayer, card));
+            }
+        }
+    }
+
+    function showToast(msg) {
         const t = document.getElementById('toast');
-        t.innerText = txt; t.style.opacity = 1;
+        t.innerText = msg; t.style.opacity = 1;
         setTimeout(() => t.style.opacity = 0, 1000);
     }
 
-    function spawnUnit(u) {
-        if(units.length < MAX_UNITS) units.push(u);
+    function spawnEntity(e) {
+        if(entities.length < MAX_UNITS) entities.push(e);
     }
 
     function castSpell(x, y, isPlayer, card) {
-        // Visual
-        for(let i=0; i<10; i++) particles.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, life:0.5, color:card.icon==='⚡'?'cyan':'orange'});
-        // Damage
-        units.forEach(u => {
-            if(u.isPlayer !== isPlayer && u.active) {
-                if(Math.hypot(u.x-x, u.y-y) < card.radius) u.takeDamage(card.dmg);
+        for(let i=0; i<12; i++) particles.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:(Math.random()-0.5)*300, life:0.6, color:card.icon==='⚡'?'cyan':'orange'});
+        entities.forEach(e => {
+            if(e.isPlayer !== isPlayer && !e.remove && !(e instanceof DeployTimer)) {
+                if(safeDist(e.x-x, e.y-y) < card.radius) e.takeDamage(card.dmg);
             }
         });
     }
 
-    function endGame(playerWon) {
-        gameOver = true;
-        const s = document.getElementById('game-over');
-        s.style.opacity = 1; s.style.pointerEvents = 'auto';
-        const m = document.getElementById('go-msg');
-        m.innerText = playerWon ? "VICTORY!" : "DEFEAT!";
-        m.style.color = playerWon ? "#4caf50" : "#f44336";
+    function safeDist(dx, dy) {
+        let d = Math.sqrt(dx*dx + dy*dy);
+        return d < 0.1 ? 0.1 : d;
     }
 
-    // --- GAME LOOP ---
+    // --- LOOP ---
     function loop(now) {
-        if(gameOver) return;
         const dt = Math.min((now - lastTime) / 1000, 0.1);
         lastTime = now;
 
-        // 1. Elixir
+        // Cleanup
+        for(let i=entities.length-1; i>=0; i--) {
+            let e = entities[i];
+            if(e.remove || isNaN(e.x)) entities.splice(i, 1);
+        }
+
+        // Elixir Regen (Both sides equal)
         if(elixir < 10) elixir += 0.5 * dt;
-        document.getElementById('elixir-fill').style.width = (elixir*10) + '%';
+        if(enemyElixir < 10) enemyElixir += 0.5 * dt;
+
+        document.getElementById('elixir-bar').style.width = (elixir*10) + '%';
         document.getElementById('elixir-text').innerText = Math.floor(elixir);
         
-        // 2. Card Grayscale
+        // Hand UI
         hand.forEach((k, i) => {
-            const el = document.getElementById(`card-${i}`);
+            let el = document.getElementById(`card-${i}`);
             if(el) {
                 if(CARDS[k].cost > elixir) el.classList.add('disabled');
                 else el.classList.remove('disabled');
             }
         });
 
-        // 3. AI
-        spawnTimer -= dt;
-        if(spawnTimer <= 0) {
-            if(units.length < MAX_UNITS) {
-                const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                const keys = ['knight','giant','hog','archer','baby']; 
-                const rk = keys[Math.floor(Math.random()*keys.length)];
-                const c = CARDS[rk];
-                const count = c.count || 1;
-                for(let i=0; i<count; i++) {
-                    const spread = (count > 1) ? 25 : 0;
-                    spawnUnit(new Unit(lane+(Math.random()-0.5)*spread, 20, false, 'unit', c));
+        // --- SMART AI LOGIC ---
+        aiTimer -= dt;
+        if(aiTimer <= 0) {
+            // Pick a random card from full library
+            const rk = ALL_KEYS[Math.floor(Math.random() * ALL_KEYS.length)];
+            const aiCard = CARDS[rk];
+
+            // AI MUST PAY ELIXIR
+            if (enemyElixir >= aiCard.cost && entities.length < MAX_UNITS) {
+                
+                // Decide position
+                let spawnX, spawnY;
+                
+                if (aiCard.type === 'spell') {
+                    // Aim at player King
+                    spawnX = W/2; spawnY = 580; 
+                    enemyElixir -= aiCard.cost;
+                    castSpell(spawnX, spawnY, false, aiCard);
+                } else {
+                    // Pick random lane
+                    const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
+                    spawnX = lane + (Math.random()-0.5)*30;
+                    spawnY = 100; // Top side
+
+                    enemyElixir -= aiCard.cost; // PAY COST
+                    spawnCardUnits(spawnX, spawnY, false, aiCard);
                 }
+
+                // AI "Think Time" Reset (2s - 4s)
+                aiTimer = 2.0 + Math.random() * 2.0; 
+            } else {
+                // Not enough elixir? Check again shortly
+                aiTimer = 0.5;
             }
-            spawnTimer = 5.0; 
         }
 
-        // 4. Update Units
-        // Filter dead units
-        units = units.filter(u => u.hp > 0);
-        // Sort for depth
-        units.sort((a,b) => a.y - b.y);
-        
-        for(let u of units) u.update(dt);
+        // Physics
+        resolveCollisions();
+        entities.sort((a,b) => a.y - b.y);
+        for(let i=entities.length-1; i>=0; i--) entities[i].update(dt);
 
-        // 5. Update Projectiles
-        for(let i=projectiles.length-1; i>=0; i--) {
-            if(projectiles[i].update(dt)) projectiles.splice(i,1);
-        }
-
-        // 6. Update Particles
+        // Particles
         for(let i=particles.length-1; i>=0; i--) {
             let p = particles[i];
             p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt;
@@ -323,28 +321,52 @@
         requestAnimationFrame(loop);
     }
 
+    function resolveCollisions() {
+        for(let i=0; i<entities.length; i++) {
+            let e1 = entities[i];
+            if(e1 instanceof DeployTimer || e1 instanceof Projectile) continue;
+            if(Math.abs(e1.y - RIVER_Y) < 55) continue; 
+
+            for(let j=i+1; j<entities.length; j++) {
+                let e2 = entities[j];
+                if(e2 instanceof DeployTimer || e2 instanceof Projectile) continue;
+                if(e1.flying !== e2.flying) continue;
+
+                let dist = safeDist(e1.x-e2.x, e1.y-e2.y);
+                let min = e1.radius + e2.radius; 
+                
+                if(dist < min) {
+                    let overlap = min - dist;
+                    let dx = (e1.x-e2.x)/dist; 
+                    let dy = (e1.y-e2.y)/dist;
+                    let force = overlap * 0.1;
+                    if(e1.speed > 0) { e1.x += dx*force; e1.y += dy*force; }
+                    if(e2.speed > 0) { e2.x -= dx*force; e2.y -= dy*force; }
+                }
+            }
+        }
+    }
+
+    // --- DRAW ---
     function draw() {
-        // Map
         ctx.fillStyle = '#3b8c3b'; ctx.fillRect(0,0,W,H);
         ctx.fillStyle = '#4fa3e3'; ctx.fillRect(0, RIVER_Y, W, 35);
+        
         ctx.fillStyle = '#8d6e63';
         ctx.fillRect(BRIDGE_L-20, RIVER_Y-12, 40, 58);
         ctx.fillRect(BRIDGE_R-20, RIVER_Y-12, 40, 58);
         
-        // Outline
         ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(BRIDGE_L-25, RIVER_Y); ctx.lineTo(BRIDGE_L+25, RIVER_Y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(BRIDGE_R-25, RIVER_Y); ctx.lineTo(BRIDGE_R+25, RIVER_Y); ctx.stroke();
-        
-        // Spawn Line
+
         ctx.strokeStyle = 'rgba(255,255,255,0.2)';
         ctx.setLineDash([10,10]);
         ctx.beginPath(); ctx.moveTo(0, RIVER_Y+40); ctx.lineTo(W, RIVER_Y+40); ctx.stroke();
         ctx.setLineDash([]);
 
-        // Render Objects
-        units.forEach(u => u.draw(ctx));
-        projectiles.forEach(p => p.draw(ctx));
+        entities.forEach(e => e.draw(ctx));
+        
         particles.forEach(p => {
             ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
             ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
@@ -352,16 +374,38 @@
         ctx.globalAlpha = 1;
     }
 
-    // --- LOGIC CLASSES ---
+    // --- CLASSES ---
 
-    class Unit {
+    class DeployTimer {
+        constructor(x, y, isPlayer, card) {
+            this.x = x; this.y = y; this.isPlayer = isPlayer; this.card = card;
+            this.timer = 1.0; this.max = 1.0;
+            this.remove = false;
+        }
+        update(dt) {
+            this.timer -= dt;
+            if(this.timer <= 0) {
+                this.remove = true;
+                if(this.card.type === 'building') {
+                    spawnEntity(new Tower(this.x, this.y, this.isPlayer, false, this.card));
+                } else {
+                    spawnEntity(new Entity(this.x, this.y, this.isPlayer, 'unit', this.card));
+                }
+            }
+        }
+        draw(ctx) {
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(this.x, this.y, 10, -Math.PI/2, (Math.PI*2*(this.timer/this.max))-Math.PI/2, true); ctx.stroke();
+        }
+    }
+
+    class Entity {
         constructor(x, y, isPlayer, role, stats) {
             this.x = x; this.y = y; this.isPlayer = isPlayer; this.role = role;
+            this.remove = false; 
             
-            // Deployment Timer Built-in
-            this.deployTime = 1.0; 
-            this.active = false; // Becomes true after deploy
-
             if (role === 'unit' || role === 'building') {
                 this.hp = stats.hp; this.maxHp = stats.hp;
                 this.dmg = stats.dmg; this.speed = stats.speed;
@@ -371,47 +415,35 @@
                 this.flying = (stats.type === 'air');
                 this.area = stats.area || false;
                 this.jump = stats.jump || false;
-                this.radius = 12;
+                this.radius = stats.size || 12; 
             } else {
-                // Tower
                 this.hp = role==='king'?3000:1800; this.maxHp = this.hp;
                 this.dmg = 80; this.speed = 0; this.range = 150;
                 this.icon = role==='king'?'👑':'🏰';
                 this.targetType = 'building'; this.targetPref = 'any';
                 this.radius = 25;
-                this.deployTime = 0; // Towers deploy instantly at start
-                this.active = true;
             }
             this.cooldown = 0;
         }
 
         update(dt) {
-            // Handle Deployment
-            if(this.deployTime > 0) {
-                this.deployTime -= dt;
-                if(this.deployTime <= 0) this.active = true;
-                return;
-            }
-
             if(this.cooldown > 0) this.cooldown -= dt;
 
-            // Find Target
             let target = null;
             let minD = 300; 
 
-            for(let e of units) {
-                if(e.isPlayer === this.isPlayer || !e.active) continue;
-                if(this.targetPref === 'building' && e.role === 'unit') continue;
+            for(let e of entities) {
+                if(e === this || e.isPlayer === this.isPlayer || e.remove || e instanceof DeployTimer || e instanceof Projectile) continue;
+                if(this.targetPref === 'building' && e.type !== 'building') continue;
                 if(this.targetPref === 'ground' && e.type === 'air') continue;
                 
-                let d = Math.hypot(e.x - this.x, e.y - this.y);
+                let d = safeDist(e.x-this.x, e.y-this.y);
                 if(d < minD) { minD = d; target = e; }
             }
 
-            // Attack or Move
             if(target) {
                 let reach = this.range + target.radius + this.radius;
-                if(Math.hypot(target.x - this.x, target.y - this.y) <= reach) {
+                if(safeDist(target.x-this.x, target.y-this.y) <= reach) {
                     if(this.cooldown <= 0) {
                         this.attack(target);
                         this.cooldown = 1.2;
@@ -420,7 +452,6 @@
                     this.move(dt, target.x, target.y);
                 }
             } else if(this.speed > 0) {
-                // No target? Go to King
                 let tx = W/2; let ty = this.isPlayer ? 60 : H-60;
                 if(this.x < 150) { tx = 90; ty = this.isPlayer ? 120 : 520; }
                 else if(this.x > 270) { tx = W-90; ty = this.isPlayer ? 120 : 520; }
@@ -430,9 +461,9 @@
 
         move(dt, tx, ty) {
             if(this.speed === 0) return;
+
             let dx = tx - this.x; let dy = ty - this.y;
             
-            // Bridge Funnel
             if(this.targetType === 'ground' && !this.jump) {
                 let rDist = Math.abs(this.y - RIVER_Y);
                 if(rDist < 50 && ((this.isPlayer && this.y > RIVER_Y) || (!this.isPlayer && this.y < RIVER_Y))) {
@@ -441,20 +472,18 @@
                 }
             }
 
-            let d = Math.hypot(dx, dy);
-            if(d > 0.1) {
-                this.x += (dx/d)*this.speed*dt;
-                this.y += (dy/d)*this.speed*dt;
-            }
+            let d = safeDist(dx, dy);
+            this.x += (dx/d)*this.speed*dt;
+            this.y += (dy/d)*this.speed*dt;
         }
 
         attack(t) {
-            if(this.speed > 0) { // Bump
+            if(this.speed > 0) { 
                 let a = Math.atan2(t.y-this.y, t.x-this.x);
-                this.x += Math.cos(a)*4; this.y += Math.sin(a)*4;
+                this.x += Math.cos(a)*3; this.y += Math.sin(a)*3;
             }
             if(this.range > 30) {
-                projectiles.push(new Projectile(this.x, this.y-10, t, this.dmg, this.area));
+                spawnEntity(new Projectile(this.x, this.y-10, t, this.dmg, this.area));
             } else {
                 t.takeDamage(this.dmg);
             }
@@ -462,68 +491,72 @@
 
         takeDamage(n) {
             this.hp -= n;
-            // King Death = Game Over
-            if(this.hp <= 0 && this.role === 'king') endGame(!this.isPlayer);
+            if(this.hp <= 0) {
+                this.remove = true;
+                if(this.role === 'king') alert(this.isPlayer ? "DEFEAT" : "VICTORY");
+            }
         }
 
         draw(ctx) {
-            if(!this.active) {
-                // Draw Deployment Timer
-                ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
-                ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2 * this.deployTime); ctx.stroke();
-                return;
-            }
-
-            // Shadow
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             let sy = this.flying ? this.y+20 : this.y;
             ctx.beginPath(); ctx.ellipse(this.x, sy, this.radius, this.radius*0.6, 0, 0, Math.PI*2); ctx.fill();
 
-            // Icon
-            ctx.font = this.speed===0 ? '36px Arial' : '24px Arial';
+            let fs = Math.max(16, this.radius * 2);
+            ctx.font = fs + 'px Arial';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillStyle = '#fff';
             ctx.save(); ctx.translate(this.x, this.y-10);
             if(!this.isPlayer) ctx.scale(-1, 1);
             ctx.fillText(this.icon, 0, 0); ctx.restore();
 
-            // HP
             let pct = this.hp/this.maxHp;
-            ctx.fillStyle = '#333'; ctx.fillRect(this.x-15, this.y-35, 30, 4);
-            ctx.fillStyle = this.isPlayer ? '#448aff' : '#ff5252'; ctx.fillRect(this.x-15, this.y-35, 30*pct, 4);
+            let bw = this.radius * 2;
+            ctx.fillStyle = '#333'; ctx.fillRect(this.x-bw/2, this.y-this.radius-15, bw, 4);
+            ctx.fillStyle = this.isPlayer ? '#448aff' : '#ff5252'; ctx.fillRect(this.x-bw/2, this.y-this.radius-15, bw*pct, 4);
+        }
+    }
+
+    class Tower extends Entity {
+        constructor(x, y, isPlayer, isKing, card) {
+            let stats = card ? card : (isKing ? {hp:3000,dmg:70,speed:0,range:150} : {hp:1800,dmg:70,speed:0,range:150});
+            super(x, y, isPlayer, 'tower', stats);
+            this.icon = card ? card.icon : (isKing ? '👑' : '🏰');
+            this.type = 'building';
         }
     }
 
     class Projectile {
         constructor(x, y, t, dmg, area) {
-            this.x = x; this.y = y; this.target = t; 
-            this.dmg = dmg; this.area = area; this.speed = 350;
-            this.life = 1.0;
+            this.x = x; this.y = y; this.target = t; this.dmg = dmg; this.area = area;
+            this.speed = 350;
+            this.remove = false;
+            this.life = 2.0; 
         }
         update(dt) {
             this.life -= dt;
-            if(this.life <= 0 || this.target.hp <= 0) return true; // Die
+            if(this.target.remove || this.life <= 0) { this.remove = true; return; }
             
             let dx = this.target.x - this.x;
             let dy = (this.target.y-10) - this.y;
-            let d = Math.hypot(dx, dy);
-
+            let d = safeDist(dx, dy);
+            
             if(d < 10) {
+                this.remove = true; 
                 if(this.area) {
-                    units.forEach(u => {
-                        if(u.isPlayer !== this.target.isPlayer && u.active && Math.hypot(u.x-this.x, u.y-this.y) < 50) {
-                            u.takeDamage(this.dmg);
+                    entities.forEach(e => {
+                        if(e.isPlayer !== this.target.isPlayer && !e.remove && !(e instanceof DeployTimer)) {
+                            if(safeDist(e.x-this.x, e.y-this.y) < 50) e.takeDamage(this.dmg);
                         }
                     });
-                    for(let i=0; i<5; i++) particles.push({x:this.x, y:this.y, vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200, life:0.4, color:'orange'});
+                    for(let i=0; i<5; i++) particles.push({x:this.x, y:this.y, vx:(Math.random()-0.5)*150, vy:(Math.random()-0.5)*150, life:0.4, color:'orange'});
                 } else {
                     this.target.takeDamage(this.dmg);
                 }
-                return true; // Hit
+            } else {
+                this.x += (dx/d)*this.speed*dt;
+                this.y += (dy/d)*this.speed*dt;
             }
-            this.x += (dx/d)*this.speed*dt;
-            this.y += (dy/d)*this.speed*dt;
-            return false;
         }
         draw(ctx) {
             ctx.fillStyle = 'yellow'; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
@@ -531,6 +564,7 @@
     }
 
     init();
+
 </script>
 </body>
 </html>
