@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Fair AI</title>
+    <title>Clash Clone - Drag & Drop</title>
     <style>
         /* --- CORE STYLES --- */
         body {
@@ -67,19 +67,31 @@
         /* CARDS */
         #hand {
             display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; height: 120px;
+            position: relative;
         }
         .card {
             width: 70px; height: 94px; background: #2b3a42; border: 3px solid #546e7a;
-            border-radius: 8px; position: relative; cursor: pointer; transition: transform 0.1s;
+            border-radius: 8px; position: relative; cursor: grab; transition: transform 0.1s;
             display: flex; flex-direction: column; align-items: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            touch-action: none; /* Critical for Drag Drop */
         }
+        .card:active { cursor: grabbing; }
         .card.selected {
             border-color: #ffd700; transform: translateY(-12px) scale(1.05);
             background: #455a64; box-shadow: 0 0 15px #ffd700; z-index: 20;
         }
-        .card.disabled { filter: grayscale(1) brightness(0.5); }
-        
+        .card.disabled { filter: grayscale(1) brightness(0.5); pointer-events: none; }
+        .card.dragging-hidden { opacity: 0; }
+
+        /* GHOST CARD FOR DRAGGING */
+        .card-ghost {
+            position: fixed; pointer-events: none; z-index: 1000;
+            width: 70px; height: 94px; background: #2b3a42; border: 3px solid #ffd700;
+            border-radius: 8px; display: flex; flex-direction: column; align-items: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); opacity: 0.8; transform: scale(1.1);
+        }
+
         .cost {
             position: absolute; top: -6px; left: -6px; width: 22px; height: 22px;
             border-radius: 50%; background: #d500f9; border: 2px solid #fff;
@@ -158,7 +170,7 @@
         </div>
 
         <div id="dashboard">
-            <div id="controls-hint">Tap Card • Tap Map</div>
+            <div id="controls-hint">Drag Card • Tap Map</div>
             <div id="elixir-wrapper">
                 <div id="elixir-bar"></div>
                 <div id="elixir-text">5</div>
@@ -216,6 +228,10 @@
     let deckQueue = [], hand = [];
     let selectedIdx = null;
 
+    // Drag State
+    let dragItem = null;
+    let ghostEl = null;
+
     // --- INITIALIZATION ---
     function initGame() {
         entities = []; particles = [];
@@ -249,6 +265,56 @@
         requestAnimationFrame(loop);
     }
 
+    // --- INPUT & DRAG DROP ---
+    window.addEventListener('pointermove', e => {
+        if(dragItem) {
+            let dist = Math.hypot(e.clientX - dragItem.sx, e.clientY - dragItem.sy);
+            if(dist > 10) dragItem.dragging = true;
+
+            if(dragItem.dragging) {
+                if(!ghostEl) {
+                    // Create ghost
+                    const card = CARDS[hand[dragItem.idx]];
+                    ghostEl = document.createElement('div');
+                    ghostEl.className = 'card-ghost';
+                    ghostEl.innerHTML = `<div class="cost">${card.cost}</div><div class="icon">${card.icon}</div><div class="name">${card.name}</div>`;
+                    document.body.appendChild(ghostEl);
+                    if(dragItem.el) dragItem.el.classList.add('dragging-hidden');
+                }
+                ghostEl.style.left = (e.clientX - 35) + 'px';
+                ghostEl.style.top = (e.clientY - 47) + 'px';
+            }
+        }
+    });
+
+    window.addEventListener('pointerup', e => {
+        if(dragItem) {
+            if(dragItem.dragging) {
+                // Drop Logic
+                const rect = cvs.getBoundingClientRect();
+                if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                    // Dropped on canvas
+                    const scaleX = W / rect.width;
+                    const scaleY = H / rect.height;
+                    const gameX = (e.clientX - rect.left) * scaleX;
+                    const gameY = (e.clientY - rect.top) * scaleY;
+                    tryPlayCard(dragItem.idx, gameX, gameY);
+                }
+            } else {
+                // Was a tap
+                if(!gameOver) {
+                    selectedIdx = dragItem.idx; 
+                    renderHand();
+                }
+            }
+            
+            // Cleanup
+            if(ghostEl) ghostEl.remove();
+            if(dragItem.el) dragItem.el.classList.remove('dragging-hidden');
+            ghostEl = null; dragItem = null;
+        }
+    });
+
     function renderHand() {
         const div = document.getElementById('hand');
         div.innerHTML = '';
@@ -256,44 +322,27 @@
             const c = CARDS[key];
             const el = document.createElement('div');
             el.className = 'card' + (idx === selectedIdx ? ' selected' : '');
+            if(c.cost > elixir) el.classList.add('disabled');
             el.id = `card-${idx}`;
             el.innerHTML = `<div class="cost">${c.cost}</div><div class="icon">${c.icon}</div><div class="name">${c.name}</div>`;
-            el.onclick = () => { if(!gameOver) { selectedIdx = idx; renderHand(); } };
+            
+            // Drag Start
+            el.onpointerdown = (e) => {
+                if(gameOver || c.cost > elixir) return;
+                e.preventDefault();
+                dragItem = { idx: idx, el: el, sx: e.clientX, sy: e.clientY, dragging: false };
+            };
+            
             div.appendChild(el);
         });
     }
 
-    function cycleCard(idx) {
-        deckQueue.push(hand[idx]);
-        hand[idx] = deckQueue.shift();
-        selectedIdx = null;
-        renderHand();
-    }
-
-    // --- INPUT ---
-    function getValidSpawnY(x) {
-        let limit = RIVER_Y; 
-        if (x < W/2 && leftEnemyDead) limit = 180;
-        if (x > W/2 && rightEnemyDead) limit = 180;
-        return limit;
-    }
-
-    cvs.addEventListener('pointerdown', e => {
-        if(gameOver) return;
-        e.preventDefault();
-        const rect = cvs.getBoundingClientRect();
-        const scaleX = W / rect.width;
-        const scaleY = H / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
-
-        if (selectedIdx === null) { showToast("Select a Card!"); return; }
-        
-        const key = hand[selectedIdx];
+    function tryPlayCard(idx, x, y) {
+        const key = hand[idx];
         const card = CARDS[key];
 
         if (elixir < card.cost) { showToast("Not Enough Elixir!"); return; }
-        
+
         if (card.type !== 'spell') {
             const validY = getValidSpawnY(x);
             if (y < validY) { showToast("Enemy Territory!"); return; }
@@ -307,7 +356,37 @@
         } else {
             spawnCard(x, y, true, card);
         }
-        cycleCard(selectedIdx);
+        cycleCard(idx);
+    }
+
+    function cycleCard(idx) {
+        deckQueue.push(hand[idx]);
+        hand[idx] = deckQueue.shift();
+        selectedIdx = null;
+        renderHand();
+    }
+
+    // --- GAME LOGIC ---
+    function getValidSpawnY(x) {
+        let limit = RIVER_Y; 
+        if (x < W/2 && leftEnemyDead) limit = 180;
+        if (x > W/2 && rightEnemyDead) limit = 180;
+        return limit;
+    }
+
+    cvs.addEventListener('pointerdown', e => {
+        if(gameOver) return;
+        // Keep Tap-To-Play logic for those who prefer it
+        e.preventDefault();
+        const rect = cvs.getBoundingClientRect();
+        const scaleX = W / rect.width;
+        const scaleY = H / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        if (selectedIdx !== null) {
+            tryPlayCard(selectedIdx, x, y);
+        }
     });
 
     function spawnCard(x, y, isPlayer, card) {
@@ -348,86 +427,61 @@
         });
     }
 
-    // --- AI LOGIC (WITH ELIXIR ENFORCEMENT) ---
     function aiThink(dt) {
         aiTimer -= dt;
         if (aiTimer > 0) return;
 
-        // **ENFORCEMENT:** Filter cards we can afford immediately.
-        // If a card costs 5 and we have 4, it is REMOVED from the list of options.
         const affordableCards = DECK_KEYS.filter(k => CARDS[k].cost <= enemyElixir);
-
-        // 1. Check for threats
         const threats = entities.filter(e => e.isPlayer && e.y < RIVER_Y + 120 && !e.remove && !(e instanceof DeployTimer));
         let played = false;
 
         if (threats.length > 0 && affordableCards.length > 0) {
-            // DEFENSE: Pick a random threat
             threats.sort((a,b) => a.y - b.y);
-            const threat = threats[0]; // Most advanced threat
+            const threat = threats[0];
 
-            // Build list of valid counters ONLY from affordable cards
             const candidates = affordableCards.filter(k => {
                 const c = CARDS[k];
-                // Note: cost check already done in affordableCards filter above
-                
-                if (threat.flying) {
-                    if (c.target === 'ground' && c.type !== 'spell') return false;
-                }
-                
-                if ((threat.count && threat.count > 1) || threat.hp < 200) {
-                     if (!c.area && Math.random() > 0.3) return false;
-                }
-
-                if (threat.hp > 1200) {
-                    if (c.aiRole !== 'killer' && c.aiRole !== 'swarm' && Math.random() > 0.2) return false;
-                }
-
+                if (threat.flying && c.target === 'ground' && c.type !== 'spell') return false;
+                if ((threat.count > 1 || threat.hp < 200) && !c.area && Math.random() > 0.3) return false;
+                if (threat.hp > 1200 && c.aiRole !== 'killer' && c.aiRole !== 'swarm' && Math.random() > 0.2) return false;
                 return true;
             });
 
             if (candidates.length > 0) {
                 const bestKey = candidates[Math.floor(Math.random() * candidates.length)];
-                enemyElixir -= CARDS[bestKey].cost; // Deduct Elixir
+                enemyElixir -= CARDS[bestKey].cost;
                 const ox = (Math.random()-0.5)*50;
                 spawnCard(threat.x + ox, 180, false, CARDS[bestKey]);
                 played = true;
             } else {
-                // Panic play: any affordable card (except spells usually)
                 const cheap = affordableCards.filter(k => CARDS[k].type !== 'spell');
                 if (cheap.length > 0) {
                     const k = cheap[Math.floor(Math.random()*cheap.length)];
-                    enemyElixir -= CARDS[k].cost; // Deduct Elixir
+                    enemyElixir -= CARDS[k].cost;
                     spawnCard(threat.x, 180, false, CARDS[k]);
                     played = true;
                 }
             }
         } 
         
-        // OFFENSE
         if (!played && affordableCards.length > 0) {
             if (enemyElixir > 9 || (enemyElixir > 4 && Math.random() < 0.1)) {
-                // Filter attacking options from affordable list
                 const attackers = affordableCards.filter(k => {
                     const c = CARDS[k];
                     return (c.aiRole === 'tank' || c.aiRole === 'wincon' || c.aiRole === 'cycle' || c.aiRole === 'swarm');
                 });
-
                 if (attackers.length > 0) {
                     const key = attackers[Math.floor(Math.random() * attackers.length)];
-                    const c = CARDS[key];
+                    enemyElixir -= CARDS[key].cost;
                     const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                    enemyElixir -= c.cost; // Deduct Elixir
-                    spawnCard(lane, 110, false, c);
+                    spawnCard(lane, 110, false, CARDS[key]);
                     played = true;
                 }
             }
         }
-        
         aiTimer = played ? (1.5 + Math.random() * 2.0) : 0.6;
     }
 
-    // --- MAIN LOOP ---
     function loop(now) {
         try {
             if(gameOver) { draw(); return; }
@@ -447,7 +501,7 @@
             document.getElementById('elixir-text').innerText = Math.floor(elixir);
             hand.forEach((k, i) => {
                 let el = document.getElementById(`card-${i}`);
-                if(el) {
+                if(el && !dragItem) { // Don't touch classes while dragging
                     if(CARDS[k].cost > elixir) el.classList.add('disabled');
                     else el.classList.remove('disabled');
                 }
@@ -455,7 +509,6 @@
 
             aiThink(dt);
 
-            // Pathfinding Logic
             let eLeft = false, eRight = false;
             let pTowers = 0, eTowers = 0;
             pLeftT = false; pRightT = false;
@@ -506,37 +559,30 @@
 
     function endGame(kingKilled = false) {
         gameOver = true;
-        const go = document.getElementById('game-over');
+        document.getElementById('game-over').classList.add('active');
         const banner = document.getElementById('go-banner');
-        go.classList.add('active'); 
-
+        
         let pKingAlive = entities.some(e => e.isPlayer && e.role === 'king' && !e.remove);
         let eKingAlive = entities.some(e => !e.isPlayer && e.role === 'king' && !e.remove);
-        
         let pTowersAlive = entities.filter(e => e.isPlayer && e.role === 'tower' && !e.remove).length;
         let eTowersAlive = entities.filter(e => !e.isPlayer && e.role === 'tower' && !e.remove).length;
 
-        let pCrowns = 0, eCrowns = 0;
-
-        if (!pKingAlive) eCrowns = 3; else eCrowns = 2 - pTowersAlive;
-        if (!eKingAlive) pCrowns = 3; else pCrowns = 2 - eTowersAlive;
-
-        pCrowns = Math.max(0, Math.min(3, pCrowns));
-        eCrowns = Math.max(0, Math.min(3, eCrowns));
+        let pCrowns = (!pKingAlive) ? 0 : (2 - eTowersAlive) + (eKingAlive ? 0 : 3); 
+        let eCrowns = (!eKingAlive) ? 0 : (2 - pTowersAlive) + (pKingAlive ? 0 : 3);
+        
+        // Simpler calculation for display
+        if(!pKingAlive) eCrowns = 3; 
+        if(!eKingAlive) pCrowns = 3;
 
         document.getElementById('go-p-score').innerText = pCrowns;
         document.getElementById('go-e-score').innerText = eCrowns;
 
         if (pCrowns > eCrowns) {
-            banner.innerText = "VICTORY!";
-            banner.className = "result-banner win-text";
+            banner.innerText = "VICTORY!"; banner.className = "result-banner win-text";
         } else if (eCrowns > pCrowns) {
-            banner.innerText = "DEFEAT!";
-            banner.className = "result-banner lose-text";
+            banner.innerText = "DEFEAT!"; banner.className = "result-banner lose-text";
         } else {
-            banner.innerText = "DRAW";
-            banner.className = "result-banner";
-            banner.style.color = "#fff";
+            banner.innerText = "DRAW"; banner.className = "result-banner";
         }
     }
 
@@ -674,7 +720,6 @@
             } else if(this.speed > 0) {
                 let tx = W/2; 
                 let ty = this.isPlayer ? 60 : H-60; 
-                
                 if(this.x < 150) { 
                     if (this.isPlayer) { if (eLeftT) { tx = 90; ty = 120; } } 
                     else { if (pLeftT) { tx = 90; ty = 520; } }
@@ -683,7 +728,6 @@
                     if (this.isPlayer) { if (eRightT) { tx = W-90; ty = 120; } } 
                     else { if (pRightT) { tx = W-90; ty = 520; } }
                 }
-                
                 this.move(dt, tx, ty);
             }
         }
@@ -699,7 +743,6 @@
                     if(Math.abs(this.x - bx) > 5) { dx = bx - this.x; dy = 0; }
                 }
             }
-
             let d = safeDist(dx, dy);
             this.x += (dx/d)*this.speed*dt;
             this.y += (dy/d)*this.speed*dt;
@@ -749,24 +792,45 @@
         constructor(x, y, t, dmg, area) {
             this.x = x; this.y = y; this.target = t; this.dmg = dmg; this.area = area;
             this.speed = 350; this.remove = false; this.life = 2.0;
+            // Store target last pos in case it dies
+            this.tx = t.x; this.ty = t.y - 10;
         }
         update(dt) {
             this.life -= dt;
-            if(this.target.remove || this.life <= 0) { this.remove = true; return; }
-            let dx = this.target.x - this.x; let dy = (this.target.y-10) - this.y;
+            if(this.life <= 0) { this.remove = true; return; }
+
+            // Update target pos if alive
+            if (!this.target.remove) {
+                this.tx = this.target.x;
+                this.ty = this.target.y - 10;
+            }
+
+            let dx = this.tx - this.x; let dy = this.ty - this.y;
             let d = safeDist(dx, dy);
             
+            // Reached destination or hit target
             if(d < 10) {
                 this.remove = true; 
                 if(this.area) {
+                    // Splash Logic: Check all entities near explosion point
                     entities.forEach(e => {
                         if(e.isPlayer !== this.target.isPlayer && !e.remove && !(e instanceof DeployTimer)) {
-                            if(safeDist(e.x-this.x, e.y-this.y) < 50) e.takeDamage(this.dmg);
+                            // Splash radius 60
+                            if(safeDist(e.x - this.x, e.y - this.y) < 60) {
+                                e.takeDamage(this.dmg);
+                            }
                         }
                     });
-                    for(let i=0; i<5; i++) particles.push({x:this.x, y:this.y, vx:(Math.random()-0.5)*150, vy:(Math.random()-0.5)*150, life:0.4, color:'orange'});
+                    // Explosion Effect
+                    for(let i=0; i<6; i++) {
+                        particles.push({
+                            x:this.x, y:this.y, 
+                            vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200, 
+                            life:0.4, color:'orange'
+                        });
+                    }
                 } else {
-                    this.target.takeDamage(this.dmg);
+                    if (!this.target.remove) this.target.takeDamage(this.dmg);
                 }
             } else {
                 this.x += (dx/d)*this.speed*dt;
@@ -774,7 +838,8 @@
             }
         }
         draw(ctx) {
-            ctx.fillStyle = 'yellow'; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = this.area ? 'orange' : 'yellow'; 
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.area ? 6 : 4, 0, Math.PI*2); ctx.fill();
         }
     }
 
