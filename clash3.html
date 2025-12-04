@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Final Stable</title>
+    <title>Clash Clone - Final Complete</title>
     <style>
         body {
             background-color: #121212; display: flex; justify-content: center; 
@@ -54,12 +54,10 @@
             display: flex; flex-direction: column; align-items: center;
             box-shadow: 0 4px 5px rgba(0,0,0,0.5);
         }
-        
         .card.selected {
             border-color: #ffd700; transform: translateY(-12px) scale(1.05);
             background: #455a64; box-shadow: 0 0 15px #ffd700; z-index: 10;
         }
-        
         .card.disabled { filter: grayscale(1) brightness(0.5); }
 
         .cost {
@@ -68,24 +66,51 @@
             color: white; font-weight: bold; font-size: 12px;
             display: flex; justify-content: center; align-items: center;
         }
-        
         .icon { font-size: 36px; margin-top: 14px; text-shadow: 0 2px 2px rgba(0,0,0,0.5); }
         .name { font-size: 9px; color: #cfd8dc; margin-top: 4px; font-weight: bold; text-transform: uppercase; }
 
+        /* TOAST */
         #toast {
             position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
             border-radius: 20px; font-weight: bold; opacity: 0; transition: opacity 0.3s;
             pointer-events: none;
         }
+
+        /* GAME OVER SCREEN */
+        #game-over {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 1000;
+            opacity: 0; pointer-events: none; transition: opacity 0.5s;
+        }
+        #go-title {
+            font-size: 48px; font-weight: 900; margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        #restart-btn {
+            padding: 15px 40px; font-size: 20px; font-weight: bold;
+            background: #2196f3; color: white; border: none; border-radius: 30px;
+            cursor: pointer; box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
+            transition: transform 0.1s;
+        }
+        #restart-btn:active { transform: scale(0.95); }
+
     </style>
 </head>
 <body>
 
 <div id="game-frame">
     <canvas id="cvs" width="420" height="720"></canvas>
+    
     <div id="ui-layer">
         <div id="toast">Not Enough Elixir!</div>
+        
+        <div id="game-over">
+            <div id="go-title">VICTORY!</div>
+            <button id="restart-btn" onclick="init()">Play Again</button>
+        </div>
+
         <div id="dashboard">
             <div id="elixir-wrapper">
                 <div id="elixir-bar"></div>
@@ -104,33 +129,22 @@
     const W = 420, H = 720;
     const RIVER_Y = H/2 - 40;
     const BRIDGE_L = 90, BRIDGE_R = W - 90;
-    const MAX_UNITS = 80; 
+    const MAX_UNITS = 80;
 
-    // --- EXPANDED CARD LIBRARY ---
+    // --- CARDS ---
     const CARDS = {
-        // TANKS
         'giant':  { name: 'Giant', cost: 5, icon: '👹', hp: 2600, dmg: 140, speed: 30, range: 5, type: 'ground', target: 'building', size: 24 },
         'pekka':  { name: 'P.E.K.K.A', cost: 7, icon: '🤖', hp: 2800, dmg: 400, speed: 35, range: 5, type: 'ground', target: 'ground', size: 20 },
         'hog':    { name: 'Hog', cost: 4, icon: '🔨', hp: 1000, dmg: 170, speed: 95, range: 5, type: 'ground', target: 'building', jump: true, size: 14 },
-        
-        // FIGHTERS
         'knight': { name: 'Knight', cost: 3, icon: '⚔️', hp: 900, dmg: 100, speed: 50, range: 5, type: 'ground', target: 'ground', size: 12 },
         'valk':   { name: 'Valkyrie', cost: 4, icon: '🪓', hp: 1100, dmg: 120, speed: 50, range: 5, type: 'ground', target: 'ground', area: true, size: 14 },
-        
-        // RANGED
         'archer': { name: 'Archers', cost: 3, icon: '🏹', hp: 250, dmg: 60, speed: 60, range: 150, type: 'ground', target: 'any', count: 2, size: 10 },
         'musk':   { name: 'Musketeer', cost: 4, icon: '👒', hp: 550, dmg: 150, speed: 50, range: 170, type: 'ground', target: 'any', size: 12 },
         'wizard': { name: 'Wizard', cost: 5, icon: '🧙‍♂️', hp: 500, dmg: 130, speed: 50, range: 140, type: 'ground', target: 'any', area: true, size: 12 },
-        
-        // AIR
         'baby':   { name: 'Baby Drag', cost: 4, icon: '🐲', hp: 900, dmg: 100, speed: 65, range: 90, type: 'air', target: 'any', area: true, size: 15 },
         'minion': { name: 'Minions', cost: 3, icon: '🦇', hp: 160, dmg: 50, speed: 80, range: 10, type: 'air', target: 'any', count: 3, size: 8 },
-        
-        // SWARM
         'skarmy': { name: 'Skarmy', cost: 3, icon: '💀', hp: 50, dmg: 35, speed: 70, range: 5, type: 'ground', target: 'ground', count: 5, size: 6 },
         'goblin': { name: 'Goblins', cost: 2, icon: '👺', hp: 100, dmg: 60, speed: 90, range: 5, type: 'ground', target: 'ground', count: 3, size: 8 },
-
-        // SPELLS/BUILDINGS
         'cannon': { name: 'Cannon', cost: 3, icon: '💣', hp: 700, dmg: 100, speed: 0, range: 140, type: 'building', target: 'ground', size: 20 },
         'fireball':{ name: 'Fireball', cost: 4, icon: '☄️', type: 'spell', radius: 80, dmg: 450 }
     };
@@ -142,6 +156,7 @@
     let particles = [];
     let lastTime = 0;
     let spawnTimer = 4.0;
+    let gameOver = false;
     
     // Cycle Logic
     let deckQueue = [];
@@ -150,8 +165,22 @@
 
     // --- SETUP ---
     function init() {
+        // Reset State
+        entities = [];
+        particles = [];
+        elixir = 5;
+        gameOver = false;
+        selectedIdx = null;
+        lastTime = performance.now();
+        
+        // Hide Game Over
+        const goScreen = document.getElementById('game-over');
+        goScreen.style.opacity = 0;
+        goScreen.style.pointerEvents = 'none';
+
         // Init Deck
         deckQueue = [...ALL_KEYS].sort(() => Math.random() - 0.5);
+        hand = [];
         for(let i=0; i<4; i++) hand.push(deckQueue.shift());
         renderHand();
 
@@ -176,7 +205,7 @@
             el.className = 'card' + (idx === selectedIdx ? ' selected' : '');
             el.id = `card-${idx}`;
             el.innerHTML = `<div class="cost">${c.cost}</div><div class="icon">${c.icon}</div><div class="name">${c.name}</div>`;
-            el.onclick = () => { selectedIdx = idx; renderHand(); };
+            el.onclick = () => { if(!gameOver) { selectedIdx = idx; renderHand(); } };
             div.appendChild(el);
         });
     }
@@ -188,8 +217,26 @@
         renderHand();
     }
 
+    // --- GAME OVER LOGIC ---
+    function endGame(playerWon) {
+        gameOver = true;
+        const goScreen = document.getElementById('game-over');
+        const title = document.getElementById('go-title');
+        goScreen.style.opacity = 1;
+        goScreen.style.pointerEvents = 'auto';
+        
+        if (playerWon) {
+            title.innerText = "VICTORY!";
+            title.style.color = "#4caf50"; // Green
+        } else {
+            title.innerText = "DEFEAT!";
+            title.style.color = "#f44336"; // Red
+        }
+    }
+
     // --- INPUT ---
     cvs.addEventListener('pointerdown', e => {
+        if(gameOver) return;
         e.preventDefault();
         const rect = cvs.getBoundingClientRect();
         const scaleX = W / rect.width;
@@ -254,73 +301,61 @@
 
     // --- LOOP ---
     function loop(now) {
-        // Safety Harness: Ensure loop continues even if logic errors
-        try {
-            const dt = Math.min((now - lastTime) / 1000, 0.1);
-            lastTime = now;
+        if (gameOver) return; // Stop updates
 
-            // CLEANUP (Crucial for preventing freezes)
-            // Filter array in place safely
-            let activeEntities = [];
-            for(let i=0; i<entities.length; i++) {
-                let e = entities[i];
-                if (!e.remove && !isNaN(e.x)) {
-                    activeEntities.push(e);
-                }
-            }
-            entities = activeEntities;
+        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
 
-            // Elixir
-            if(elixir < 10) elixir += 0.5 * dt;
-            document.getElementById('elixir-bar').style.width = (elixir*10) + '%';
-            document.getElementById('elixir-text').innerText = Math.floor(elixir);
-            
-            hand.forEach((k, i) => {
-                let el = document.getElementById(`card-${i}`);
-                if(el) {
-                    if(CARDS[k].cost > elixir) el.classList.add('disabled');
-                    else el.classList.remove('disabled');
-                }
-            });
-
-            // AI
-            spawnTimer -= dt;
-            if(spawnTimer <= 0) {
-                if(entities.length < MAX_UNITS) {
-                    const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                    const keys = ['knight','giant','hog','archer','baby','wizard']; 
-                    const rk = keys[Math.floor(Math.random()*keys.length)];
-                    
-                    const c = CARDS[rk];
-                    const count = c.count || 1;
-                    for(let i=0; i<count; i++) {
-                        const spread = (count > 1) ? 25 : 0;
-                        spawnEntity(new DeployTimer(lane+(Math.random()-0.5)*spread, 20, false, c));
-                    }
-                }
-                spawnTimer = 5.0; // Slow play
-            }
-
-            // Physics & Updates
-            resolveCollisions();
-            entities.sort((a,b) => a.y - b.y);
-            
-            for(let i=0; i<entities.length; i++) {
-                entities[i].update(dt);
-            }
-
-            // Particles
-            for(let i=particles.length-1; i>=0; i--) {
-                let p = particles[i];
-                p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt;
-                if(p.life <= 0) particles.splice(i,1);
-            }
-
-            draw();
-        } catch (e) {
-            console.error("Game loop error caught:", e);
+        // Cleanup
+        for(let i=entities.length-1; i>=0; i--) {
+            let e = entities[i];
+            if(e.remove || isNaN(e.x)) entities.splice(i, 1);
         }
+
+        // Elixir
+        if(elixir < 10) elixir += 0.5 * dt;
+        document.getElementById('elixir-bar').style.width = (elixir*10) + '%';
+        document.getElementById('elixir-text').innerText = Math.floor(elixir);
         
+        hand.forEach((k, i) => {
+            let el = document.getElementById(`card-${i}`);
+            if(el) {
+                if(CARDS[k].cost > elixir) el.classList.add('disabled');
+                else el.classList.remove('disabled');
+            }
+        });
+
+        // AI
+        spawnTimer -= dt;
+        if(spawnTimer <= 0) {
+            if(entities.length < MAX_UNITS) {
+                const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
+                const keys = ['knight','giant','hog','archer','baby','wizard']; 
+                const rk = keys[Math.floor(Math.random()*keys.length)];
+                
+                const c = CARDS[rk];
+                const count = c.count || 1;
+                for(let i=0; i<count; i++) {
+                    const spread = (count > 1) ? 25 : 0;
+                    spawnEntity(new DeployTimer(lane+(Math.random()-0.5)*spread, 20, false, c));
+                }
+            }
+            spawnTimer = 5.0; 
+        }
+
+        // Physics
+        resolveCollisions();
+        entities.sort((a,b) => a.y - b.y);
+        for(let i=entities.length-1; i>=0; i--) entities[i].update(dt);
+
+        // Particles
+        for(let i=particles.length-1; i>=0; i--) {
+            let p = particles[i];
+            p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt;
+            if(p.life <= 0) particles.splice(i,1);
+        }
+
+        draw();
         requestAnimationFrame(loop);
     }
 
@@ -383,7 +418,7 @@
         constructor(x, y, isPlayer, card) {
             this.x = x; this.y = y; this.isPlayer = isPlayer; this.card = card;
             this.timer = 1.0; this.max = 1.0;
-            this.remove = false; // Uniform removal flag
+            this.remove = false;
         }
         update(dt) {
             this.timer -= dt;
@@ -407,7 +442,7 @@
     class Entity {
         constructor(x, y, isPlayer, role, stats) {
             this.x = x; this.y = y; this.isPlayer = isPlayer; this.role = role;
-            this.remove = false; // Unified flag
+            this.remove = false; 
             
             if (role === 'unit' || role === 'building') {
                 this.hp = stats.hp; this.maxHp = stats.hp;
@@ -494,7 +529,13 @@
 
         takeDamage(n) {
             this.hp -= n;
-            if(this.hp <= 0) this.remove = true; // Mark for removal
+            if(this.hp <= 0) {
+                this.remove = true;
+                // WIN CON
+                if(this.role === 'king') {
+                    endGame(!this.isPlayer); // If enemy king dies, player wins
+                }
+            }
         }
 
         draw(ctx) {
@@ -520,7 +561,7 @@
     class Tower extends Entity {
         constructor(x, y, isPlayer, isKing, card) {
             let stats = card ? card : (isKing ? {hp:3000,dmg:70,speed:0,range:150} : {hp:1800,dmg:70,speed:0,range:150});
-            super(x, y, isPlayer, 'tower', stats);
+            super(x, y, isPlayer, isKing ? 'king' : 'tower', stats);
             this.icon = card ? card.icon : (isKing ? '👑' : '🏰');
             this.type = 'building';
         }
@@ -531,7 +572,7 @@
             this.x = x; this.y = y; this.target = t; this.dmg = dmg; this.area = area;
             this.speed = 350;
             this.remove = false;
-            this.life = 2.0; // Fail-safe timer
+            this.life = 2.0; 
         }
         update(dt) {
             this.life -= dt;
@@ -542,7 +583,7 @@
             let d = safeDist(dx, dy);
             
             if(d < 10) {
-                this.remove = true; // Kill projectile
+                this.remove = true; 
                 if(this.area) {
                     entities.forEach(e => {
                         if(e.isPlayer !== this.target.isPlayer && !e.remove && !(e instanceof DeployTimer)) {
