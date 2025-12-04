@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clash Clone - Fixed Giants</title>
+    <title>Clash Clone - Territory</title>
     <style>
         /* --- CORE STYLES --- */
         body {
@@ -365,6 +365,14 @@
         return limit;
     }
 
+    function getValidEnemySpawnY(x) {
+        let limit = RIVER_Y;
+        // Inverse logic: if PLAYER tower dead, enemy can spawn deeper (higher Y)
+        if (x < W/2 && !pLeftT) limit = H - 180;
+        if (x > W/2 && !pRightT) limit = H - 180;
+        return limit;
+    }
+
     cvs.addEventListener('pointerdown', e => {
         if(gameOver) return;
         e.preventDefault();
@@ -417,6 +425,7 @@
         });
     }
 
+    // --- UPDATED AI LOGIC ---
     function aiThink(dt) {
         aiTimer -= dt;
         if (aiTimer > 0) return;
@@ -441,14 +450,22 @@
                 const bestKey = candidates[Math.floor(Math.random() * candidates.length)];
                 enemyElixir -= CARDS[bestKey].cost;
                 const ox = (Math.random()-0.5)*50;
-                spawnCard(threat.x + ox, 180, false, CARDS[bestKey]);
+                
+                // Defensive placement: Clamp to AI side
+                let spawnY = Math.min(getValidEnemySpawnY(threat.x), threat.y - 100); 
+                // Don't spawn behind King
+                if (spawnY < 120) spawnY = 120;
+                // If the threat is already deep, we must spawn back
+                if (threat.y < 200) spawnY = 100;
+
+                spawnCard(threat.x + ox, spawnY, false, CARDS[bestKey]);
                 played = true;
             } else {
                 const cheap = affordableCards.filter(k => CARDS[k].type !== 'spell');
                 if (cheap.length > 0) {
                     const k = cheap[Math.floor(Math.random()*cheap.length)];
                     enemyElixir -= CARDS[k].cost;
-                    spawnCard(threat.x, 180, false, CARDS[k]);
+                    spawnCard(threat.x, 150, false, CARDS[k]);
                     played = true;
                 }
             }
@@ -464,7 +481,11 @@
                     const key = attackers[Math.floor(Math.random() * attackers.length)];
                     enemyElixir -= CARDS[key].cost;
                     const lane = Math.random() > 0.5 ? BRIDGE_L : BRIDGE_R;
-                    spawnCard(lane, 110, false, CARDS[key]);
+                    
+                    // Offensive placement: Use extended territory if available
+                    let maxY = getValidEnemySpawnY(lane) - 30;
+                    
+                    spawnCard(lane, maxY, false, CARDS[key]);
                     played = true;
                 }
             }
@@ -625,6 +646,17 @@
         ctx.lineTo(W/2, ry); ctx.lineTo(W, ry);
         ctx.stroke();
         ctx.setLineDash([]);
+        
+        // DEBUG: Draw enemy boundary line (faint red)
+        ctx.strokeStyle = 'rgba(255,100,100,0.2)';
+        let ely = (!pLeftT) ? H-180 : RIVER_Y;
+        let ery = (!pRightT) ? H-180 : RIVER_Y;
+        ctx.beginPath();
+        ctx.moveTo(0, ely); ctx.lineTo(W/2, ely);
+        if (ely !== ery) ctx.lineTo(W/2, ery);
+        ctx.lineTo(W/2, ery); ctx.lineTo(W, ery);
+        ctx.stroke();
+
 
         entities.forEach(e => e.draw(ctx));
         particles.forEach(p => {
@@ -666,22 +698,16 @@
                 this.hp = stats.hp; this.maxHp = stats.hp;
                 this.dmg = stats.dmg; this.speed = stats.speed;
                 this.range = stats.range; this.icon = stats.icon;
-                
-                // FIX: Renamed this.targetType to this.type
                 this.type = stats.type; 
                 this.targetPref = stats.target;
-                
                 this.flying = (stats.type === 'air'); this.area = stats.area || false;
                 this.jump = stats.jump || false; this.radius = stats.size || 12; 
             } else { 
                 this.hp = role==='king'?3500:2000; this.maxHp = this.hp;
                 this.dmg = 90; this.speed = 0; this.range = 150;
                 this.icon = role==='king'?'👑':'🏰';
-                
-                // FIX: Explicitly set type to 'building' for towers
                 this.type = 'building';
                 this.targetPref = 'any';
-                
                 this.radius = 25;
             }
             this.cooldown = 0;
@@ -696,11 +722,7 @@
             for(let e of entities) {
                 if(e === this || e.isPlayer === this.isPlayer || e.remove || e instanceof DeployTimer || e instanceof Projectile) continue;
                 if(this.targetPref === 'building' && (e.role === 'unit')) continue; 
-                
-                // FIX: Used e.type which is now correctly set
                 if(this.targetPref === 'building' && e.type !== 'building') continue; 
-
-                // FIX: Used e.type which is now correctly set
                 if(this.targetPref === 'ground' && e.type === 'air') continue;
                 
                 let d = safeDist(e.x-this.x, e.y-this.y);
@@ -736,7 +758,6 @@
             if(this.speed === 0) return;
             let dx = tx - this.x; let dy = ty - this.y;
             
-            // FIX: Use this.type instead of this.targetType
             if(this.type === 'ground' && !this.jump) {
                 let rDist = Math.abs(this.y - RIVER_Y);
                 if(rDist < 50 && ((this.isPlayer && this.y > RIVER_Y) || (!this.isPlayer && this.y < RIVER_Y))) {
@@ -842,4 +863,3 @@
     initGame();
 </script>
 </body>
-</html>
