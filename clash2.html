@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clash Royale JS Clone - Final Fixes</title>
+    
+    <style>
+        /* --- CSS STYLES --- */
+        :root {
+            --arena-color: #38761D;       /* Green Arena */
+            --river-color: #4A86E8;       /* Blue River */
+            --tower-area-color: #5B4F46;  /* Dark Brown/Stone for Tower Areas */
+            --hand-bg-color: #333;        /* Dark Grey for Hand/Elixir UI */
+            --card-color: #8E7CC3;        /* Purple Card */
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #222;
+            font-family: Arial, sans-serif;
+        }
+
+        #game-container {
+            width: 600px; 
+            height: 900px; 
+            border: 5px solid #000;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            background-color: var(--tower-area-color);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        /* --- ARENA (The playing field) --- */
+
+        #arena {
+            flex-grow: 1; 
+            background-color: var(--arena-color);
+            position: relative;
+            border-top: 5px solid var(--river-color);
+            border-bottom: 5px solid var(--river-color);
+            cursor: default;
+        }
+        #arena.placing {
+            cursor: crosshair; 
+        }
+
+        .side {
+            height: 100px; 
+            background-color: var(--tower-area-color);
+            visibility: hidden; /* Hide placeholders */
+        }
+
+
+        .tower, .king-tower {
+            position: absolute; 
+            width: 80px;
+            height: 80px;
+            background-color: #a0a0a0; 
+            border: 3px solid #333;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px; 
+            cursor: default;
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
+            color: #fff;
+            z-index: 20; 
+        }
+        .king-tower {
+            width: 90px;
+            height: 90px;
+            font-size: 40px;
+        }
+
+        .health-bar {
+            position: absolute;
+            top: 5px;
+            width: 70px;
+            height: 5px;
+            background-color: red;
+            border: 1px solid #000;
+            border-radius: 3px;
+        }
+        .king-tower .health-bar {
+            width: 80px;
+        }
+        .health-fill {
+            height: 100%;
+            background-color: green;
+            transition: width 0.1s; 
+            border-radius: 3px;
+        }
+
+        /* River and Bridges */
+        #arena::before {
+            content: '';
+            position: absolute;
+            top: calc(50% - 5px); 
+            left: 0;
+            right: 0;
+            height: 10px;
+            background-color: var(--river-color);
+            z-index: 1;
+            box-shadow: 0 0 10px rgba(0, 0, 255, 0.5);
+        }
+
+        .bridge {
+            position: absolute;
+            width: 40px;
+            height: 10px;
+            background-color: #996633; 
+            z-index: 2;
+            top: calc(50% - 5px);
+            border-radius: 2px;
+            transition: opacity 0.3s;
+        }
+        #bridge-1 { left: 150px; }
+        #bridge-2 { left: 410px; }
+
+        /* --- Projectile Visual --- */
+        .ranged-attack-line {
+            position: absolute;
+            background-color: yellow; /* Projectile color */
+            height: 3px;
+            border-radius: 2px;
+            transform-origin: left;
+            z-index: 100;
+            animation: shoot 0.1s forwards;
+            pointer-events: none;
+        }
+
+        /* Ranged attack animation (instant visual feedback) */
+        @keyframes shoot {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* --- UI and Game Over --- */
+
+        #game-ui {
+            height: 120px;
+            background-color: var(--hand-bg-color);
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            box-sizing: border-box;
+            border-top: 5px solid #000;
+        }
+
+        #game-over-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 48px;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            text-align: center;
+            font-weight: bold;
+        }
+        #game-over-overlay.win { color: limegreen; }
+        #game-over-overlay.loss { color: red; }
+
+        /* Existing styles for elixir, cards, troops, damage text... */
+        
+        #elixir-bar {
+            background-color: #FFC000; 
+            color: #000;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 20px;
+            width: 80px;
+            text-align: center;
+            margin-right: 20px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+        }
+
+        #card-hand {
+            display: flex;
+            gap: 15px; 
+        }
+
+        .card {
+            width: 80px;
+            height: 100px;
+            background-color: var(--card-color);
+            border: 4px solid #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.1s, border-color 0.1s;
+            user-select: none;
+            position: relative; 
+            z-index: 50; 
+        }
+
+        .card.active-to-place {
+            border-color: yellow;
+            box-shadow: 0 0 15px yellow;
+            transform: translateY(-5px);
+        }
+        
+        .card.disabled {
+            filter: grayscale(100%);
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .card-emoji {
+            font-size: 36px;
+            margin-top: 5px;
+        }
+
+        .card-cost {
+            background-color: #333;
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            font-size: 16px;
+            line-height: 25px;
+            text-align: center;
+            position: absolute;
+            bottom: -12px; 
+            border: 2px solid var(--card-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .troop {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            z-index: 10;
+        }
+        .player-troop { background-color: #008000; border: 2px solid #000; }
+        .opponent-troop { background-color: #FF0000; border: 2px solid #000; }
+        .troop-health {
+            position: absolute;
+            bottom: -5px;
+            width: 20px;
+            height: 3px;
+            background-color: red;
+        }
+        .troop-health-fill {
+            height: 100%;
+            background-color: limegreen;
+        }
+
+        .damage-text {
+            position: absolute;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            text-shadow: 1px 1px 2px black;
+            animation: floatUpAndFade 1s forwards;
+            pointer-events: none; 
+            z-index: 100;
+        }
+        @keyframes floatUpAndFade {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-50px); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="opponent-side" class="side"></div>
+        <div id="arena">
+            <div id="bridge-1" class="bridge" data-lane="left"></div>
+            <div id="bridge-2" class="bridge" data-lane="right"></div>
+        </div>
+        <div id="player-side" class="side"></div>
+
+        <div id="game-ui">
+            <div id="elixir-bar">
+                <span id="elixir-count">0</span> / 10
+            </div>
+            <div id="card-hand">
+                </div>
+        </div>
+
+        <div id="game-over-overlay">
+            <span id="game-over-message"></span>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. GAME CONSTANTS AND DATA ---
+        const CARD_DEFINITIONS = [
+            { name: "Knight", cost: 3, emoji: "🛡️", type: "troop", hp: 600, dmg: 50, range: 40, attackSpeed: 10 },
+            { name: "Archers", cost: 3, emoji: "🏹", type: "troop", hp: 300, dmg: 40, range: 200, attackSpeed: 15 },
+            { name: "Giant", cost: 5, emoji: "🗿", type: "troop", hp: 1200, dmg: 70, range: 40, attackSpeed: 12 },
+            { name: "Fireball", cost: 4, emoji: "🔥", type: "spell", dmg: 300 },
+        ];
+
+        const HAND_SIZE = 4;
+        const GAME_TICK_RATE = 50; 
+        const TROOP_MOVEMENT_SPEED = 1.5; 
+        const TROOP_SIZE_HALF = 15; 
+        const TOWER_SIZE_HALF = 40; 
+        const KING_TOWER_SIZE_HALF = 45;
+
+        let playerElixir = 5;
+        let playerHand = [];
+        let cardToPlaceIndex = -1; 
+        let activeTroops = []; 
+        const TOWERS = {}; 
+        let gameRunning = true; 
+        
+        // Waypoints are closer to the bridges
+        const WAYPOINTS = {
+            'P-LEFT-WAYPOINT': { x: 170, y: 470, lane: 'left' }, 
+            'P-RIGHT-WAYPOINT': { x: 430, y: 470, lane: 'right' },
+            'O-LEFT-WAYPOINT': { x: 170, y: 230, lane: 'left' }, 
+            'O-RIGHT-WAYPOINT': { x: 430, y: 230, lane: 'right' },
+        };
+        
+        const BRIDGE_STATE = {
+            'left': { element: document.getElementById('bridge-1'), isDestroyed: false, associatedTowerId: 'O-L' },
+            'right': { element: document.getElementById('bridge-2'), isDestroyed: false, associatedTowerId: 'O-R' }
+        };
+
+
+        // --- 2. DOM ELEMENTS ---
+        const arena = document.getElementById('arena');
+        const cardHandDiv = document.getElementById('card-hand');
+        const elixirCountSpan = document.getElementById('elixir-count');
+        const gameOverOverlay = document.getElementById('game-over-overlay');
+        const gameOverMessage = document.getElementById('game-over-message');
+
+        // --- 3. CORE UTILITIES ---
+
+        function updateHealthBar(gameObject, currentHP, maxHP) {
+            const percentage = (currentHP / maxHP) * 100;
+            const fillElement = gameObject.element.querySelector(gameObject.isTower ? '.health-fill' : '.troop-health-fill');
+            if (fillElement) {
+                fillElement.style.width = `${Math.max(0, percentage)}%`;
+            }
+        }
+        
+        function showDamageText(targetObject, amount) {
+            const damageElement = document.createElement('div');
+            damageElement.className = 'damage-text';
+            damageElement.textContent = Math.round(amount);
+            
+            let baseX = targetObject.x;
+            let baseY = targetObject.y;
+            
+            if (targetObject.isTower) {
+                baseY -= TOWER_SIZE_HALF; 
+            } else {
+                baseY -= TROOP_SIZE_HALF; 
+            }
+
+            damageElement.style.left = `${baseX - TROOP_SIZE_HALF}px`;
+            damageElement.style.top = `${baseY}px`;
+            
+            arena.appendChild(damageElement);
+
+            setTimeout(() => {
+                damageElement.remove();
+            }, 1000);
+        }
+        
+        function createRangedAttackVisual(attacker, target) {
+            const dx = target.x - attacker.x;
+            const dy = target.y - attacker.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            // Calculate angle in radians, then convert to degrees
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI); 
+
+            const visual = document.createElement('div');
+            visual.className = 'ranged-attack-line';
+            visual.style.width = `${distance}px`;
+            
+            // Start the visual at the center of the attacker
+            visual.style.left = `${attacker.x}px`;
+            visual.style.top = `${attacker.y}px`;
+            
+            // Apply the rotation
+            visual.style.transform = `rotate(${angle}deg)`;
+            
+            arena.appendChild(visual);
+
+            // Remove the visual quickly after the damage is dealt
+            setTimeout(() => {
+                visual.remove();
+            }, 100); 
+        }
+
+
+        function findClosestTarget(sourceTroop) {
+            const enemySide = sourceTroop.side === 'player' ? 'opponent' : 'player';
+            const targets = activeTroops.filter(t => t.side === enemySide && t.hp > 0);
+            
+            // Only non-King towers are considered primary targets initially
+            Object.values(TOWERS).forEach(tower => {
+                if (tower.side === enemySide && tower.hp > 0) {
+                    // King Tower is only targetable if both Princess Towers are down
+                    if (tower.id.endsWith('-K')) {
+                        const otherPT1_ID = tower.side === 'opponent' ? 'O-L' : 'P-L';
+                        const otherPT2_ID = tower.side === 'opponent' ? 'O-R' : 'P-R';
+                        
+                        if (TOWERS[otherPT1_ID].hp > 0 || TOWERS[otherPT2_ID].hp > 0) {
+                            return; // Skip King Tower if a Princess Tower is alive
+                        }
+                    }
+                    targets.push(tower);
+                }
+            });
+
+            let closestTarget = null;
+            let minDistanceSq = Infinity;
+            const rangeSq = sourceTroop.range * sourceTroop.range;
+
+            targets.forEach(target => {
+                const dx = target.x - sourceTroop.x;
+                const dy = target.y - sourceTroop.y;
+                const distanceSq = dx * dx + dy * dy;
+
+                if (distanceSq < minDistanceSq) { 
+                    minDistanceSq = distanceSq;
+                    closestTarget = target;
+                }
+            });
+            
+            // Check if the closest target is within the troop's attack range
+            if (closestTarget && Math.sqrt(minDistanceSq) <= sourceTroop.range) {
+                 return closestTarget;
+            }
+            return null; 
+        }
+
+        // --- 4. CARD HAND AND UI (Same as previous) ---
+        function drawCard() {
+            if (playerHand.length >= HAND_SIZE) return;
+            const randomIndex = Math.floor(Math.random() * CARD_DEFINITIONS.length);
+            const newCard = { ...CARD_DEFINITIONS[randomIndex] }; 
+            playerHand.push(newCard);
+            renderHand();
+        }
+
+        function updateElixirUI() {
+            elixirCountSpan.textContent = playerElixir;
+            
+            document.querySelectorAll('.card').forEach(cardElement => {
+                const index = parseInt(cardElement.getAttribute('data-card-index'));
+                const cost = playerHand[index]?.cost || 99;
+                
+                if (playerElixir < cost) {
+                    cardElement.classList.add('disabled');
+                } else {
+                    cardElement.classList.remove('disabled');
+                }
+            });
+        }
+
+        function renderHand() {
+            cardHandDiv.innerHTML = '';
+            playerHand.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'card';
+                cardElement.setAttribute('data-card-index', index);
+                cardElement.innerHTML = `
+                    <span class="card-emoji">${card.emoji}</span>
+                    <div class="card-cost">${card.cost}</div>
+                `;
+                
+                cardElement.addEventListener('click', () => handleCardSelection(index));
+                cardHandDiv.appendChild(cardElement);
+            });
+            updateElixirUI();
+        }
+        function handleCardSelection(index) {
+            if (!gameRunning) return;
+            const card = playerHand[index];
+            if (playerElixir < card.cost) return;
+
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('active-to-place'));
+            
+            cardToPlaceIndex = index;
+            const cardElement = document.querySelector(`.card[data-card-index="${index}"]`);
+            cardElement.classList.add('active-to-place');
+            arena.classList.add('placing');
+        }
+
+        arena.addEventListener('click', (e) => {
+            if (cardToPlaceIndex === -1 || !gameRunning) return; 
+
+            const card = playerHand[cardToPlaceIndex];
+            const rect = arena.getBoundingClientRect();
+            const arenaX = e.clientX - rect.left;
+            const arenaY = e.clientY - rect.top;
+            
+            const deploymentYThreshold = rect.height * 0.5;
+            const isSpell = card.type === 'spell';
+
+            if (!isSpell && arenaY < deploymentYThreshold) {
+                return; 
+            }
+            
+            handleCardPlacement(cardToPlaceIndex, arenaX, arenaY);
+            
+            cardToPlaceIndex = -1;
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('active-to-place'));
+            arena.classList.remove('placing');
+        });
+
+        function handleCardPlacement(cardIndex, x, y) {
+            const card = playerHand[cardIndex];
+            
+            playerElixir -= card.cost;
+            playerHand.splice(cardIndex, 1); 
+            drawCard(); 
+            updateElixirUI();
+            
+            if (card.type === 'troop') {
+                createTroop('player', card, x, y); 
+            } else if (card.type === 'spell') {
+                // Simplified spell effect
+            }
+        }
+
+
+        // --- 6. TROOP & COMBAT LOGIC ---
+
+        function getInitialDestination(side, spawnX, spawnY) {
+            const isLeftLane = spawnX < (arena.offsetWidth / 2);
+            let lane = isLeftLane ? 'left' : 'right';
+            
+            // 1. Check if the primary lane's bridge is destroyed (Opponent's side only)
+            if (side === 'player' && BRIDGE_STATE[lane].isDestroyed) {
+                // If lane is destroyed, force switch to the opposite lane
+                lane = isLeftLane ? 'right' : 'left';
+            }
+            
+            // 2. Determine initial pathing target
+            const targetPT_ID = `${side === 'player' ? 'O' : 'P'}-${lane === 'left' ? 'L' : 'R'}`;
+            const waypointKey = `${side === 'player' ? 'P' : 'O'}-${lane.toUpperCase()}-WAYPOINT`;
+
+            const arenaHeight = arena.offsetHeight;
+            const riverCenterY = arenaHeight / 2;
+            const deployDistanceToRiver = Math.abs(spawnY - riverCenterY);
+
+            // If close to river, target tower directly; otherwise, path to waypoint first.
+            if (deployDistanceToRiver < 100) { 
+                 return TOWERS[targetPT_ID];
+            } else {
+                 return WAYPOINTS[waypointKey];
+            }
+        }
+
+        function createTroop(side, card, x, y) {
+            const troopElement = document.createElement('div');
+            troopElement.className = `troop ${side}-troop`;
+            troopElement.textContent = card.emoji;
+            
+            // Troops are placed relative to their center
+            troopElement.style.left = `${x - TROOP_SIZE_HALF}px`;
+            troopElement.style.top = `${y - TROOP_SIZE_HALF}px`;
+            
+            troopElement.innerHTML += '<div class="troop-health"><div class="troop-health-fill" style="width:100%"></div></div>';
+            
+            arena.appendChild(troopElement);
+
+            const initialDestination = getInitialDestination(side, x, y);
+
+            const newTroop = {
+                id: Math.random(),
+                side: side,
+                element: troopElement,
+                x: x, 
+                y: y, 
+                hp: card.hp,
+                maxHp: card.hp,
+                dmg: card.dmg,
+                range: card.range,
+                speed: TROOP_MOVEMENT_SPEED, 
+                target: null, 
+                currentDestination: initialDestination, 
+                isAttacking: false,
+                attackCooldown: 0,
+                attackSpeed: card.attackSpeed, 
+                isTower: false,
+            };
+            
+            activeTroops.push(newTroop);
+        }
+        
+        function checkBridgeHealth(towerId) {
+            let lane = null;
+            if (towerId === 'O-L') lane = 'left';
+            if (towerId === 'O-R') lane = 'right';
+
+            if (lane && !BRIDGE_STATE[lane].isDestroyed && TOWERS[towerId].hp <= 0) {
+                BRIDGE_STATE[lane].isDestroyed = true;
+                BRIDGE_STATE[lane].element.style.opacity = 0.2; // Visual destruction (faded)
+                BRIDGE_STATE[lane].element.style.backgroundColor = '#6e5e48'; // Color change
+            }
+        }
+
+
+        // --- 7. MAIN GAME LOOP (Movement/Combat logic) ---
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            activeTroops.forEach(troop => {
+                if (troop.hp <= 0) return; 
+
+                // 1. Target check (Highest Priority)
+                if (!troop.target || troop.target.hp <= 0) {
+                    troop.target = findClosestTarget(troop);
+                }
+
+                if (troop.target && troop.target.hp > 0) {
+                    const dx = troop.target.x - troop.x;
+                    const dy = troop.target.y - troop.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Attack or move towards TARGET
+                    if (distance <= troop.range) {
+                        troop.isAttacking = true;
+                        if (troop.attackCooldown <= 0) {
+                            if (troop.range > 50) { // Check if ranged unit
+                                createRangedAttackVisual(troop, troop.target);
+                            }
+                            troop.target.hp -= troop.dmg;
+                            troop.attackCooldown = troop.attackSpeed; 
+                            
+                            updateHealthBar(troop.target, troop.target.hp, troop.target.maxHp);
+                            showDamageText(troop.target, troop.dmg);
+                        }
+                    } else {
+                        // Move straight toward the enemy troop/tower target (overrides pathfinding)
+                        troop.isAttacking = false;
+                        const ratio = troop.speed / distance;
+                        troop.x += dx * ratio;
+                        troop.y += dy * ratio;
+                    }
+                } else {
+                    // 2. Pathfinding (Lower Priority - only if no enemy in range)
+                    
+                    let destination = troop.currentDestination;
+                    
+                    // Re-evaluate path if current path target is dead or if destination is a waypoint that has been reached
+                    const destinationReached = destination.lane && Math.sqrt((destination.x - troop.x)**2 + (destination.y - troop.y)**2) < 10;
+
+                    if (!destination || (destination.isTower && destination.hp <= 0) || destinationReached) {
+                        
+                        // Determine target lane based on the closest waypoint X (or current X)
+                        const isLeftLane = troop.x < (arena.offsetWidth / 2);
+                        let lane = isLeftLane ? 'left' : 'right';
+
+                        // Permanent Path Redirect: Check if the original lane's bridge is destroyed (Player only checks opponent side)
+                        if (troop.side === 'player' && BRIDGE_STATE[lane].isDestroyed) {
+                            lane = isLeftLane ? 'right' : 'left'; // Force opposite lane
+                        }
+                        
+                        // Determine next target: Princess Tower, or King Tower if PT is dead
+                        let targetPT_ID = `${troop.side === 'player' ? 'O' : 'P'}-${lane === 'left' ? 'L' : 'R'}`;
+                        
+                        if (TOWERS[targetPT_ID].hp <= 0) {
+                             // Princess Tower is down, move to King Tower
+                             destination = TOWERS[troop.side === 'player' ? 'O-K' : 'P-K'];
+                        } else {
+                             // Move toward the active Princess Tower
+                             destination = TOWERS[targetPT_ID];
+                        }
+                        troop.currentDestination = destination;
+                    }
+
+                    // Move toward the current path destination
+                    if (destination) {
+                        const dx = destination.x - troop.x;
+                        const dy = destination.y - troop.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance > 5) { 
+                            const ratio = troop.speed / distance;
+                            troop.x += dx * ratio;
+                            troop.y += dy * ratio;
+                        }
+                    }
+                }
+
+                if (troop.attackCooldown > 0) {
+                    troop.attackCooldown--;
+                }
+                troop.element.style.left = `${troop.x - TROOP_SIZE_HALF}px`;
+                troop.element.style.top = `${troop.y - TROOP_SIZE_HALF}px`;
+                updateHealthBar(troop, troop.hp, troop.maxHp);
+            });
+
+            // --- 7.2 Cleanup Dead Units/Towers & Check Win Condition ---
+            activeTroops = activeTroops.filter(troop => {
+                if (troop.hp <= 0) {
+                    troop.element.remove();
+                    return false;
+                }
+                return true;
+            });
+            
+            let playerKingDestroyed = false;
+            let opponentKingDestroyed = false;
+
+            Object.keys(TOWERS).forEach(id => {
+                 const tower = TOWERS[id];
+                 if (tower.hp <= 0) {
+                    if (id === 'O-K') opponentKingDestroyed = true;
+                    if (id === 'P-K') playerKingDestroyed = true;
+
+                    if (tower.element.textContent !== '💥') {
+                        tower.element.textContent = '💥';
+                        tower.element.style.opacity = '0.4';
+                        tower.element.querySelector('.health-bar').style.display = 'none';
+                        checkBridgeHealth(id); 
+                    }
+                    if (!tower.id.endsWith('-K')) {
+                        // Move destroyed princess towers off-map
+                        tower.x = -1000; 
+                        tower.y = -1000;
+                    }
+                 }
+            });
+
+            // --- 7.3 Win/Loss Condition Check ---
+            if (playerKingDestroyed) {
+                endGame('LOSS');
+            } else if (opponentKingDestroyed) {
+                endGame('WIN');
+            }
+        }
+        
+        function endGame(result) {
+            gameRunning = false;
+            gameOverOverlay.style.display = 'flex';
+            
+            if (result === 'WIN') {
+                gameOverMessage.textContent = "VICTORY!";
+                gameOverOverlay.classList.add('win');
+            } else {
+                gameOverMessage.textContent = "DEFEAT!";
+                gameOverOverlay.classList.add('loss');
+            }
+        }
+
+
+        // --- 8. INITIALIZATION ---
+
+        function initTowers() {
+            const arenaHeight = arena.offsetHeight;
+            
+            // Corrected Tower Layout (Princess Towers at Y=150/550, King Tower at Y=70/630)
+            const towerData = [
+                // Opponent Towers
+                { id: 'O-L', isKing: false, maxHp: 1000, x: 170, y: 150, sizeHalf: TOWER_SIZE_HALF, side: 'opponent' },
+                { id: 'O-R', isKing: false, maxHp: 1000, x: 430, y: 150, sizeHalf: TOWER_SIZE_HALF, side: 'opponent' },
+                { id: 'O-K', isKing: true, maxHp: 1500, x: 300, y: 70, sizeHalf: KING_TOWER_SIZE_HALF, side: 'opponent' },
+                
+                // Player Towers
+                { id: 'P-L', isKing: false, maxHp: 1000, x: 170, y: arenaHeight - 150, sizeHalf: TOWER_SIZE_HALF, side: 'player' },
+                { id: 'P-R', isKing: false, maxHp: 1000, x: 430, y: arenaHeight - 150, sizeHalf: TOWER_SIZE_HALF, side: 'player' },
+                { id: 'P-K', isKing: true, maxHp: 1500, x: 300, y: arenaHeight - 70, sizeHalf: KING_TOWER_SIZE_HALF, side: 'player' },
+            ];
+
+            towerData.forEach(data => {
+                const el = document.createElement('div');
+                el.className = data.isKing ? 'king-tower' : 'tower';
+                el.id = data.id;
+                el.innerHTML = `${data.isKing ? '👑' : '🏰'}<div class="health-bar"><div class="health-fill"></div></div>`;
+                
+                // Position relative to the center X,Y
+                el.style.left = `${data.x - data.sizeHalf}px`;
+                el.style.top = `${data.y - data.sizeHalf}px`;
+                
+                arena.appendChild(el);
+
+                const tower = {
+                    id: data.id,
+                    side: data.side,
+                    element: el,
+                    hp: data.maxHp,
+                    maxHp: data.maxHp,
+                    dmg: 0, 
+                    range: 0, 
+                    x: data.x, // Center X
+                    y: data.y, // Center Y
+                    isTower: true,
+                };
+                TOWERS[data.id] = tower;
+                updateHealthBar(tower, tower.hp, tower.maxHp);
+            });
+        }
+
+
+        function opponentAiLoop() {
+            if (!gameRunning) return;
+            
+            const troopCards = CARD_DEFINITIONS.filter(c => c.type === 'troop').sort((a,b) => a.cost - b.cost);
+            
+            let spawnX;
+            let targetLane;
+
+            // Simple AI decision: attack the weakest Princess Tower, or a random active lane
+            if (TOWERS['P-L'].hp > TOWERS['P-R'].hp && TOWERS['P-R'].hp > 0) {
+                targetLane = 'right'; 
+            } else if (TOWERS['P-L'].hp > 0) {
+                targetLane = 'left';
+            } else if (TOWERS['P-R'].hp > 0) {
+                 targetLane = 'right';
+            } else {
+                 // King Tower is the only target left, send to the lane with fewer friendly troops
+                 targetLane = activeTroops.filter(t => t.side === 'opponent' && t.x < 300).length < activeTroops.filter(t => t.side === 'opponent' && t.x >= 300).length ? 'left' : 'right';
+            }
+            
+            spawnX = (targetLane === 'left') ? 200 : 400;
+
+            const spawnY = arena.offsetHeight * 0.2; 
+
+            if (troopCards.length > 0) {
+                const cardToPlay = troopCards[0]; 
+
+                if (Math.random() > 0.2) { 
+                    createTroop('opponent', cardToPlay, spawnX, spawnY);
+                }
+            }
+        }
+
+        function elixirLoop() {
+            if (!gameRunning) return;
+            if (playerElixir < 10) {
+                playerElixir = Math.min(10, playerElixir + 1);
+                updateElixirUI();
+            }
+        }
+
+        let gameLoopInterval;
+        let elixirInterval;
+        let aiInterval;
+
+        function initGame() {
+            initTowers();
+            
+            for(let i = 0; i < HAND_SIZE; i++) {
+                drawCard();
+            }
+
+            gameLoopInterval = setInterval(gameLoop, GAME_TICK_RATE); 
+            elixirInterval = setInterval(elixirLoop, 1000);
+            aiInterval = setInterval(opponentAiLoop, 3000); 
+            
+            console.log("Clash Clone Initialized! All visual and pathing issues should be resolved.");
+        }
+
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
